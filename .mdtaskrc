@@ -1,0 +1,7 @@
+{
+  "path": "docs/specs",
+  "files": {
+    "include": ["**/*.md"],
+    "exclude": ["archive/**"]
+  }
+}
