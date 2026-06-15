@@ -32,16 +32,16 @@ The product idea is similar to OpenRouter Fusion: several models look at the sam
 - Inner agents and synthesis should preserve the requested output format when possible.
 - A separate synthesis call combines the inner agent outputs into one answer.
 - User-facing output is only the final answer text.
-- Build an unsafe spike first to get a working result quickly.
-- The unsafe spike uses three inner agents.
+- Build an unsafe POC first to get a working result quickly.
+- The unsafe POC uses three inner agents.
 - A fusion result requires complete technical success across the three panel agents and synthesis.
 - The project config lives at `<project>/.pi/fusion-agents.json`.
 - The project config stores full provider/model IDs, for example `anthropic/claude-sonnet-4-5`.
-- The first spike config lists exactly three panel model IDs and one synthesis model ID.
-- `fusion_agents` starts when a valid spike config is present.
-- Model selection for the first spike is the model list in the project config.
-- The first spike targets research/answer tasks.
-- Write and bash are available in the spike as full local capabilities.
+- The first POC config lists exactly three panel model IDs and one synthesis model ID.
+- `fusion_agents` starts when a valid POC config is present.
+- Model selection for the first POC is the model list in the project config.
+- The first POC targets research/answer tasks.
+- Write and bash are available in the POC as full local capabilities.
 - Bash counts as full write capability and can modify or break the project/environment.
 - The first concept check runs in the current trusted project environment.
 - Build secure mode after that.
@@ -52,23 +52,23 @@ The product idea is similar to OpenRouter Fusion: several models look at the sam
 - Writes in secure mode go only to scratch under `.pi/fusion-agents/<run-id>/<sub-id>/...`.
 - DeepSWE can be tried as a coding/SWE model.
 
-## Unsafe spike
+## Unsafe POC
 
 Goal: quickly prove that `fusion_agents` works.
 
-The spike runs three inner agents on the exact same task and output instructions. When the three panel runs complete, a separate synthesis call returns one final answer.
+The POC runs three inner agents on the exact same task and output instructions. When the three panel runs complete, a separate synthesis call returns one final answer.
 
 The input can include output instructions, for example `Return code review findings as P0/P1/P2/P3`.
 
-For the spike, inner agents can receive local coding tools: read/list/search, bash, and edit/write.
+For the POC, inner agents can receive local coding tools: read/list/search, bash, and edit/write.
 
 This is a trusted local experiment. Production safety comes later in secure mode. Bash is treated as full write access, because shell commands, pipes, redirects, and local CLIs can modify or break the project/environment.
 
-Network access, if needed during the spike, goes through bash or local CLIs.
+Network access, if needed during the POC, goes through bash or local CLIs.
 
 ## Secure mode later
 
-After the working spike, move from full local tools to custom tools:
+After the working POC, move from full local tools to custom tools:
 
 ```text
 fusion_sub_read
@@ -96,13 +96,13 @@ finish
 
 DeepSWE details stay outside this draft until a dedicated DeepSWE check.
 
-## After the first working spike
+## After the first working POC
 
-After the first working spike, decide these deferred items: config shape beyond model IDs, adapter shape for local tools, evaluation and debug details, network implications, auto-invocation, and DeepSWE adapter details.
+After the first working POC, decide these deferred items: config shape beyond model IDs, adapter shape for local tools, evaluation and debug details, network implications, auto-invocation, and DeepSWE adapter details.
 
 ## Near-term direction
 
-1. Build a minimal unsafe spike for `fusion_agents`.
+1. Build a minimal unsafe POC for `fusion_agents`.
 2. Run three inner agents on one question about the current project.
 3. Give them available local tools.
 4. Use a separate synthesis call to return one final answer text.
