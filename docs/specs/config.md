@@ -22,7 +22,7 @@ Exactly 3 `panel` model IDs + 1 `synth` model ID, full provider/model form. A mi
   - `fusion_agents` execute gates on it — invalid config makes the tool error out (throws), it doesn't fabricate an answer.
   - Tests: real `.pi/fusion-agents.json` files in temp dirs (valid, missing, 2/4 panels, missing synth, malformed) — no mocks. typecheck + tests green.
 
-- [ ] CFG-014 Set thinking level per stage in the config
+- [ ] CFG-014 Set thinking level per stage in the config		!high
   Thinking level is hardcoded "xhigh" for every inner agent; synth doesn't need max
   and wastes cost/time on it.
 
