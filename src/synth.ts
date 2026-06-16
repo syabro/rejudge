@@ -19,8 +19,10 @@ export type PanelOutput = Pick<PanelAgentResult, "modelId" | "text">;
  * told to emit ONLY the single final answer (no preamble, no mention of the
  * panel, no per-candidate commentary) so nothing but the answer is surfaced.
  *
- * Threading output instructions as a distinct field end-to-end from the tool
- * boundary is TOO-002's job; here they ride along inside the original task text.
+ * Output instructions are not a separate field here: the tool composes the
+ * caller's question + output instructions into this prompt at the boundary
+ * (TOO-002), so they ride along inside the original task text and the
+ * synthesizer obeys them as part of the task.
  */
 export function buildSynthesisPrompt(prompt: string, panel: PanelOutput[]): string {
   const candidates = panel

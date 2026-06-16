@@ -2,9 +2,9 @@
 
 ## fusion_agents
 
-The extension registers one external tool, `fusion_agents`. Call it explicitly with a `question` (a question or instruction); it returns a single final answer, text only. The package loads as a Pi extension via the `pi.extensions` manifest (entry `src/index.ts`).
+The extension registers one external tool, `fusion_agents`. Call it explicitly with a `question` (a question or instruction) and, optionally, `outputInstructions` describing the desired output format (e.g. a requested structure or P0/P1/P2/P3 buckets). It runs the question across the configured panel, fuses the answers via synthesis, and returns a single final answer, text only.
 
-POC status: the tool is wired and reachable; the panel fan-out and synthesis that produce the fused answer arrive in the CFG/PNL/SYN tasks — for now the handler echoes the question.
+The output instructions are carried end-to-end: they are composed into the prompt every panel agent receives and the synthesis is told to honor the task's format, so the returned answer respects the requested format. A missing/invalid config or a technical failure of the panel/synthesis surfaces as a tool error — never a fabricated answer. The package loads as a Pi extension via the `pi.extensions` manifest (entry `src/index.ts`).
 
 # Tasks
 
@@ -18,10 +18,16 @@ POC status: the tool is wired and reachable; the panel fan-out and synthesis tha
   - Placeholder handler echoes the question; panel fan-out + synthesis deferred to CFG/PNL/SYN.
   - Smoke test (no mocks): loads the extension through Pi's real loader (`discoverAndLoadExtensions`) and asserts `fusion_agents` registers on load; confirmed it fails when the extension throws on load. typecheck green.
 
-- [ ] TOO-002 fusion_agents invocation contract		#poc @blocked_by:PRJ-012
+- [x] TOO-002 fusion_agents invocation contract		#poc @blocked_by:PRJ-012
   Callers pass a question/instruction, optionally with output instructions (e.g. P0/P1/P2/P3 buckets or a requested structure — an example, not a fixed scheme).
   Constraint: the requested output format is carried end-to-end — both inner agents and synthesis are told to honor it.
   Acceptance: a call carrying output instructions reaches the panel agents and synthesis intact; the returned answer respects the requested format.
+
+  **Implemented:**
+  - `fusion_agents` now takes `question` + optional `outputInstructions`; the handler composes them (`buildInvocationPrompt` in `src/index.ts`) and runs the real `fuse()` (panel fan-out + synthesis), returning only the fused answer text.
+  - Output instructions are carried end-to-end by living in the single fanned-out prompt: every panel agent receives them verbatim and synthesis is told to obey the task's format, so the returned answer respects the requested format.
+  - A technical failure of the panel or synthesis (or a missing/invalid config) surfaces as a tool error, never a fabricated answer.
+  - Smoke test (`test/tool.test.ts`, no mocks): loads the extension through Pi's real loader, invokes the registered tool with output instructions on real stub models, and asserts the returned answer applies the requested format and preserves the fused content; plus a deterministic `buildInvocationPrompt` unit test.
 
 - [ ] TOO-003 Full local tools for inner agents		#poc @blocked_by:PRJ-012
   In the POC, inner agents get full local capabilities in the trusted environment.
