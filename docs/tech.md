@@ -17,3 +17,8 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 - Tests: Vitest.
 - Package: source in `src/`, entry `src/index.ts` in package.json `pi.extensions`.
 - Provider: `OPENCODE_GO` (not `opencode`).
+
+## Models (provider `opencode-go`)
+- Panel (3): `opencode-go/deepseek-v4-pro`, `opencode-go/mimo-v2.5-pro`, `opencode-go/minimax-m3`.
+- Synth: `opencode-go/glm-5.1`.
+- Stub/smoke runs (speed only, content irrelevant): `opencode-go/kimi-k2.6` — fastest reliable (~1.0s median, 10/10 on a 10-ping benchmark).
