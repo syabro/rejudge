@@ -1,7 +1,5 @@
 # pi-fusion-agents
 
-Use **bun** only for dependency management and running tests. bun is a dev tool, not a runtime dependency — never use Bun's own APIs (`bun:*` imports, `Bun.*`) in the code; it must run anywhere (npm + plain Node) after build.
-
 **Always read @justfile at the start of every session.** It defines project commands — use `just` instead of raw bun/npm for build, test, release, etc.
 
 ## Release publishing
@@ -12,9 +10,9 @@ Do not run npm publish yourself. The user must run the publish step manually bec
 
 Use `@` prefix for file paths in skill prompts (e.g., `@README.md`). This is Claude Code file inclusion syntax.
 
-## Model provider
+## Technical decisions
 
-This environment's pi model provider is `OPENCODE_GO`, not `opencode`. Use the `OPENCODE_GO` provider for model IDs and credentials (e.g. in `.pi/fusion-agents.json` and API-key resolution).
+How the project is built — tooling, architecture, testing approach, and any technical decision that isn't behavior. Read and keep current: @docs/tech.md
 
 ---
 

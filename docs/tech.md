@@ -1,0 +1,19 @@
+# Technical decisions
+
+How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech decisions here. Auto-loaded into AGENTS.md.
+
+## Testing
+- Only necessary tests — don't smother trivial/scaffolding code; cover real logic and the end-to-end run, nothing more.
+- Smoke tests only — real runs, no mocks/stubs of models, Pi, or the agent runner. No smoke test = no guarantee.
+- Config: tested with real config files (real input → accept/reject).
+- A working model is required to test anything past config.
+
+## Agents
+- Native `@earendil-works/pi-coding-agent` SDK (`createAgentSession`), in-process. Not `pi -p`, not third-party (pi-subagents, oh-my-pi).
+- Keep panel sessions alive past synthesis (for later judge re-query).
+
+## Runtime & layout
+- bun = dev only (deps + tests). No Bun APIs (`bun:*`, `Bun.*`) in code; runs on npm + plain Node.
+- Tests: Vitest.
+- Package: source in `src/`, entry `src/index.ts` in package.json `pi.extensions`.
+- Provider: `OPENCODE_GO` (not `opencode`).
