@@ -29,6 +29,21 @@ tool-use path) — and collects one finished result per model.
 - Failure is loud, never a silent partial panel: if any agent fails, the agents that did
   finish are disposed and the error is surfaced (no 2-of-3 result).
 
+## Fusion (all-or-nothing)
+
+`fuse(config, prompt, { cwd? })` runs the whole flow — panel fan-out then one synthesis
+call — and returns a binary result:
+
+- `{ ok: true, answer }` only when all three panels **and** synthesis complete without a
+  technical (model/tool/runtime) error. `answer` is the single final text; intermediate
+  panel outputs are never surfaced.
+- `{ ok: false }` (no answer text) on any technical failure. There is no partial path:
+  synthesis is never attempted on an incomplete panel, and there is no 2-of-3 result.
+
+"Success" means technical completion, not answer quality, and which stage failed is not
+reported (kept binary). The synthesis step is minimal here; SYN-010 owns the real
+synthesis (output-instruction threading, format preservation).
+
 # Tasks
 
 - [x] PNL-006 Inner-agent runner on a single model		#poc @blocked_by:PRJ-012
@@ -52,10 +67,17 @@ tool-use path) — and collects one finished result per model.
   - Loud failure, no silent partial panel: if any agent fails, the agents that did finish are disposed and the first error is surfaced (the binary fusion-result contract stays for PNL-008).
   - Smoke test (`test/panel.test.ts`, no mocks): a real run fans out to three `opencode-go/kimi-k2.6` agents and collects three independent outputs with three distinct sessions; a bad model id makes the panel reject instead of returning a partial.
 
-- [ ] PNL-008 All-or-nothing fusion success		#poc @blocked_by:PRJ-012
+- [x] PNL-008 All-or-nothing fusion success		#poc @blocked_by:PRJ-012
   A fusion result requires complete technical success across all three panels and synthesis.
   Constraints: success = technical completion (no model/tool/runtime error), not answer quality; no partial/degraded path (no 2-of-3, no synthesis-on-partial); failure-reporting detail (which stage failed) is deferred — keep it binary.
   Acceptance: a final answer is returned only when all three panels and synthesis complete without technical error; any technical failure yields a failure result and no final answer text.
+
+  **Implemented:**
+  - `src/fusion.ts` `fuse(config, prompt, { cwd? })` orchestrates panel fan-out + a synthesis call and returns a binary `FusionResult` (`{ ok: true, answer } | { ok: false }`).
+  - A final answer is returned only when all three panels and synthesis complete technically; any failure (panel or synthesis) yields `{ ok: false }` with no answer text.
+  - No partial/degraded path: runPanel's all-or-nothing means synthesis never runs on a partial panel; all sessions are disposed before returning (no leak). Failure detail (which stage) is deliberately omitted — binary only.
+  - The synthesis step is a real but minimal call on the configured synth model; the real synthesis (format preservation, output-instruction threading) stays for SYN-010.
+  - Smoke test (`test/fusion.test.ts`, no mocks): a real run with all four agents succeeding returns one answer; a panel failure and a synthesis failure each return `{ ok: false }` with no answer.
 
 - [ ] PNL-009 End-to-end demo on one project question		#poc @blocked_by:PRJ-012
   Prove the POC: run the three inner agents on one real research/answer question about the current project, synthesis returns one final answer.
