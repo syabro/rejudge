@@ -1,0 +1,21 @@
+{
+  "name": "pi-fusion-agents",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@earendil-works/pi-coding-agent": "^0.79.0"
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  }
+}
