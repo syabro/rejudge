@@ -1,8 +1,8 @@
 # pi-fusion-agents
 
-Use **pnpm** for package operations.
+Use **bun** only for dependency management and running tests. bun is a dev tool, not a runtime dependency — never use Bun's own APIs (`bun:*` imports, `Bun.*`) in the code; it must run anywhere (npm + plain Node) after build.
 
-**Always read @justfile at the start of every session.** It defines project commands — use `just` instead of raw pnpm/npm for build, test, release, etc.
+**Always read @justfile at the start of every session.** It defines project commands — use `just` instead of raw bun/npm for build, test, release, etc.
 
 ## Release publishing
 
