@@ -41,8 +41,8 @@ call — and returns a binary result:
   synthesis is never attempted on an incomplete panel, and there is no 2-of-3 result.
 
 "Success" means technical completion, not answer quality, and which stage failed is not
-reported (kept binary). The synthesis step is minimal here; SYN-010 owns the real
-synthesis (output-instruction threading, format preservation).
+reported (kept binary). The synthesis stage itself (output-instruction threading, format
+preservation) is described under Synthesis in `synth.md`.
 
 # Tasks
 

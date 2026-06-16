@@ -1,10 +1,7 @@
 import type { FusionConfig } from "./config.ts";
 import { runPanel } from "./panel.ts";
-import {
-  runPanelAgent,
-  type PanelAgentResult,
-  type RunPanelAgentOptions,
-} from "./runner.ts";
+import { synthesize } from "./synth.ts";
+import type { PanelAgentResult, RunPanelAgentOptions } from "./runner.ts";
 
 /**
  * Binary fusion outcome. Success carries the single final answer; failure carries
@@ -12,26 +9,6 @@ import {
  * no partial/degraded path: a 2-of-3 panel or synthesis-on-partial never happens.
  */
 export type FusionResult = { ok: true; answer: string } | { ok: false };
-
-/**
- * Deliberately minimal synthesis prompt: just enough to combine the panel outputs
- * into one answer so the all-or-nothing contract can run end to end. This is the
- * seam SYN-010 replaces with the real synthesis (threading the original output
- * instructions, preserving the requested format, surfacing only final text).
- */
-function buildSynthesisPrompt(prompt: string, panel: PanelAgentResult[]): string {
-  const answers = panel.map((p, i) => `### Answer ${i + 1}\n${p.text}`).join("\n\n");
-  return [
-    "You are given several independent answers to the same question.",
-    "Combine them into a single best final answer.",
-    "",
-    "## Question",
-    prompt,
-    "",
-    "## Answers",
-    answers,
-  ].join("\n");
-}
 
 /**
  * Run the full fusion — panel fan-out, then one synthesis call — all-or-nothing.
@@ -57,9 +34,9 @@ export async function fuse(
   }
 
   try {
-    const synth = await runPanelAgent(config.synth, buildSynthesisPrompt(prompt, panel), options);
-    const answer = synth.text;
-    synth.session.dispose();
+    // synthesize owns its synth session; it only reads the panel outputs (text),
+    // never the panel sessions.
+    const answer = await synthesize(config.synth, prompt, panel, options);
     return { ok: true, answer };
   } catch {
     return { ok: false };
