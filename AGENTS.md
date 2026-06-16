@@ -12,6 +12,10 @@ Do not run npm publish yourself. The user must run the publish step manually bec
 
 Use `@` prefix for file paths in skill prompts (e.g., `@README.md`). This is Claude Code file inclusion syntax.
 
+## Model provider
+
+This environment's pi model provider is `OPENCODE_GO`, not `opencode`. Use the `OPENCODE_GO` provider for model IDs and credentials (e.g. in `.pi/fusion-agents.json` and API-key resolution).
+
 ---
 
 `CLAUDE.md` is `ln -s AGENTS.md` — Claude Code only reads `CLAUDE.md`, not `AGENTS.md`.
