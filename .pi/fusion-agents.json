@@ -1,0 +1,8 @@
+{
+  "panel": [
+    "opencode-go/deepseek-v4-pro",
+    "opencode-go/mimo-v2.5-pro",
+    "opencode-go/minimax-m3"
+  ],
+  "synth": "opencode-go/glm-5.1"
+}

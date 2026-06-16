@@ -44,6 +44,20 @@ call — and returns a binary result:
 reported (kept binary). The synthesis stage itself (output-instruction threading, format
 preservation) is described under Synthesis in `synth.md`.
 
+## Demo
+
+A reproducible end-to-end demo runs the real panel + synthesis on one research question
+about this project. The config lives in `.pi/fusion-agents.json` (panel:
+`deepseek-v4-pro`, `mimo-v2.5-pro`, `minimax-m3`; synth: `glm-5.1`, all on `opencode-go`).
+Run it from the repo root:
+
+    bun scripts/demo.ts
+
+The three panel agents read the repo (full local tools) to answer the question, synthesis
+fuses their answers, and the single final answer is printed to stdout (progress to stderr).
+A successful run needs all three panels and synthesis to complete; any technical failure
+prints a failure and exits non-zero — never a partial answer.
+
 # Tasks
 
 - [x] PNL-006 Inner-agent runner on a single model		#poc @blocked_by:PRJ-012
@@ -79,7 +93,12 @@ preservation) is described under Synthesis in `synth.md`.
   - The synthesis step is a real but minimal call on the configured synth model; the real synthesis (format preservation, output-instruction threading) stays for SYN-010.
   - Smoke test (`test/fusion.test.ts`, no mocks): a real run with all four agents succeeding returns one answer; a panel failure and a synthesis failure each return `{ ok: false }` with no answer.
 
-- [ ] PNL-009 End-to-end demo on one project question		#poc @blocked_by:PRJ-012
+- [x] PNL-009 End-to-end demo on one project question		#poc @blocked_by:PRJ-012
   Prove the POC: run the three inner agents on one real research/answer question about the current project, synthesis returns one final answer.
   Constraints: research/answer task (not full SWE); uses the config's 3 panel + 1 synthesis models; runs in the current trusted environment; reproducible from documented config + invocation.
   Acceptance: a documented demo returns one coherent fused answer with all three panels and synthesis succeeding. This run is the trigger for the DeepSWE adaptation.
+
+  **Implemented:**
+  - `scripts/demo.ts` + committed `.pi/fusion-agents.json` run the real 3-panel (`deepseek-v4-pro`, `mimo-v2.5-pro`, `minimax-m3`) + synthesis (`glm-5.1`) fusion on a research question about this project; the panel agents read the repo to answer.
+  - A real run completed with all three panels and synthesis succeeding and returned one coherent fused answer that correctly describes the extension and its two all-or-nothing gates — the POC proof.
+  - Reproducible from the committed config + `bun scripts/demo.ts` (no mocks). This run is the trigger for the DeepSWE adaptation (TOO-004).
