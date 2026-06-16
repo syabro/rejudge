@@ -28,3 +28,7 @@ Exactly 3 `panel` model IDs + 1 `synth` model ID, full provider/model form. A mi
 
   Let .pi/fusion-agents.json set it per stage (e.g. panel "xhigh", synth "medium"),
   with a default when unset.
+
+- [ ] CFG-018 Allow panel sizes other than exactly 3		!low
+  Config hardcodes panel.length === 3, though runPanel is generic. Accept a range
+  (e.g. >= 2) so panel size isn't frozen in code.

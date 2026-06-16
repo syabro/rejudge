@@ -112,3 +112,13 @@ prints a failure and exits non-zero — never a partial answer.
   stream gives progress and shows where the time goes.
 
   Open, decide later: how much to log, where to send it, live vs dump at the end.
+
+- [ ] PNL-016 Forward the cancel signal through fusion		!high
+  The tool receives an AbortSignal but drops it — fuse/runPanel/runPanelAgent don't
+  take one. Cancelling a call leaves every agent running and burning credits.
+  Thread the signal end-to-end so cancel actually stops the in-flight agents.
+
+- [ ] PNL-017 Report which stage and model failed on a fusion failure
+  Fusion returns a bare {ok:false}; on failure you can't tell which panel/synth model
+  broke or why. Surface the failing stage, model, and error (relaxing the binary
+  result) so failures are debuggable.

@@ -38,3 +38,8 @@ The output instructions are carried end-to-end: they are composed into the promp
   Adapt the working POC to run DeepSWE as a panel model; DeepSWE expects its own tool surface, not the standard local tools.
   Constraints: tool surface = file_editor / execute_bash / search / finish; adapter details decided here (deferred until the POC works).
   Acceptance: a panel agent backed by a DeepSWE model ID runs through the adapter and returns an output usable by synthesis.
+
+- [ ] TOO-019 Guard the outputInstructions trust boundary		!low
+  outputInstructions is pasted into the panel/synth prompts verbatim, and candidate
+  answers are "guarded" by a single English sentence — a caller can inject
+  instructions. For the trusted POC, document the trust boundary; harden when wider.
