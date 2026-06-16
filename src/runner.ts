@@ -4,7 +4,7 @@ import {
   ModelRegistry,
   type AgentSession,
 } from "@earendil-works/pi-coding-agent";
-import type { Model } from "@earendil-works/pi-ai";
+import type { Model, ThinkingLevel } from "@earendil-works/pi-ai";
 
 /**
  * The hand-picked tool set every panel agent runs with: full local
@@ -26,6 +26,8 @@ export interface PanelAgentResult {
 export interface RunPanelAgentOptions {
   /** Working directory the agent's tools operate in. Default: process.cwd(). */
   cwd?: string;
+  /** Reasoning level for this agent. Default: "xhigh". */
+  thinkingLevel?: ThinkingLevel;
 }
 
 /**
@@ -62,9 +64,10 @@ export async function runPanelAgent(
     model,
     cwd: options.cwd ?? process.cwd(),
     tools: [...PANEL_TOOLS],
-    // Panel and synth agents reason at the maximum thinking level — Pi maps
-    // "xhigh" to each model's top reasoning setting.
-    thinkingLevel: "xhigh",
+    // Reasoning level comes from the caller (fuse threads it per stage from the
+    // config); default "xhigh" for direct callers that don't set one. Pi clamps
+    // the level to what each model actually supports.
+    thinkingLevel: options.thinkingLevel ?? "xhigh",
   });
   try {
     await session.prompt(prompt);

@@ -1,10 +1,36 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { ThinkingLevel } from "@earendil-works/pi-ai";
+
+/** The thinking levels Pi accepts (lowercase only; "off" is not one of them). */
+const VALID_THINKING_LEVELS: readonly ThinkingLevel[] = [
+  "minimal",
+  "low",
+  "medium",
+  "high",
+  "xhigh",
+];
+
+/**
+ * Default thinking level per stage when the config omits it. Panel agents do the
+ * real work and stay at max; synthesis only fuses, so it defaults lower to save
+ * cost/time. Omitting `thinking` therefore lowers synth from the old hardcoded
+ * "xhigh" — a deliberate behavior change.
+ */
+const DEFAULT_THINKING: ThinkingConfig = { panel: "xhigh", synth: "medium" };
+
+/** Thinking level per fusion stage. */
+export interface ThinkingConfig {
+  panel: ThinkingLevel;
+  synth: ThinkingLevel;
+}
 
 /** Spike config: exactly 3 panel model IDs + 1 synthesis model ID. */
 export interface FusionConfig {
   panel: string[];
   synth: string;
+  /** Thinking level per stage; always populated (defaults applied at load). */
+  thinking: ThinkingConfig;
 }
 
 export function configPath(cwd: string): string {
@@ -47,5 +73,37 @@ export function loadFusionConfig(cwd: string): FusionConfig {
     throw new Error(`config "synth" must be a non-empty model ID`);
   }
 
-  return { panel: panel as string[], synth };
+  return { panel: panel as string[], synth, thinking: parseThinking(cfg.thinking) };
+}
+
+/**
+ * Resolve the optional `thinking` block to a fully-populated {@link ThinkingConfig}.
+ *
+ * The whole block may be omitted or `null` → both stages default. A present block must
+ * be an object; each sub-field may be omitted (→ that stage defaults). But once a
+ * sub-field is present it must be a valid lowercase {@link ThinkingLevel}: a non-object
+ * block, or a sub-field that is `null`, a number, wrong-case, or `"off"`, is a config
+ * error and throws (only an absent key falls back — `null` does not). Consistent with
+ * the rest of config validation.
+ */
+function parseThinking(value: unknown): ThinkingConfig {
+  if (value === undefined || value === null) return { ...DEFAULT_THINKING };
+  if (typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`config "thinking" must be an object with optional "panel"/"synth" levels`);
+  }
+  const obj = value as Record<string, unknown>;
+  return {
+    panel: parseThinkingLevel(obj.panel, "panel", DEFAULT_THINKING.panel),
+    synth: parseThinkingLevel(obj.synth, "synth", DEFAULT_THINKING.synth),
+  };
+}
+
+function parseThinkingLevel(value: unknown, field: string, fallback: ThinkingLevel): ThinkingLevel {
+  if (value === undefined) return fallback;
+  if (typeof value === "string" && (VALID_THINKING_LEVELS as readonly string[]).includes(value)) {
+    return value as ThinkingLevel;
+  }
+  throw new Error(
+    `config "thinking.${field}" must be one of: ${VALID_THINKING_LEVELS.join(", ")} (got: ${JSON.stringify(value)})`,
+  );
 }

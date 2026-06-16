@@ -5,10 +5,16 @@
 `fusion_agents` reads its config from `<project>/.pi/fusion-agents.json` and refuses to run without a valid one:
 
 ```json
-{ "panel": ["provider/model-a", "provider/model-b", "provider/model-c"], "synth": "provider/model-d" }
+{
+  "panel": ["provider/model-a", "provider/model-b", "provider/model-c"],
+  "synth": "provider/model-d",
+  "thinking": { "panel": "xhigh", "synth": "medium" }
+}
 ```
 
 Exactly 3 `panel` model IDs + 1 `synth` model ID, full provider/model form. A missing file, malformed JSON, wrong panel count, or missing `synth` makes the tool error out with a clear message.
+
+`thinking` is optional and sets the reasoning level per stage. Valid levels: `minimal`, `low`, `medium`, `high`, `xhigh`. Each sub-field may be omitted; the whole block may be omitted. Defaults when unset: panel `xhigh`, synth `medium` — panel agents do the real work and stay at max, synthesis only fuses so it runs lower to save cost/time. (The values shown above match those defaults.) Note: omitting `thinking` lowers synth from the old hardcoded `xhigh` — a deliberate behavior change. A present-but-invalid value (a non-object block, or a level outside the list — levels are lowercase and `off` is not one) is a config error and makes the tool refuse to start.
 
 # Tasks
 
@@ -22,12 +28,18 @@ Exactly 3 `panel` model IDs + 1 `synth` model ID, full provider/model form. A mi
   - `fusion_agents` execute gates on it — invalid config makes the tool error out (throws), it doesn't fabricate an answer.
   - Tests: real `.pi/fusion-agents.json` files in temp dirs (valid, missing, 2/4 panels, missing synth, malformed) — no mocks. typecheck + tests green.
 
-- [ ] CFG-014 Set thinking level per stage in the config		!high
+- [x] CFG-014 Set thinking level per stage in the config		!high
   Thinking level is hardcoded "xhigh" for every inner agent; synth doesn't need max
   and wastes cost/time on it.
 
   Let .pi/fusion-agents.json set it per stage (e.g. panel "xhigh", synth "medium"),
   with a default when unset.
+
+  **Implemented:**
+  - `.pi/fusion-agents.json` takes an optional `thinking: { panel, synth }` block; `loadFusionConfig` resolves it to a fully-populated `FusionConfig.thinking`, defaulting panel `xhigh` / synth `medium` when omitted.
+  - `fuse` threads the per-stage level: panel agents run at `thinking.panel`, synthesis at `thinking.synth` (config wins over any caller-supplied level). `runPanelAgent` gained an optional `thinkingLevel`, defaulting `xhigh` for direct callers.
+  - Validation rejects a non-object `thinking` and any present-but-invalid level (case-sensitive list; `off` excluded); a missing block or sub-field falls back to the default. Omitting `thinking` lowers synth from the old hardcoded `xhigh` — a deliberate behavior change.
+  - Tests (`test/config.test.ts`, pure): defaults, per-stage values, partial block, `null`, invalid level, non-object block; existing `fuse` smoke tests updated for the new field.
 
 - [ ] CFG-018 Allow panel sizes other than exactly 3		!low
   Config hardcodes panel.length === 3, though runPanel is generic. Accept a range

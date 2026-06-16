@@ -27,16 +27,23 @@ export async function fuse(
   try {
     // runPanel is itself all-or-nothing: it throws (and cleans up its own
     // sessions) unless every panel agent completes — so we never synthesize on a
-    // partial panel.
-    panel = await runPanel(config.panel, prompt, options);
+    // partial panel. The config's per-stage thinking level wins over anything a
+    // caller passed in `options` (it's spread first, then overridden).
+    panel = await runPanel(config.panel, prompt, {
+      ...options,
+      thinkingLevel: config.thinking.panel,
+    });
   } catch {
     return { ok: false };
   }
 
   try {
     // synthesize owns its synth session; it only reads the panel outputs (text),
-    // never the panel sessions.
-    const answer = await synthesize(config.synth, prompt, panel, options);
+    // never the panel sessions. Synthesis runs at its own configured level.
+    const answer = await synthesize(config.synth, prompt, panel, {
+      ...options,
+      thinkingLevel: config.thinking.synth,
+    });
     return { ok: true, answer };
   } catch {
     return { ok: false };
