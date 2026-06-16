@@ -4,13 +4,14 @@
   "type": "module",
   "devDependencies": {
     "@types/node": "^25.9.2",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.79.0"
   },
   "scripts": {
-    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "pi": {
