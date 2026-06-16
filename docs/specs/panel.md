@@ -102,3 +102,13 @@ prints a failure and exits non-zero — never a partial answer.
   - `scripts/demo.ts` + committed `.pi/fusion-agents.json` run the real 3-panel (`deepseek-v4-pro`, `mimo-v2.5-pro`, `minimax-m3`) + synthesis (`glm-5.1`) fusion on a research question about this project; the panel agents read the repo to answer.
   - A real run completed with all three panels and synthesis succeeding and returned one coherent fused answer that correctly describes the extension and its two all-or-nothing gates — the POC proof.
   - Reproducible from the committed config + `bun scripts/demo.ts` (no mocks). This run is the trigger for the DeepSWE adaptation (TOO-004).
+
+- [ ] PNL-013 See what inner agents are doing + catch hangs		#user-required
+  Right now we start a panel/synth agent and just wait — nothing prints until it
+  finishes. We can't tell if it's working or stuck, or which agent is slow.
+
+  Idea: listen to each agent's live events. If one goes silent for T seconds, treat
+  it as hung and fail loudly ("agent X stuck") instead of waiting forever. The same
+  stream gives progress and shows where the time goes.
+
+  Open, decide later: how much to log, where to send it, live vs dump at the end.
