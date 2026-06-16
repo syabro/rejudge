@@ -16,6 +16,19 @@ returns its finished answer text.
 - On success the agent's session is returned alive; the caller disposes it (kept open so a
   later synthesis/judge step can re-query the same agent).
 
+## Panel fan-out
+
+`runPanel(models, prompt, { cwd? })` runs the whole panel: it dispatches the byte-identical
+prompt to every model concurrently — each as its own independent agent (own session, own
+tool-use path) — and collects one finished result per model.
+
+- Every agent receives the exact same `prompt`; diversity comes only from the model and the
+  path it takes, never from the input.
+- Returns one result per model in input order, each with its session left alive for a later
+  synthesis/judge step (the caller disposes them).
+- Failure is loud, never a silent partial panel: if any agent fails, the agents that did
+  finish are disposed and the error is surfaced (no 2-of-3 result).
+
 # Tasks
 
 - [x] PNL-006 Inner-agent runner on a single model		#poc @blocked_by:PRJ-012
@@ -28,10 +41,16 @@ returns its finished answer text.
   - Failure is loud: an incomplete run (any stop reason other than `stop`), runtime/model error, or empty output throws — no silent partial result. Session left alive on success for a later judge re-query.
   - Smoke test (`test/runner.test.ts`, no mocks): real end-to-end run on `opencode-go/kimi-k2.6` returns finished text; `resolveModel` rejects malformed/unknown ids.
 
-- [ ] PNL-007 Fan out the identical task to three panel agents		#poc @blocked_by:PRJ-012
+- [x] PNL-007 Fan out the identical task to three panel agents		#poc @blocked_by:PRJ-012
   Three inner agents run on the exact same task + output instructions; diversity comes only from different models/tool-use trajectories.
   Constraints: all three receive byte-identical input; each runs on its configured panel model ID.
   Acceptance: one invocation dispatches all three on the three models and collects three independent outputs.
+
+  **Implemented:**
+  - `src/panel.ts` `runPanel(models, prompt, { cwd? })` dispatches the byte-identical prompt to every model concurrently via `runPanelAgent` and collects one result per model in input order.
+  - Each model runs as an independent agent (own session, own tool-use path); on success every session is returned alive for a later synthesis/judge re-query.
+  - Loud failure, no silent partial panel: if any agent fails, the agents that did finish are disposed and the first error is surfaced (the binary fusion-result contract stays for PNL-008).
+  - Smoke test (`test/panel.test.ts`, no mocks): a real run fans out to three `opencode-go/kimi-k2.6` agents and collects three independent outputs with three distinct sessions; a bad model id makes the panel reject instead of returning a partial.
 
 - [ ] PNL-008 All-or-nothing fusion success		#poc @blocked_by:PRJ-012
   A fusion result requires complete technical success across all three panels and synthesis.
