@@ -21,3 +21,10 @@ Exactly 3 `panel` model IDs + 1 `synth` model ID, full provider/model form. A mi
   - `src/config.ts` `loadFusionConfig(cwd)` reads `<cwd>/.pi/fusion-agents.json`, validates exactly 3 `panel` IDs + 1 `synth` ID, returns them; throws a clear error on missing file / malformed JSON / wrong panel count / missing synth.
   - `fusion_agents` execute gates on it — invalid config makes the tool error out (throws), it doesn't fabricate an answer.
   - Tests: real `.pi/fusion-agents.json` files in temp dirs (valid, missing, 2/4 panels, missing synth, malformed) — no mocks. typecheck + tests green.
+
+- [ ] CFG-014 Set thinking level per stage in the config
+  Thinking level is hardcoded "xhigh" for every inner agent; synth doesn't need max
+  and wastes cost/time on it.
+
+  Let .pi/fusion-agents.json set it per stage (e.g. panel "xhigh", synth "medium"),
+  with a default when unset.
