@@ -103,15 +103,17 @@ prints a failure and exits non-zero — never a partial answer.
   - A real run completed with all three panels and synthesis succeeding and returned one coherent fused answer that correctly describes the extension and its two all-or-nothing gates — the POC proof.
   - Reproducible from the committed config + `bun scripts/demo.ts` (no mocks). This run is the trigger for the DeepSWE adaptation (TOO-004).
 
-- [ ] PNL-013 See what inner agents are doing + catch hangs		#user-required
+- [ ] PNL-013 Log inner-agent activity on change		!high
   Right now we start a panel/synth agent and just wait — nothing prints until it
-  finishes. We can't tell if it's working or stuck, or which agent is slow.
+  finishes. We can't tell what each agent is doing or which one is slow.
 
-  Idea: listen to each agent's live events. If one goes silent for T seconds, treat
-  it as hung and fail loudly ("agent X stuck") instead of waiting forever. The same
-  stream gives progress and shows where the time goes.
+  Subscribe to each agent's events and log to stderr only on activity change —
+  kind = thinking | tool:<name> | writing | done, so read→bash logs while
+  thinking→thinking and read→read collapse. Show the concrete tool with an emoji,
+  e.g. "[deepseek] 👨‍💻 bash"; no timer. Pattern adapted from pi-telegram
+  lib/activity.ts.
 
-  Open, decide later: how much to log, where to send it, live vs dump at the end.
+  No auto hang-detection: a stuck agent just shows up as the log going quiet.
 
 - [ ] PNL-016 Forward the cancel signal through fusion		!high
   The tool receives an AbortSignal but drops it — fuse/runPanel/runPanelAgent don't
@@ -122,3 +124,11 @@ prints a failure and exits non-zero — never a partial answer.
   Fusion returns a bare {ok:false}; on failure you can't tell which panel/synth model
   broke or why. Surface the failing stage, model, and error (relaxing the binary
   result) so failures are debuggable.
+
+- [ ] PNL-022 Persist a debug log of inner-agent activity		!high
+  The live activity log only goes to stderr and vanishes with the run. Write it to a
+  debug log on disk so we can trace afterwards what each agent did and where the time
+  went.
+
+  Open, decide later: where (per-run file / path), format (plain lines / JSONL),
+  always on or behind a flag.
