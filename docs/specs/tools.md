@@ -16,7 +16,7 @@ POC status: the tool is wired and reachable; the panel fan-out and synthesis tha
   **Implemented:**
   - `src/index.ts` default export registers one external tool `fusion_agents` via `pi.registerTool` — typebox `question` param, explicit invocation, result is a single text block (final text only).
   - Placeholder handler echoes the question; panel fan-out + synthesis deferred to CFG/PNL/SYN.
-  - Vitest: tool registers under the right name, execute returns one text block, and the parameter schema requires `question`. typecheck + 4 tests green.
+  - Smoke test (no mocks): loads the extension through Pi's real loader (`discoverAndLoadExtensions`) and asserts `fusion_agents` registers on load; confirmed it fails when the extension throws on load. typecheck green.
 
 - [ ] TOO-002 fusion_agents invocation contract		#poc @blocked_by:PRJ-012
   Callers pass a question/instruction, optionally with output instructions (e.g. P0/P1/P2/P3 buckets or a requested structure — an example, not a fixed scheme).

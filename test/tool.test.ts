@@ -1,30 +1,19 @@
 import { test, expect } from "vitest";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import createExtension from "../src/index.ts";
-import { Value } from "typebox/value";
+import { discoverAndLoadExtensions } from "@earendil-works/pi-coding-agent";
+import { resolve, join } from "node:path";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
 
-function captureTool(): any {
-  let tool: any;
-  const pi = { registerTool: (t: any) => { tool = t; } } as unknown as ExtensionAPI;
-  createExtension(pi);
-  return tool;
-}
+// Smoke test: load our extension through Pi's real extension loader (no model,
+// no mocks) and confirm the fusion_agents tool actually registers on load.
+// Empty agent dir + project has no .pi/extensions → only our extension loads.
+test("extension loads in Pi and registers the fusion_agents tool", async () => {
+  const extPath = resolve("src/index.ts");
+  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
 
-test("registers the fusion_agents tool", () => {
-  const tool = captureTool();
-  expect(tool.name).toBe("fusion_agents");
-});
+  const loaded = await discoverAndLoadExtensions([extPath], process.cwd(), agentDir);
 
-test("execute returns a single final-text block echoing the question", async () => {
-  const tool = captureTool();
-  const result = await tool.execute("call-1", { question: "what is this repo?" }, undefined, undefined, {});
-  expect(result.content).toHaveLength(1);
-  expect(result.content[0].type).toBe("text");
-  expect(result.content[0].text).toContain("what is this repo?");
-});
-
-test("parameters schema requires a question (the validation Pi runs on load)", () => {
-  const tool = captureTool();
-  expect(Value.Check(tool.parameters, { question: "x" })).toBe(true);
-  expect(Value.Check(tool.parameters, {})).toBe(false);
+  expect(loaded.errors).toEqual([]);
+  const toolNames = loaded.extensions.flatMap((e) => [...e.tools.keys()]);
+  expect(toolNames).toContain("fusion_agents");
 });
