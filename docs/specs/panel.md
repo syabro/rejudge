@@ -58,6 +58,24 @@ fuses their answers, and the single final answer is printed to stdout (progress 
 A successful run needs all three panels and synthesis to complete; any technical failure
 prints a failure and exits non-zero — never a partial answer.
 
+## Activity log
+
+While a fusion runs, every inner agent (each panel model, then the synthesis model) logs a
+line to **stderr** each time its activity changes — `HH:MM:SS <model> <activity>`:
+
+    19:41:02 deepseek-v4-pro thinking
+    19:41:04 deepseek-v4-pro bash
+    19:41:13 deepseek-v4-pro read
+    19:41:15 deepseek-v4-pro writing
+    19:41:18 deepseek-v4-pro done
+
+`activity` is `thinking`, the concrete tool it runs (`bash`/`read`/`edit`/`write`/…),
+`writing` (composing the answer), or `done`. The timestamp is the moment of the change, so
+the gap to the next line is how long the previous activity took — no separate timer and no
+hang-detection. It's a plain append log (no in-place redraw): the three panel agents run
+concurrently so their lines interleave, told apart by the model name. The output goes to
+stderr, so it never pollutes the final answer on stdout.
+
 # Tasks
 
 - [x] PNL-006 Inner-agent runner on a single model		#poc @blocked_by:PRJ-012
@@ -103,7 +121,7 @@ prints a failure and exits non-zero — never a partial answer.
   - A real run completed with all three panels and synthesis succeeding and returned one coherent fused answer that correctly describes the extension and its two all-or-nothing gates — the POC proof.
   - Reproducible from the committed config + `bun scripts/demo.ts` (no mocks). This run is the trigger for the DeepSWE adaptation (TOO-004).
 
-- [ ] PNL-013 Log inner-agent activity on change		!high
+- [x] PNL-013 Log inner-agent activity on change		!high
   Right now we start a panel/synth agent and just wait — nothing prints until it
   finishes. We can't tell what each agent is doing or which one is slow.
 
@@ -114,6 +132,19 @@ prints a failure and exits non-zero — never a partial answer.
   lib/activity.ts.
 
   No auto hang-detection: a stuck agent just shows up as the log going quiet.
+
+  **Implemented:**
+  - `src/activity.ts` `attachActivityLog(session, modelId)` subscribes one agent and logs
+    `HH:MM:SS <model> <activity>` to stderr each time the activity changes (`thinking` /
+    the concrete tool / `writing` / `done`); no emoji, no in-place redraw, no timer/TUI.
+    The timestamp marks the change, so the gap to the next line is the previous activity's
+    duration.
+  - Wired into `runPanelAgent` (the single chokepoint for panel and synth agents), so
+    every fusion stage is traced; detached in a `finally`. The three panel agents run
+    concurrently, so their lines interleave and are told apart by the model name.
+  - Verified live on the real 4-model demo; the existing real-run smoke tests
+    (runner/panel/fusion) exercise it end-to-end — no separate unit test (it's logging
+    over the runner, guaranteed by the real runs).
 
 - [ ] PNL-016 Forward the cancel signal through fusion		!high
   The tool receives an AbortSignal but drops it — fuse/runPanel/runPanelAgent don't

@@ -5,6 +5,7 @@ import {
   type AgentSession,
 } from "@earendil-works/pi-coding-agent";
 import type { Model, ThinkingLevel } from "@earendil-works/pi-ai";
+import { attachActivityLog } from "./activity.ts";
 
 /**
  * The hand-picked tool set every panel agent runs with: full local
@@ -53,6 +54,9 @@ export function resolveModel(modelId: string): Model<any> {
  * set. Any model/tool/runtime failure surfaces as a thrown error, never a silent
  * partial result. On success the session is left open (the caller disposes it) so
  * a later synthesis/judge step can re-query the same agent.
+ *
+ * While it runs, a line is logged to stderr each time the agent's activity changes
+ * (with the time of the change) — see {@link attachActivityLog}.
  */
 export async function runPanelAgent(
   modelId: string,
@@ -69,6 +73,9 @@ export async function runPanelAgent(
     // the level to what each model actually supports.
     thinkingLevel: options.thinkingLevel ?? "xhigh",
   });
+  // Log this agent's activity changes to stderr. Detached in `finally`; on the error
+  // path dispose() has already removed the listener, so detach is then a no-op.
+  const detach = attachActivityLog(session, modelId);
   try {
     await session.prompt(prompt);
 
@@ -98,5 +105,7 @@ export async function runPanelAgent(
   } catch (err) {
     session.dispose();
     throw err;
+  } finally {
+    detach();
   }
 }
