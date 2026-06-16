@@ -8,7 +8,8 @@
     "vitest": "^4.1.8"
   },
   "dependencies": {
-    "@earendil-works/pi-coding-agent": "^0.79.0"
+    "@earendil-works/pi-coding-agent": "^0.79.0",
+    "typebox": "^1.2.3"
   },
   "scripts": {
     "test": "vitest run",

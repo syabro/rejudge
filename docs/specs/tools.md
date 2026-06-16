@@ -1,11 +1,22 @@
 # Tools — mdtask
 
+## fusion_agents
+
+The extension registers one external tool, `fusion_agents`. Call it explicitly with a `question` (a question or instruction); it returns a single final answer, text only. The package loads as a Pi extension via the `pi.extensions` manifest (entry `src/index.ts`).
+
+POC status: the tool is wired and reachable; the panel fan-out and synthesis that produce the fused answer arrive in the CFG/PNL/SYN tasks — for now the handler echoes the question.
+
 # Tasks
 
-- [ ] TOO-001 Scaffold pi-fusion-agents extension and register the fusion_agents tool		#poc @blocked_by:PRJ-012
+- [x] TOO-001 Scaffold pi-fusion-agents extension and register the fusion_agents tool		#poc @blocked_by:PRJ-012
   Separate Pi extension `pi-fusion-agents` exposing exactly one external tool, `fusion_agents`.
   Constraints: explicit invocation only (no auto-invocation in the POC); tool result content is final answer text only.
   Acceptance: extension loads in Pi; `fusion_agents` is available; invoking it with a question reaches our handler and returns without crashing Pi.
+
+  **Implemented:**
+  - `src/index.ts` default export registers one external tool `fusion_agents` via `pi.registerTool` — typebox `question` param, explicit invocation, result is a single text block (final text only).
+  - Placeholder handler echoes the question; panel fan-out + synthesis deferred to CFG/PNL/SYN.
+  - Vitest: tool registers under the right name, execute returns one text block, and the parameter schema requires `question`. typecheck + 4 tests green.
 
 - [ ] TOO-002 fusion_agents invocation contract		#poc @blocked_by:PRJ-012
   Callers pass a question/instruction, optionally with output instructions (e.g. P0/P1/P2/P3 buckets or a requested structure — an example, not a fixed scheme).
