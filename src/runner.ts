@@ -62,6 +62,9 @@ export async function runPanelAgent(
     model,
     cwd: options.cwd ?? process.cwd(),
     tools: [...PANEL_TOOLS],
+    // Panel and synth agents reason at the maximum thinking level — Pi maps
+    // "xhigh" to each model's top reasoning setting.
+    thinkingLevel: "xhigh",
   });
   try {
     await session.prompt(prompt);
