@@ -66,3 +66,13 @@ local use from within the repo tree — not a portable/published artifact.
   - Tests: `parseCliArgs` (pure) + `resolveFusionConfig` (real temp files: cwd-wins /
     global-fallback / neither-present); verified by real end-to-end runs through the built
     bin on a stub model (positional + `-f`, plus the `--help`/error exit paths).
+
+- [ ] CLI-023 Read-only mode for the fusion CLI		@blocked_by:TOO-003
+  ask-subagent runs fusion as a code reviewer, but inner agents (panel and synth) have
+  edit/write/bash in the reviewed project's cwd — a review can modify or break files, and
+  read-only is only requested in the prompt, not enforced. Add a --readonly flag that limits
+  inner agents to the read-only tool set.
+  Constraints: read-only set = read/grep/find/ls (the SDK's read-only tools), no edit/write/bash;
+  default without the flag stays full read/write as today.
+  Acceptance: `fusion --readonly` runs a fusion where inner agents can only read/grep/find/ls
+  (no file changes, no bash); without the flag, behavior is unchanged.
