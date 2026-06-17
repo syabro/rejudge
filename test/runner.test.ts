@@ -4,6 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { PANEL_TOOLS, READONLY_TOOLS, resolveModel, runPanelAgent } from "../src/runner.ts";
+import { integrationTest } from "./integration.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
 const STUB = "opencode-go/kimi-k2.6";
@@ -42,7 +43,7 @@ test("resolveModel rejects malformed and unknown model ids", () => {
 // bash are absent, so a fusion used as a reviewer cannot change files or run shell
 // in its cwd. createAgentSession({tools}) is an allowlist, so the active set is
 // exactly READONLY_TOOLS, nothing more.
-test("runPanelAgent defaults to read-only (read/grep/find/ls only)", async () => {
+integrationTest("runPanelAgent defaults to read-only (read/grep/find/ls only)", async () => {
   const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.");
   try {
     expect([...result.session.getActiveToolNames()].sort()).toEqual([...READONLY_TOOLS].sort());
@@ -53,7 +54,7 @@ test("runPanelAgent defaults to read-only (read/grep/find/ls only)", async () =>
 
 // Real run, no mocks: opting in with fullTools gives the full local set (the
 // read-only tools plus edit/write/bash), so writing is an explicit choice.
-test("runPanelAgent with fullTools gives the full local tool set", async () => {
+integrationTest("runPanelAgent with fullTools gives the full local tool set", async () => {
   const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.", {
     fullTools: true,
   });
@@ -65,7 +66,7 @@ test("runPanelAgent with fullTools gives the full local tool set", async () => {
 }, 60_000);
 
 // Real run, no mocks: one agent runs end-to-end on a real model and returns text.
-test("runPanelAgent runs one model end-to-end and returns finished text", async () => {
+integrationTest("runPanelAgent runs one model end-to-end and returns finished text", async () => {
   const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.");
   try {
     expect(result.modelId).toBe(STUB);

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { truncate } from "../src/debug-log.ts";
 import { fuse } from "../src/fusion.ts";
 import type { FusionConfig } from "../src/config.ts";
+import { integrationTest } from "./integration.ts";
 
 // Pure logic: head-3 + "N omitted" + tail-3, then a hard char cap. Literal in/out, no mocks.
 test("truncate keeps short content, collapses the middle of long content, caps huge content", () => {
@@ -27,7 +28,7 @@ const CONFIG: FusionConfig = {
   debugLog: true,
 };
 
-test("a debugLog run writes a per-run JSONL file of inner-agent activity", async () => {
+integrationTest("a debugLog run writes a per-run JSONL file of inner-agent activity", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-dbg-"));
   const result = await fuse(CONFIG, "Reply with exactly the word: PONG. Nothing else.", { cwd });
   expect(result.ok).toBe(true);

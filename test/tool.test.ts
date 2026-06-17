@@ -3,6 +3,7 @@ import {
   discoverAndLoadExtensions,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { integrationTest } from "./integration.ts";
 import { buildInvocationPrompt } from "../src/index.ts";
 import { resolve, join } from "node:path";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
@@ -42,7 +43,7 @@ test("buildInvocationPrompt composes the question with output instructions", () 
 // Real end-to-end through Pi's loader and the real tool handler (no mocks): a
 // call carrying output instructions reaches the panel + synthesis, and the
 // returned answer respects the requested format.
-test("fusion_agents threads output instructions end-to-end to a formatted answer", async () => {
+integrationTest("fusion_agents threads output instructions end-to-end to a formatted answer", async () => {
   const extPath = resolve("src/index.ts");
   const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
   const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));

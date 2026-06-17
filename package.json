@@ -13,6 +13,7 @@
   },
   "scripts": {
     "test": "vitest run",
+    "test:unit": "PI_TEST_UNIT_ONLY=1 vitest run",
     "typecheck": "tsc --noEmit",
     "build:cli": "bun build src/cli.ts --target=node --packages=external --outfile bin/fusion.js && chmod +x bin/fusion.js"
   },

@@ -1,6 +1,7 @@
 import { test, expect } from "vitest";
 import { fuse } from "../src/fusion.ts";
 import type { FusionConfig } from "../src/config.ts";
+import { integrationTest } from "./integration.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
 // Used for all 4 agents (3 panel + 1 synth) — this exercises the all-or-nothing
@@ -12,7 +13,7 @@ const GOOD: FusionConfig = { panel: [STUB, STUB, STUB], synth: STUB, thinking: T
 const PROMPT = "Reply with exactly the word: PONG. Nothing else.";
 
 // Real run, no mocks: all three panels AND synthesis complete → one final answer.
-test("fuse returns one final answer when all panels and synthesis succeed", async () => {
+integrationTest("fuse returns one final answer when all panels and synthesis succeed", async () => {
   const result = await fuse(GOOD, PROMPT);
   expect(result.ok).toBe(true);
   if (result.ok) {
@@ -21,7 +22,7 @@ test("fuse returns one final answer when all panels and synthesis succeed", asyn
 }, 180_000);
 
 // A panel technical failure → binary failure, no answer text (synthesis never runs).
-test("fuse fails with no answer when a panel agent fails", async () => {
+integrationTest("fuse fails with no answer when a panel agent fails", async () => {
   const result = await fuse(
     { panel: [STUB, "opencode-go/not-a-real-model", STUB], synth: STUB, thinking: THINKING, debugLog: false },
     PROMPT,
@@ -31,7 +32,7 @@ test("fuse fails with no answer when a panel agent fails", async () => {
 }, 180_000);
 
 // A synthesis technical failure → binary failure even though all panels succeeded.
-test("fuse fails with no answer when synthesis fails", async () => {
+integrationTest("fuse fails with no answer when synthesis fails", async () => {
   const result = await fuse(
     { panel: [STUB, STUB, STUB], synth: "opencode-go/not-a-real-model", thinking: THINKING, debugLog: false },
     PROMPT,
@@ -49,7 +50,7 @@ test("fuse honors an already-aborted signal", async () => {
 
 // In-flight: abort shortly after start cancels the running agents (had the signal been
 // dropped, the run would complete and return ok:true) — the actual "stop burning credits".
-test("aborting mid-run cancels the fusion", async () => {
+integrationTest("aborting mid-run cancels the fusion", async () => {
   const ac = new AbortController();
   setTimeout(() => ac.abort(), 400);
   const result = await fuse(GOOD, PROMPT, { signal: ac.signal });

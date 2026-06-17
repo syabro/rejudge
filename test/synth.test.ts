@@ -1,5 +1,6 @@
 import { test, expect } from "vitest";
 import { buildSynthesisPrompt, synthesize, type PanelOutput } from "../src/synth.ts";
+import { integrationTest } from "./integration.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
 const STUB = "opencode-go/kimi-k2.6";
@@ -29,7 +30,7 @@ test("buildSynthesisPrompt threads the task and all panel outputs", () => {
 // Real run, no mocks: one real synth call fuses three (static) panel outputs into
 // a single answer that respects the task's requested format. Only the synth model
 // runs here — the full three-panel fan-out is covered by fusion.test.ts.
-test("synthesize fuses panel outputs into one answer respecting the format", async () => {
+integrationTest("synthesize fuses panel outputs into one answer respecting the format", async () => {
   const panel: PanelOutput[] = [
     { modelId: "m1", text: "The capital of France is Paris." },
     { modelId: "m2", text: "Paris is the capital of France." },
