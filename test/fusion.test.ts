@@ -39,3 +39,19 @@ test("fuse fails with no answer when synthesis fails", async () => {
   expect(result.ok).toBe(false);
   expect("answer" in result).toBe(false);
 }, 180_000);
+
+// Cancellation (PNL-016). Pre-aborted: every agent short-circuits before any model call,
+// so this is fast and deterministic — proves the signal is threaded end-to-end.
+test("fuse honors an already-aborted signal", async () => {
+  const result = await fuse(GOOD, PROMPT, { signal: AbortSignal.abort() });
+  expect(result.ok).toBe(false);
+}, 30_000);
+
+// In-flight: abort shortly after start cancels the running agents (had the signal been
+// dropped, the run would complete and return ok:true) — the actual "stop burning credits".
+test("aborting mid-run cancels the fusion", async () => {
+  const ac = new AbortController();
+  setTimeout(() => ac.abort(), 400);
+  const result = await fuse(GOOD, PROMPT, { signal: ac.signal });
+  expect(result.ok).toBe(false);
+}, 180_000);

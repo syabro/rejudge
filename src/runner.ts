@@ -29,6 +29,13 @@ export interface RunPanelAgentOptions {
   cwd?: string;
   /** Reasoning level for this agent. Default: "xhigh". */
   thinkingLevel?: ThinkingLevel;
+  /**
+   * Cancellation signal. `fuse` forwards it unchanged to every panel agent and the
+   * synthesis agent; aborting it stops all in-flight agents (and short-circuits ones
+   * not yet started), so a cancelled fusion returns `{ ok: false }` instead of
+   * leaving agents running and burning credits.
+   */
+  signal?: AbortSignal;
 }
 
 /**
@@ -63,6 +70,7 @@ export async function runPanelAgent(
   prompt: string,
   options: RunPanelAgentOptions = {},
 ): Promise<PanelAgentResult> {
+  options.signal?.throwIfAborted(); // already cancelled → don't even spin up a session
   const model = resolveModel(modelId);
   const { session } = await createAgentSession({
     model,
@@ -76,7 +84,16 @@ export async function runPanelAgent(
   // Log this agent's activity changes to stderr. Detached in `finally`; on the error
   // path dispose() has already removed the listener, so detach is then a no-op.
   const detach = attachActivityLog(session, modelId);
+  // Bridge the cancel signal to the SDK's session.abort() for the in-flight run. An
+  // abort makes prompt() resolve with stopReason "aborted", which the check below
+  // surfaces as a thrown error → the whole fusion fails, never a silent partial.
+  const onAbort = () => void session.abort();
+  options.signal?.addEventListener("abort", onAbort, { once: true });
   try {
+    // If the signal fired during the async createAgentSession above, the listener's
+    // session.abort() is a no-op (prompt() hasn't created an abortable run yet), so
+    // throw here to cancel. Once prompt() is running, the listener does the work.
+    options.signal?.throwIfAborted();
     await session.prompt(prompt);
 
     // Failures don't throw — the stream contract encodes them as the final
@@ -106,6 +123,7 @@ export async function runPanelAgent(
     session.dispose();
     throw err;
   } finally {
+    options.signal?.removeEventListener("abort", onAbort);
     detach();
   }
 }

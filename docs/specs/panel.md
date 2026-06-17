@@ -2,9 +2,9 @@
 
 ## Panel agent runner
 
-The reusable unit behind the panel: `runPanelAgent(modelId, prompt, { cwd? })` runs one
-agent end-to-end on a single `"provider/model"` id (e.g. `opencode-go/kimi-k2.6`) and
-returns its finished answer text.
+The reusable unit behind the panel: `runPanelAgent(modelId, prompt, { cwd?, signal? })`
+runs one agent end-to-end on a single `"provider/model"` id (e.g. `opencode-go/kimi-k2.6`)
+and returns its finished answer text.
 
 - The agent runs in the trusted local environment with a fixed tool set — `read`, `edit`,
   `write`, `bash` — and nothing else. Host global extensions are not inherited (this keeps
@@ -18,9 +18,9 @@ returns its finished answer text.
 
 ## Panel fan-out
 
-`runPanel(models, prompt, { cwd? })` runs the whole panel: it dispatches the byte-identical
-prompt to every model concurrently — each as its own independent agent (own session, own
-tool-use path) — and collects one finished result per model.
+`runPanel(models, prompt, { cwd?, signal? })` runs the whole panel: it dispatches the
+byte-identical prompt to every model concurrently — each as its own independent agent (own
+session, own tool-use path) — and collects one finished result per model.
 
 - Every agent receives the exact same `prompt`; diversity comes only from the model and the
   path it takes, never from the input.
@@ -31,8 +31,8 @@ tool-use path) — and collects one finished result per model.
 
 ## Fusion (all-or-nothing)
 
-`fuse(config, prompt, { cwd? })` runs the whole flow — panel fan-out then one synthesis
-call — and returns a binary result:
+`fuse(config, prompt, { cwd?, signal? })` runs the whole flow — panel fan-out then one
+synthesis call — and returns a binary result:
 
 - `{ ok: true, answer }` only when all three panels **and** synthesis complete without a
   technical (model/tool/runtime) error. `answer` is the single final text; intermediate
@@ -43,6 +43,12 @@ call — and returns a binary result:
 "Success" means technical completion, not answer quality, and which stage failed is not
 reported (kept binary). The synthesis stage itself (output-instruction threading, format
 preservation) is described under Synthesis in `synth.md`.
+
+**Cancellation.** Pass an `AbortSignal` as `signal` (the `fusion_agents` tool forwards the
+one it gets from Pi). It threads down to every panel agent and the synthesis agent;
+aborting it stops the in-flight agents (and short-circuits any not yet started), so a
+cancelled run returns `{ ok: false }` instead of leaving agents running and burning
+credits — consistent with the binary result, no special error.
 
 ## Demo
 
@@ -146,10 +152,22 @@ stderr, so it never pollutes the final answer on stdout.
     (runner/panel/fusion) exercise it end-to-end — no separate unit test (it's logging
     over the runner, guaranteed by the real runs).
 
-- [ ] PNL-016 Forward the cancel signal through fusion		!high
+- [x] PNL-016 Forward the cancel signal through fusion		!high
   The tool receives an AbortSignal but drops it — fuse/runPanel/runPanelAgent don't
   take one. Cancelling a call leaves every agent running and burning credits.
   Thread the signal end-to-end so cancel actually stops the in-flight agents.
+
+  **Implemented:**
+  - `RunPanelAgentOptions` gained `signal?: AbortSignal`; `fuse` forwards it (via the
+    options it already spreads) to every panel agent and the synthesis agent — no changes
+    needed in `fuse`/`runPanel`/`synthesize` themselves.
+  - `runPanelAgent` honors it: `throwIfAborted()` before starting, a `session.abort()`
+    listener for the in-flight run, and a re-check inside the try (a signal that fires
+    during session creation throws there, because `session.abort()` is a no-op before the
+    run exists). An abort surfaces as a thrown error, so the fusion returns `{ ok: false }`.
+  - `src/index.ts` now passes the tool's real `AbortSignal` into `fuse` (was dropped).
+  - Tests (`test/fusion.test.ts`, real runs): an already-aborted signal fails fast with no
+    model call; a mid-run abort cancels the fusion to `{ ok: false }`.
 
 - [ ] PNL-017 Report which stage and model failed on a fusion failure
   Fusion returns a bare {ok:false}; on failure you can't tell which panel/synth model

@@ -45,12 +45,13 @@ export default function (pi: ExtensionAPI): void {
     description:
       "Run the same question across a panel of models and fuse their answers into one. Call explicitly with a question or instruction.",
     parameters,
-    async execute(_toolCallId, params, _signal, _onUpdate, ctx) {
+    async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       // Gate: refuse to start on a missing/invalid config — loadFusionConfig
       // throws a clear error, which surfaces as a tool error (not a fake answer).
       const config = loadFusionConfig(ctx.cwd);
       const prompt = buildInvocationPrompt(params.question, params.outputInstructions);
-      const result = await fuse(config, prompt, { cwd: ctx.cwd });
+      // Thread the cancel signal end-to-end: aborting stops every in-flight agent.
+      const result = await fuse(config, prompt, { cwd: ctx.cwd, signal });
       if (!result.ok) {
         // No fabricated answer on a technical failure — surface as a tool error.
         throw new Error("fusion_agents: the panel or synthesis did not complete");
