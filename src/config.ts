@@ -1,4 +1,5 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-ai";
 
@@ -40,6 +41,35 @@ export function configPath(cwd: string): string {
 }
 
 /**
+ * Path to the user-global config, used by the CLI as a fallback when the project has no
+ * `.pi/fusion-agents.json`. Honors `XDG_CONFIG_HOME`, else `~/.config`.
+ */
+export function globalConfigPath(): string {
+  const base = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), ".config");
+  return join(base, "fusion-agents.json");
+}
+
+/** A loaded config plus the file it came from (for CLI diagnostics). */
+export interface ResolvedConfig {
+  config: FusionConfig;
+  path: string;
+}
+
+/**
+ * Resolve config for the CLI: prefer the project's `<cwd>/.pi/fusion-agents.json`, else
+ * fall back to the user-global {@link globalConfigPath}. Throws a clear error naming both
+ * paths when neither exists. (The Pi extension keeps using {@link loadFusionConfig} —
+ * cwd-only, with no global fallback.)
+ */
+export function resolveFusionConfig(cwd: string): ResolvedConfig {
+  const local = configPath(cwd);
+  if (existsSync(local)) return { config: loadFusionConfigFromPath(local), path: local };
+  const global = globalConfigPath();
+  if (existsSync(global)) return { config: loadFusionConfigFromPath(global), path: global };
+  throw new Error(`no config found: looked in ${local} and ${global}`);
+}
+
+/**
  * Load and validate `<cwd>/.pi/fusion-agents.json`.
  *
  * Valid = exactly 3 non-empty panel model IDs + 1 non-empty synthesis ID (full
@@ -48,8 +78,11 @@ export function configPath(cwd: string): string {
  * bad config. Config shape beyond these IDs is deferred.
  */
 export function loadFusionConfig(cwd: string): FusionConfig {
-  const path = configPath(cwd);
+  return loadFusionConfigFromPath(configPath(cwd));
+}
 
+/** Load and validate a config from an explicit file path. See {@link loadFusionConfig}. */
+export function loadFusionConfigFromPath(path: string): FusionConfig {
   let raw: string;
   try {
     raw = readFileSync(path, "utf8");

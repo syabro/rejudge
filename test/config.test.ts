@@ -2,7 +2,7 @@ import { test, expect } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { loadFusionConfig } from "../src/config.ts";
+import { loadFusionConfig, resolveFusionConfig } from "../src/config.ts";
 
 // Real-input tests: write an actual .pi/fusion-agents.json and load it. No mocks.
 function projectWith(content: string | null): string {
@@ -13,6 +13,23 @@ function projectWith(content: string | null): string {
   }
   return cwd;
 }
+
+// Point the global-config fallback (XDG_CONFIG_HOME) at a temp dir for the duration of fn.
+function withGlobalConfig(content: string | null, fn: () => void): void {
+  const dir = mkdtempSync(join(tmpdir(), "pi-fusion-global-"));
+  if (content !== null) writeFileSync(join(dir, "fusion-agents.json"), content);
+  const prev = process.env.XDG_CONFIG_HOME;
+  process.env.XDG_CONFIG_HOME = dir;
+  try {
+    fn();
+  } finally {
+    if (prev === undefined) delete process.env.XDG_CONFIG_HOME;
+    else process.env.XDG_CONFIG_HOME = prev;
+  }
+}
+
+const PROJECT_CFG = JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4" });
+const GLOBAL_CFG = JSON.stringify({ panel: ["g/1", "g/2", "g/3"], synth: "g/4" });
 
 test("valid config returns the 3 panel + 1 synth IDs, defaulting thinking and debugLog", () => {
   const cwd = projectWith(JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4" }));
@@ -112,4 +129,29 @@ test("missing synth is rejected", () => {
 
 test("malformed JSON is rejected", () => {
   expect(() => loadFusionConfig(projectWith("{ not json"))).toThrow();
+});
+
+test("resolveFusionConfig: project .pi/ wins over the global config", () => {
+  const cwd = projectWith(PROJECT_CFG);
+  withGlobalConfig(GLOBAL_CFG, () => {
+    const r = resolveFusionConfig(cwd);
+    expect(r.path).toBe(join(cwd, ".pi", "fusion-agents.json"));
+    expect(r.config.synth).toBe("d/4");
+  });
+});
+
+test("resolveFusionConfig: falls back to the global config when the project has none", () => {
+  const cwd = projectWith(null); // no .pi/fusion-agents.json
+  withGlobalConfig(GLOBAL_CFG, () => {
+    const r = resolveFusionConfig(cwd);
+    expect(r.path).toBe(join(process.env.XDG_CONFIG_HOME as string, "fusion-agents.json"));
+    expect(r.config.synth).toBe("g/4");
+  });
+});
+
+test("resolveFusionConfig: throws naming both paths when neither exists", () => {
+  const cwd = projectWith(null);
+  withGlobalConfig(null, () => {
+    expect(() => resolveFusionConfig(cwd)).toThrow(/no config found/);
+  });
 });

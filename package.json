@@ -13,7 +13,8 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "build:cli": "bun build src/cli.ts --target=node --packages=external --outfile bin/fusion.js && chmod +x bin/fusion.js"
   },
   "pi": {
     "extensions": [
