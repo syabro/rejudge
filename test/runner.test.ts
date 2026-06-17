@@ -3,7 +3,7 @@ import { createAgentSession } from "@earendil-works/pi-coding-agent";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PANEL_TOOLS, resolveModel, runPanelAgent } from "../src/runner.ts";
+import { PANEL_TOOLS, READONLY_TOOLS, resolveModel, runPanelAgent } from "../src/runner.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
 const STUB = "opencode-go/kimi-k2.6";
@@ -36,6 +36,22 @@ test("resolveModel rejects malformed and unknown model ids", () => {
   expect(() => resolveModel("opencode-go/")).toThrow();
   expect(() => resolveModel("opencode-go/not-a-real-model")).toThrow();
 });
+
+// Real run, no mocks: the readOnly option threads end-to-end into the agent's
+// actual session, which is then limited to exactly read/grep/find/ls — edit,
+// write and bash are absent, so a read-only review cannot change files or run
+// shell commands in its cwd (CLI-023). createAgentSession({tools}) is an
+// allowlist, so the active set is exactly READONLY_TOOLS, nothing more.
+test("runPanelAgent with readOnly restricts the agent to read/grep/find/ls", async () => {
+  const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.", {
+    readOnly: true,
+  });
+  try {
+    expect([...result.session.getActiveToolNames()].sort()).toEqual([...READONLY_TOOLS].sort());
+  } finally {
+    result.session.dispose();
+  }
+}, 60_000);
 
 // Real run, no mocks: one agent runs end-to-end on a real model and returns text.
 test("runPanelAgent runs one model end-to-end and returns finished text", async () => {

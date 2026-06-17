@@ -19,6 +19,14 @@ import { attachDebugLog, type DebugLog } from "./debug-log.ts";
  */
 export const PANEL_TOOLS = ["read", "grep", "find", "ls", "edit", "write", "bash"] as const;
 
+/**
+ * The read-only subset (the SDK's read-only tools): read plus the dedicated
+ * grep/find/ls search-and-list tools, with no edit/write/bash. Selected by the
+ * `readOnly` option so an agent reviewing a project cannot modify files or run
+ * shell commands in its cwd — only read and search.
+ */
+export const READONLY_TOOLS = ["read", "grep", "find", "ls"] as const;
+
 export interface PanelAgentResult {
   /** The "provider/model" id this agent ran on. */
   modelId: string;
@@ -45,6 +53,13 @@ export interface RunPanelAgentOptions {
    * (when `config.debugLog` is set) and forwards it to every agent. Omitted → no logging.
    */
   debugLog?: DebugLog;
+  /**
+   * Restrict the agent to the read-only tool set ({@link READONLY_TOOLS}:
+   * read/grep/find/ls — no edit/write/bash) so it cannot change files or run shell
+   * commands in its cwd. `fuse` forwards it to every panel and synth agent. Default:
+   * false → the full {@link PANEL_TOOLS}.
+   */
+  readOnly?: boolean;
 }
 
 /**
@@ -81,10 +96,13 @@ export async function runPanelAgent(
 ): Promise<PanelAgentResult> {
   options.signal?.throwIfAborted(); // already cancelled → don't even spin up a session
   const model = resolveModel(modelId);
+  // Read-only review (CLI-023) restricts the agent to read/grep/find/ls; the default
+  // is the full local set. Same selection for every inner agent (panel and synth).
+  const tools = options.readOnly ? READONLY_TOOLS : PANEL_TOOLS;
   const { session } = await createAgentSession({
     model,
     cwd: options.cwd ?? process.cwd(),
-    tools: [...PANEL_TOOLS],
+    tools: [...tools],
     // Reasoning level comes from the caller (fuse threads it per stage from the
     // config); default "xhigh" for direct callers that don't set one. Pi clamps
     // the level to what each model actually supports.
