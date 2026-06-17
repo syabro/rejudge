@@ -67,7 +67,7 @@ local use from within the repo tree — not a portable/published artifact.
     global-fallback / neither-present); verified by real end-to-end runs through the built
     bin on a stub model (positional + `-f`, plus the `--help`/error exit paths).
 
-- [ ] CLI-023 Read-only mode for the fusion CLI		@blocked_by:TOO-003
+- [ ] CLI-023 Read-only mode for the fusion CLI		@blocked_by:TLS-003
   ask-subagent runs fusion as a code reviewer, but inner agents (panel and synth) have
   edit/write/bash in the reviewed project's cwd — a review can modify or break files, and
   read-only is only requested in the prompt, not enforced. Add a --readonly flag that limits

@@ -9,7 +9,7 @@ single final answer and returns only that text.
 - The original task `prompt` is threaded into the synthesis call verbatim, so any
   requested format / output instructions it carries are obeyed in the final
   answer (threading output instructions as a distinct field end-to-end from the
-  tool boundary is TOO-002).
+  tool boundary is TLS-002).
 - Consumes every panel output and emits ONLY the one fused answer — no preamble,
   no per-candidate commentary; intermediate panel outputs are never surfaced.
   Candidate answers are treated as data, not as instructions to the synthesizer.
@@ -26,7 +26,7 @@ single final answer and returns only that text.
 
   **Implemented:**
   - `src/synth.ts` `synthesize(synthModelId, prompt, panel, { cwd? })` runs one distinct call on the configured synth model and returns only the fused answer text; `buildSynthesisPrompt` threads the original task (carrying its requested format/output instructions) plus all three panel outputs.
-  - Output instructions ride inside the original task prompt (a separate end-to-end field is TOO-002); the synthesizer is told to obey that format and emit ONLY the final answer — no preamble, no per-candidate commentary, intermediate panel outputs never surfaced.
+  - Output instructions ride inside the original task prompt (a separate end-to-end field is TLS-002); the synthesizer is told to obey that format and emit ONLY the final answer — no preamble, no per-candidate commentary, intermediate panel outputs never surfaced.
   - Synthesis consumes only the panel outputs (`text`), not their sessions; it owns/disposes its own synth session while `fuse` keeps owning the panel sessions.
   - Smoke test (`test/synth.test.ts`, no mocks): a real synth call fuses three static panel outputs into one answer that both applies the task's requested format and preserves the fused content; a deterministic unit test verifies the prompt threads the task + all three outputs.
 

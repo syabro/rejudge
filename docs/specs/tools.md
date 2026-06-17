@@ -8,7 +8,7 @@ The output instructions are carried end-to-end: they are composed into the promp
 
 # Tasks
 
-- [x] TOO-001 Scaffold pi-fusion-agents extension and register the fusion_agents tool		#poc @blocked_by:PRJ-012
+- [x] TLS-001 Scaffold pi-fusion-agents extension and register the fusion_agents tool		#poc @blocked_by:PRJ-012
   Separate Pi extension `pi-fusion-agents` exposing exactly one external tool, `fusion_agents`.
   Constraints: explicit invocation only (no auto-invocation in the POC); tool result content is final answer text only.
   Acceptance: extension loads in Pi; `fusion_agents` is available; invoking it with a question reaches our handler and returns without crashing Pi.
@@ -18,7 +18,7 @@ The output instructions are carried end-to-end: they are composed into the promp
   - Placeholder handler echoes the question; panel fan-out + synthesis deferred to CFG/PNL/SYN.
   - Smoke test (no mocks): loads the extension through Pi's real loader (`discoverAndLoadExtensions`) and asserts `fusion_agents` registers on load; confirmed it fails when the extension throws on load. typecheck green.
 
-- [x] TOO-002 fusion_agents invocation contract		#poc @blocked_by:PRJ-012
+- [x] TLS-002 fusion_agents invocation contract		#poc @blocked_by:PRJ-012
   Callers pass a question/instruction, optionally with output instructions (e.g. P0/P1/P2/P3 buckets or a requested structure — an example, not a fixed scheme).
   Constraint: the requested output format is carried end-to-end — both inner agents and synthesis are told to honor it.
   Acceptance: a call carrying output instructions reaches the panel agents and synthesis intact; the returned answer respects the requested format.
@@ -29,7 +29,7 @@ The output instructions are carried end-to-end: they are composed into the promp
   - A technical failure of the panel or synthesis (or a missing/invalid config) surfaces as a tool error, never a fabricated answer.
   - Smoke test (`test/tool.test.ts`, no mocks): loads the extension through Pi's real loader, invokes the registered tool with output instructions on real stub models, and asserts the returned answer applies the requested format and preserves the fused content; plus a deterministic `buildInvocationPrompt` unit test.
 
-- [ ] TOO-003 Full local tools for inner agents		#poc @blocked_by:PRJ-012
+- [ ] TLS-003 Full local tools for inner agents		#poc @blocked_by:PRJ-012
   Inner agents only get read/edit/write/bash, so they search and list through bash — slow and
   noisy. The Pi SDK also ships dedicated grep/find/ls tools that aren't wired in; the task is to
   give inner agents those so they search/list with the dedicated tools instead of bash.
@@ -39,12 +39,12 @@ The output instructions are carried end-to-end: they are composed into the promp
   Acceptance: a panel agent has read/grep/find/ls/edit/write/bash, and a run searches/lists via
   the dedicated grep/find/ls tools, not bash.
 
-- [ ] TOO-004 DeepSWE tool adapter		#deepswe @blocked_by:PNL-009
+- [ ] TLS-004 DeepSWE tool adapter		#deepswe @blocked_by:PNL-009
   Adapt the working POC to run DeepSWE as a panel model; DeepSWE expects its own tool surface, not the standard local tools.
   Constraints: tool surface = file_editor / execute_bash / search / finish; adapter details decided here (deferred until the POC works).
   Acceptance: a panel agent backed by a DeepSWE model ID runs through the adapter and returns an output usable by synthesis.
 
-- [ ] TOO-019 Guard the outputInstructions trust boundary		!low
+- [ ] TLS-019 Guard the outputInstructions trust boundary		!low
   outputInstructions is pasted into the panel/synth prompts verbatim, and candidate
   answers are "guarded" by a single English sentence — a caller can inject
   instructions. For the trusted POC, document the trust boundary; harden when wider.

@@ -144,7 +144,7 @@ and a final `agent_end` per agent. A logging failure never breaks the run.
   **Implemented:**
   - `scripts/demo.ts` + committed `.pi/fusion-agents.json` run the real 3-panel (`deepseek-v4-pro`, `mimo-v2.5-pro`, `minimax-m3`) + synthesis (`glm-5.1`) fusion on a research question about this project; the panel agents read the repo to answer.
   - A real run completed with all three panels and synthesis succeeding and returned one coherent fused answer that correctly describes the extension and its two all-or-nothing gates — the POC proof.
-  - Reproducible from the committed config + `bun scripts/demo.ts` (no mocks). This run is the trigger for the DeepSWE adaptation (TOO-004).
+  - Reproducible from the committed config + `bun scripts/demo.ts` (no mocks). This run is the trigger for the DeepSWE adaptation (TLS-004).
 
 - [x] PNL-013 Log inner-agent activity on change		!high
   Right now we start a panel/synth agent and just wait — nothing prints until it
