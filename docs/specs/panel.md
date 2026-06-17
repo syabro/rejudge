@@ -82,6 +82,25 @@ hang-detection. It's a plain append log (no in-place redraw): the three panel ag
 concurrently so their lines interleave, told apart by the model name. The output goes to
 stderr, so it never pollutes the final answer on stdout.
 
+## Debug log
+
+For after-the-fact analysis of what bloats the context window or slows a run, set
+`"debugLog": true` in `.pi/fusion-agents.json` (default off). Each run then writes one
+JSONL file under `.pi/fusion-logs/<timestamp>.jsonl` (gitignored; the path is printed to
+stderr at the start of the run). Every inner agent (panel + synthesis) appends records to
+the same file, one JSON object per line:
+
+    {"t":1718620862123,"model":"deepseek-v4-pro","kind":"thinking","chars":4213,"lines":88,"content":"…"}
+    {"t":1718620864501,"model":"deepseek-v4-pro","kind":"tool_result","tool":"bash","toolCallId":"…","isError":false,"chars":51200,"lines":900,"content":"…(truncated)…"}
+
+Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the full size of
+the content even when the body is truncated, which is the actual context-cost signal.
+Thinking and assistant text are stored in full; tool args/results are truncated to the
+first and last few lines (with a char cap). Tool entries include `toolCallId` (to pair a
+call with its result and measure how long it took) and `isError`. The log also records the
+context/slowness signals — `compaction_start`/`compaction_end`, `retry_start`/`retry_end`,
+and a final `agent_end` per agent. A logging failure never breaks the run.
+
 # Tasks
 
 - [x] PNL-006 Inner-agent runner on a single model		#poc @blocked_by:PRJ-012
@@ -174,10 +193,24 @@ stderr, so it never pollutes the final answer on stdout.
   broke or why. Surface the failing stage, model, and error (relaxing the binary
   result) so failures are debuggable.
 
-- [ ] PNL-022 Persist a debug log of inner-agent activity		!high
+- [x] PNL-022 Persist a debug log of inner-agent activity		!high
   The live activity log only goes to stderr and vanishes with the run. Write it to a
   debug log on disk so we can trace afterwards what each agent did and where the time
   went.
 
-  Open, decide later: where (per-run file / path), format (plain lines / JSONL),
-  always on or behind a flag.
+  Decided: per-run file, JSONL, gated by a `debugLog` flag in the config (default off).
+
+  **Implemented:**
+  - `src/debug-log.ts`: when `config.debugLog` is on, `fuse` opens one per-run JSONL file
+    (`.pi/fusion-logs/<timestamp>.jsonl`, gitignored) and threads it to every agent;
+    `attachDebugLog` records thinking/text in full and tool args/results truncated
+    (head/tail + char cap), each with the full `chars`/`lines` size — the context-cost
+    signal — plus `compaction`/`retry`/`agent_end` for the slowness picture.
+  - Records are epoch-ms timestamped and tagged with `model`, `kind`, and (for tools)
+    `toolCallId`/`isError`, so a postmortem can pair calls with results and see per-tool
+    timing and which agent did what.
+  - Hardened: a logging failure (mkdir, write, circular stringify) never breaks a run — it
+    warns to stderr and the run continues.
+  - Config: `debugLog: boolean` (default false), validated; documented in `config.md`.
+  - Tests: pure truncation test; config parse test; a real run with `debugLog:true` that
+    reads back the produced JSONL and checks it's valid and populated.

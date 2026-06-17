@@ -31,6 +31,8 @@ export interface FusionConfig {
   synth: string;
   /** Thinking level per stage; always populated (defaults applied at load). */
   thinking: ThinkingConfig;
+  /** When true, write a per-run JSONL debug log of inner-agent activity. Default false. */
+  debugLog: boolean;
 }
 
 export function configPath(cwd: string): string {
@@ -73,7 +75,23 @@ export function loadFusionConfig(cwd: string): FusionConfig {
     throw new Error(`config "synth" must be a non-empty model ID`);
   }
 
-  return { panel: panel as string[], synth, thinking: parseThinking(cfg.thinking) };
+  return {
+    panel: panel as string[],
+    synth,
+    thinking: parseThinking(cfg.thinking),
+    debugLog: parseDebugLog(cfg.debugLog),
+  };
+}
+
+/**
+ * Resolve the optional `debugLog` flag. Omitted/`null` → `false` (off). A present value
+ * must be a boolean; anything else is a config error and throws, consistent with the rest
+ * of config validation.
+ */
+function parseDebugLog(value: unknown): boolean {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "boolean") return value;
+  throw new Error(`config "debugLog" must be a boolean (got: ${JSON.stringify(value)})`);
 }
 
 /**

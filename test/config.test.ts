@@ -14,13 +14,25 @@ function projectWith(content: string | null): string {
   return cwd;
 }
 
-test("valid config returns the 3 panel + 1 synth IDs, defaulting thinking", () => {
+test("valid config returns the 3 panel + 1 synth IDs, defaulting thinking and debugLog", () => {
   const cwd = projectWith(JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4" }));
   expect(loadFusionConfig(cwd)).toEqual({
     panel: ["a/1", "b/2", "c/3"],
     synth: "d/4",
     thinking: { panel: "xhigh", synth: "medium" },
+    debugLog: false,
   });
+});
+
+test("debugLog is read when set, and rejected when not a boolean", () => {
+  const on = projectWith(
+    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", debugLog: true }),
+  );
+  expect(loadFusionConfig(on).debugLog).toBe(true);
+  const bad = projectWith(
+    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", debugLog: "yes" }),
+  );
+  expect(() => loadFusionConfig(bad)).toThrow(/debugLog/);
 });
 
 test("thinking is read per stage when set", () => {

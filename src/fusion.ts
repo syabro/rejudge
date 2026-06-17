@@ -2,6 +2,7 @@ import type { FusionConfig } from "./config.ts";
 import { runPanel } from "./panel.ts";
 import { synthesize } from "./synth.ts";
 import type { PanelAgentResult, RunPanelAgentOptions } from "./runner.ts";
+import { createDebugLog } from "./debug-log.ts";
 
 /**
  * Binary fusion outcome. Success carries the single final answer; failure carries
@@ -23,6 +24,11 @@ export async function fuse(
   prompt: string,
   options: RunPanelAgentOptions = {},
 ): Promise<FusionResult> {
+  // One per-run debug log shared by every agent (when config.debugLog is on). It rides
+  // through `options`; runPanelAgent attaches each agent to it. createDebugLog never
+  // throws — a logging failure must not break the run.
+  const debugLog = config.debugLog ? createDebugLog(options.cwd ?? process.cwd()) : undefined;
+
   let panel: PanelAgentResult[];
   try {
     // runPanel is itself all-or-nothing: it throws (and cleans up its own
@@ -31,6 +37,7 @@ export async function fuse(
     // caller passed in `options` (it's spread first, then overridden).
     panel = await runPanel(config.panel, prompt, {
       ...options,
+      debugLog,
       thinkingLevel: config.thinking.panel,
     });
   } catch {
@@ -42,6 +49,7 @@ export async function fuse(
     // never the panel sessions. Synthesis runs at its own configured level.
     const answer = await synthesize(config.synth, prompt, panel, {
       ...options,
+      debugLog,
       thinkingLevel: config.thinking.synth,
     });
     return { ok: true, answer };

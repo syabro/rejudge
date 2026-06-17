@@ -8,5 +8,6 @@
   "thinking": {
     "panel": "xhigh",
     "synth": "medium"
-  }
+  },
+  "debugLog": false
 }

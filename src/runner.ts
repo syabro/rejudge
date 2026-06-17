@@ -6,6 +6,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { Model, ThinkingLevel } from "@earendil-works/pi-ai";
 import { attachActivityLog } from "./activity.ts";
+import { attachDebugLog, type DebugLog } from "./debug-log.ts";
 
 /**
  * The hand-picked tool set every panel agent runs with: full local
@@ -36,6 +37,11 @@ export interface RunPanelAgentOptions {
    * leaving agents running and burning credits.
    */
   signal?: AbortSignal;
+  /**
+   * Per-run debug log to record this agent's activity into. `fuse` creates one shared log
+   * (when `config.debugLog` is set) and forwards it to every agent. Omitted → no logging.
+   */
+  debugLog?: DebugLog;
 }
 
 /**
@@ -84,6 +90,8 @@ export async function runPanelAgent(
   // Log this agent's activity changes to stderr. Detached in `finally`; on the error
   // path dispose() has already removed the listener, so detach is then a no-op.
   const detach = attachActivityLog(session, modelId);
+  // Persist a richer per-run debug log when fuse enabled it (config.debugLog).
+  const detachDebug = options.debugLog && attachDebugLog(session, modelId, options.debugLog);
   // Bridge the cancel signal to the SDK's session.abort() for the in-flight run. An
   // abort makes prompt() resolve with stopReason "aborted", which the check below
   // surfaces as a thrown error → the whole fusion fails, never a silent partial.
@@ -124,6 +132,7 @@ export async function runPanelAgent(
     throw err;
   } finally {
     options.signal?.removeEventListener("abort", onAbort);
+    if (detachDebug) detachDebug();
     detach();
   }
 }
