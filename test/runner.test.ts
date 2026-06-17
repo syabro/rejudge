@@ -37,17 +37,28 @@ test("resolveModel rejects malformed and unknown model ids", () => {
   expect(() => resolveModel("opencode-go/not-a-real-model")).toThrow();
 });
 
-// Real run, no mocks: the readOnly option threads end-to-end into the agent's
-// actual session, which is then limited to exactly read/grep/find/ls — edit,
-// write and bash are absent, so a read-only review cannot change files or run
-// shell commands in its cwd (CLI-023). createAgentSession({tools}) is an
-// allowlist, so the active set is exactly READONLY_TOOLS, nothing more.
-test("runPanelAgent with readOnly restricts the agent to read/grep/find/ls", async () => {
-  const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.", {
-    readOnly: true,
-  });
+// Real run, no mocks: read-only is the DEFAULT (CLI-023). With no tool option the
+// agent's actual session is limited to exactly read/grep/find/ls — edit, write and
+// bash are absent, so a fusion used as a reviewer cannot change files or run shell
+// in its cwd. createAgentSession({tools}) is an allowlist, so the active set is
+// exactly READONLY_TOOLS, nothing more.
+test("runPanelAgent defaults to read-only (read/grep/find/ls only)", async () => {
+  const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.");
   try {
     expect([...result.session.getActiveToolNames()].sort()).toEqual([...READONLY_TOOLS].sort());
+  } finally {
+    result.session.dispose();
+  }
+}, 60_000);
+
+// Real run, no mocks: opting in with fullTools gives the full local set (the
+// read-only tools plus edit/write/bash), so writing is an explicit choice.
+test("runPanelAgent with fullTools gives the full local tool set", async () => {
+  const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.", {
+    fullTools: true,
+  });
+  try {
+    expect([...result.session.getActiveToolNames()].sort()).toEqual([...PANEL_TOOLS].sort());
   } finally {
     result.session.dispose();
   }

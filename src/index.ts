@@ -51,6 +51,9 @@ export default function (pi: ExtensionAPI): void {
       const config = loadFusionConfig(ctx.cwd);
       const prompt = buildInvocationPrompt(params.question, params.outputInstructions);
       // Thread the cancel signal end-to-end: aborting stops every in-flight agent.
+      // Read-only by default (no `fullTools`) — the tool is a Q&A/review surface, so a
+      // calling agent can't get edit/write/bash behind the user's back. No opt-in path
+      // from the tool today; that would be a separate, deliberate decision.
       const result = await fuse(config, prompt, { cwd: ctx.cwd, signal });
       if (!result.ok) {
         // No fabricated answer on a technical failure — surface as a tool error.

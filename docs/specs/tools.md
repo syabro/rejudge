@@ -6,7 +6,7 @@ The extension registers one external tool, `fusion_agents`. Call it explicitly w
 
 The output instructions are carried end-to-end: they are composed into the prompt every panel agent receives and the synthesis is told to honor the task's format, so the returned answer respects the requested format. A missing/invalid config or a technical failure of the panel/synthesis surfaces as a tool error — never a fabricated answer. The package loads as a Pi extension via the `pi.extensions` manifest (entry `src/index.ts`).
 
-Each inner agent (the panel models and the synthesis) runs with the full local tool set in the working directory: `read`, the dedicated `grep`/`find`/`ls` search-and-list tools, and `edit`/`write`/`bash`. The dedicated tools let agents search and list directly instead of shelling out through bash. The set is fixed (host extensions are not inherited); `bash` keeps full write/exec, accepted for the trusted POC.
+Each inner agent (the panel models and the synthesis) runs read-only by default in the working directory: `read` plus the dedicated `grep`/`find`/`ls` search-and-list tools — no `edit`/`write`/`bash` — so the tool cannot change files or run shell commands. The dedicated tools let agents search and list directly instead of shelling out. The full local set (adding `edit`/`write`/`bash`) is an explicit opt-in (`fullTools`), not exposed through the `fusion_agents` tool itself today; the CLI exposes it via `--unsafe`/`--full` (see `cli.md`). Host extensions are not inherited.
 
 # Tasks
 

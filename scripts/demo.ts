@@ -7,8 +7,9 @@
 //
 // Reads .pi/fusion-agents.json from the current directory, prints the fused
 // answer to stdout (progress/diagnostics to stderr). Needs OPENCODE_API_KEY in
-// the environment. Panel agents run with full local tools in the current dir, so
-// asking about the repo lets them read it to answer.
+// the environment. Panel agents run read-only by default (read/grep/find/ls) in the
+// current dir, so asking about the repo lets them read it to answer; this demo does
+// not opt into write tools.
 import { loadFusionConfig } from "../src/config.ts";
 import { fuse } from "../src/fusion.ts";
 

@@ -16,7 +16,7 @@ Run it:
 ```
 bin/fusion.js "your question here"     # prompt as a positional argument
 bin/fusion.js -f prompt.txt            # or read the prompt from a file
-bin/fusion.js --readonly "..."         # restrict inner agents to read-only tools
+bin/fusion.js --unsafe "..."           # opt into full tools (edit/write/bash)
 bin/fusion.js --help
 ```
 
@@ -24,11 +24,13 @@ The fused answer goes to stdout, progress/diagnostics to stderr. Exit codes: `0`
 `1` the panel or synthesis did not complete, `2` bad usage / missing-or-invalid config /
 unreadable `-f` file.
 
-`--readonly` limits every inner agent (panel and synthesis) to the SDK's read-only
-tools — `read`/`grep`/`find`/`ls`, no `edit`/`write`/`bash` — so a fusion used as a
-code reviewer cannot modify files or run shell commands in the working directory.
-Without the flag, inner agents keep the full local tool set (today's behavior). The
-flag combines with either prompt source and is order-independent.
+**Read-only by default.** Every inner agent (panel and synthesis) runs with only the
+SDK's read-only tools — `read`/`grep`/`find`/`ls`, no `edit`/`write`/`bash` — so a
+fusion used as a code reviewer cannot modify files or run shell commands in the working
+directory. Pass `--unsafe` (or its synonym `--full`) to give the agents the full local
+tool set when you actually want them to change files or run commands; the CLI prints an
+`unsafe:` warning when it does. The flag combines with either prompt source and is
+order-independent.
 
 Config: it reads `<cwd>/.pi/fusion-agents.json`, and if the project has none, falls back
 to the user-global `~/.config/fusion-agents.json` (honoring `XDG_CONFIG_HOME`). Same format
@@ -74,18 +76,19 @@ local use from within the repo tree — not a portable/published artifact.
     global-fallback / neither-present); verified by real end-to-end runs through the built
     bin on a stub model (positional + `-f`, plus the `--help`/error exit paths).
 
-- [x] CLI-023 Read-only mode for the fusion CLI		@blocked_by:TLS-003
-  ask-subagent runs fusion as a code reviewer, but inner agents (panel and synth) have
-  edit/write/bash in the reviewed project's cwd — a review can modify or break files, and
-  read-only is only requested in the prompt, not enforced. Add a --readonly flag that limits
-  inner agents to the read-only tool set.
-  Constraints: read-only set = read/grep/find/ls (the SDK's read-only tools), no edit/write/bash;
-  default without the flag stays full read/write as today.
-  Acceptance: `fusion --readonly` runs a fusion where inner agents can only read/grep/find/ls
-  (no file changes, no bash); without the flag, behavior is unchanged.
+- [x] CLI-023 Read-only by default for the fusion CLI		@blocked_by:TLS-003
+  Fusion is mostly used as a code reviewer (via ask-subagent), but inner agents (panel
+  and synth) had edit/write/bash in the reviewed project's cwd — a review could modify or
+  break files. Asking for an opinion should never change the project, so make read-only
+  the default for the whole engine and require an explicit opt-in for write access.
+  Constraints: read-only set = read/grep/find/ls (the SDK's read-only tools); the default
+  (CLI, the fusion_agents tool, the demo) is read-only; full tools (edit/write/bash) are
+  opt-in via a CLI flag whose name signals it enables shell, not just file writes.
+  Acceptance: `fusion "…"` runs read-only — inner agents can only read/grep/find/ls (no
+  file changes, no bash); `fusion --unsafe "…"` (or `--full`) gives the full tool set.
 
   **Implemented:**
-  - `--readonly` on the CLI (src/cli-args.ts → src/cli.ts) threads a `readOnly` option through `fuse` into every inner agent; `runPanelAgent` then picks `READONLY_TOOLS` (read/grep/find/ls) over the full `PANEL_TOOLS`. One option, both panel and synth — `fuse` already forwards options to both stages.
-  - Default (no flag) is unchanged: inner agents keep the full local set.
-  - Tests: pure `parseCliArgs` cases (flag on positional + file, order-independent, default false); a real-model runner test asserting a `readOnly` agent's active tools are exactly read/grep/find/ls.
-  - Verified end-to-end through the built bin: a `--readonly` run's debug log shows only grep/read calls, zero edit/write/bash.
+  - Read-only is the engine default: `runPanelAgent` gives `READONLY_TOOLS` (read/grep/find/ls) unless the caller passes `fullTools`, which selects the full `PANEL_TOOLS`. `fuse` forwards the option to every panel and synth agent, so the fusion_agents tool and the demo are read-only by default too.
+  - CLI opt-in: `--unsafe` and its synonym `--full` set `fullTools` (src/cli-args.ts → src/cli.ts); the CLI prints an `unsafe:` warning when on. Default (no flag) is read-only.
+  - Tests: pure `parseCliArgs` (default read-only; `--unsafe`/`--full` enable full tools; order-independent); real-model runner tests asserting the default agent's active tools are exactly read/grep/find/ls and that `fullTools` yields the full set.
+  - Verified end-to-end through the built bin: a default run's debug log shows only grep/read calls, zero edit/write/bash.

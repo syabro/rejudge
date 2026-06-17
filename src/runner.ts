@@ -9,21 +9,22 @@ import { attachActivityLog } from "./activity.ts";
 import { attachDebugLog, type DebugLog } from "./debug-log.ts";
 
 /**
- * The hand-picked tool set every panel agent runs with: the SDK's full built-in
- * local tools — read, the dedicated grep/find/ls search-and-list tools, and
- * edit/write/bash — in the trusted environment. grep/find/ls are wired in so
- * agents search and list with the dedicated tools rather than shelling out
- * through bash (slow and noisy). Host extensions are not inherited — only these
- * built-in tools are exposed (which also keeps the agent from re-entering
+ * The full local tool set: the SDK's built-ins — read, the dedicated grep/find/ls
+ * search-and-list tools, and edit/write/bash. Used only when the caller opts into
+ * write access (`fullTools`); the default is the read-only subset below. grep/find/ls
+ * are wired in so agents search and list with the dedicated tools rather than
+ * shelling out through bash (slow and noisy). Host extensions are not inherited —
+ * only these built-in tools are exposed (which also keeps the agent from re-entering
  * `fusion_agents`).
  */
 export const PANEL_TOOLS = ["read", "grep", "find", "ls", "edit", "write", "bash"] as const;
 
 /**
  * The read-only subset (the SDK's read-only tools): read plus the dedicated
- * grep/find/ls search-and-list tools, with no edit/write/bash. Selected by the
- * `readOnly` option so an agent reviewing a project cannot modify files or run
- * shell commands in its cwd — only read and search.
+ * grep/find/ls search-and-list tools, with no edit/write/bash. This is the default
+ * set — used unless the caller opts into the full set via `fullTools` — so an agent
+ * reviewing a project cannot modify files or run shell commands in its cwd by
+ * default; only read and search.
  */
 export const READONLY_TOOLS = ["read", "grep", "find", "ls"] as const;
 
@@ -54,12 +55,12 @@ export interface RunPanelAgentOptions {
    */
   debugLog?: DebugLog;
   /**
-   * Restrict the agent to the read-only tool set ({@link READONLY_TOOLS}:
-   * read/grep/find/ls — no edit/write/bash) so it cannot change files or run shell
-   * commands in its cwd. `fuse` forwards it to every panel and synth agent. Default:
-   * false → the full {@link PANEL_TOOLS}.
+   * Give the agent the full local tool set ({@link PANEL_TOOLS}: adds edit/write/bash
+   * on top of read/grep/find/ls) so it can change files and run shell commands in its
+   * cwd. `fuse` forwards it to every panel and synth agent. Default: false →
+   * {@link READONLY_TOOLS}. Read-only is the safe default; writing is an explicit opt-in.
    */
-  readOnly?: boolean;
+  fullTools?: boolean;
 }
 
 /**
@@ -81,10 +82,11 @@ export function resolveModel(modelId: string): Model<any> {
 /**
  * Run one panel agent end-to-end on a single model and return its finished text.
  *
- * The agent runs in the trusted local environment with the fixed {@link PANEL_TOOLS}
- * set. Any model/tool/runtime failure surfaces as a thrown error, never a silent
- * partial result. On success the session is left open (the caller disposes it) so
- * a later synthesis/judge step can re-query the same agent.
+ * The agent runs in the local environment with the read-only {@link READONLY_TOOLS}
+ * set by default, or the full {@link PANEL_TOOLS} set when `fullTools` is passed. Any
+ * model/tool/runtime failure surfaces as a thrown error, never a silent partial
+ * result. On success the session is left open (the caller disposes it) so a later
+ * synthesis/judge step can re-query the same agent.
  *
  * While it runs, a line is logged to stderr each time the agent's activity changes
  * (with the time of the change) — see {@link attachActivityLog}.
@@ -96,9 +98,10 @@ export async function runPanelAgent(
 ): Promise<PanelAgentResult> {
   options.signal?.throwIfAborted(); // already cancelled → don't even spin up a session
   const model = resolveModel(modelId);
-  // Read-only review (CLI-023) restricts the agent to read/grep/find/ls; the default
-  // is the full local set. Same selection for every inner agent (panel and synth).
-  const tools = options.readOnly ? READONLY_TOOLS : PANEL_TOOLS;
+  // Read-only is the default (CLI-023): the agent gets read/grep/find/ls unless the
+  // caller opts into the full local set (edit/write/bash) via `fullTools`. Same
+  // selection for every inner agent (panel and synth).
+  const tools = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
   const { session } = await createAgentSession({
     model,
     cwd: options.cwd ?? process.cwd(),

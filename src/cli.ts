@@ -61,10 +61,14 @@ async function main(): Promise<number> {
 
   console.error(`config: ${path}`);
   console.error(`panel: ${config.panel.join(", ")} | synth: ${config.synth}`);
-  if (args.readOnly) console.error("read-only: inner agents limited to read/grep/find/ls");
+  console.error(
+    args.fullTools
+      ? "unsafe: inner agents can edit/write/run bash in this directory"
+      : "read-only: inner agents limited to read/grep/find/ls",
+  );
   console.error("running fusion on real models (this takes a few minutes)…");
 
-  const result = await fuse(config, prompt, { cwd, readOnly: args.readOnly });
+  const result = await fuse(config, prompt, { cwd, fullTools: args.fullTools });
   if (!result.ok) {
     console.error("fusion: the panel or synthesis did not complete");
     return 1;

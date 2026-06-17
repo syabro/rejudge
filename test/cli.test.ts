@@ -1,39 +1,48 @@
 import { test, expect } from "vitest";
 import { parseCliArgs } from "../src/cli-args.ts";
 
-test("a single positional becomes the prompt", () => {
-  expect(parseCliArgs(["hello"])).toEqual({ kind: "prompt", text: "hello", readOnly: false });
+test("a single positional becomes the prompt (read-only by default)", () => {
+  expect(parseCliArgs(["hello"])).toEqual({ kind: "prompt", text: "hello", fullTools: false });
 });
 
 test("multi-word positionals join into one prompt", () => {
   expect(parseCliArgs(["what", "is", "this"])).toEqual({
     kind: "prompt",
     text: "what is this",
-    readOnly: false,
+    fullTools: false,
   });
 });
 
 test("-f / --file yields a file intent", () => {
-  expect(parseCliArgs(["-f", "p.txt"])).toEqual({ kind: "file", path: "p.txt", readOnly: false });
-  expect(parseCliArgs(["--file", "p.txt"])).toEqual({ kind: "file", path: "p.txt", readOnly: false });
+  expect(parseCliArgs(["-f", "p.txt"])).toEqual({ kind: "file", path: "p.txt", fullTools: false });
+  expect(parseCliArgs(["--file", "p.txt"])).toEqual({
+    kind: "file",
+    path: "p.txt",
+    fullTools: false,
+  });
 });
 
-test("--readonly sets the flag on a positional prompt and a file prompt", () => {
-  expect(parseCliArgs(["--readonly", "hello"])).toEqual({
+test("--unsafe and --full are synonyms that enable the full tool set", () => {
+  expect(parseCliArgs(["--unsafe", "hello"])).toEqual({
     kind: "prompt",
     text: "hello",
-    readOnly: true,
+    fullTools: true,
   });
-  expect(parseCliArgs(["--readonly", "-f", "p.txt"])).toEqual({
+  expect(parseCliArgs(["--full", "hello"])).toEqual({
+    kind: "prompt",
+    text: "hello",
+    fullTools: true,
+  });
+  expect(parseCliArgs(["--unsafe", "-f", "p.txt"])).toEqual({
     kind: "file",
     path: "p.txt",
-    readOnly: true,
+    fullTools: true,
   });
   // Order-independent: the flag may follow the prompt source too.
-  expect(parseCliArgs(["-f", "p.txt", "--readonly"])).toEqual({
+  expect(parseCliArgs(["-f", "p.txt", "--full"])).toEqual({
     kind: "file",
     path: "p.txt",
-    readOnly: true,
+    fullTools: true,
   });
 });
 
