@@ -30,9 +30,14 @@ The output instructions are carried end-to-end: they are composed into the promp
   - Smoke test (`test/tool.test.ts`, no mocks): loads the extension through Pi's real loader, invokes the registered tool with output instructions on real stub models, and asserts the returned answer applies the requested format and preserves the fused content; plus a deterministic `buildInvocationPrompt` unit test.
 
 - [ ] TOO-003 Full local tools for inner agents		#poc @blocked_by:PRJ-012
-  In the POC, inner agents get full local capabilities in the trusted environment.
-  Constraints: tools = read/list/search, bash, edit/write; bash is full write capability that can modify or break the project/environment (accepted for the POC, not production-safe); network goes through bash/local CLIs if needed.
-  Acceptance: an inner agent can read/search the project, run bash, and edit/write files during a run.
+  Inner agents only get read/edit/write/bash, so they search and list through bash — slow and
+  noisy. The Pi SDK also ships dedicated grep/find/ls tools that aren't wired in; the task is to
+  give inner agents those so they search/list with the dedicated tools instead of bash.
+  Constraints: use the SDK's built-in tools (not custom ones); keep bash + edit/write — bash is
+  full write capability that can modify or break the project (accepted for the trusted POC, not
+  production-safe).
+  Acceptance: a panel agent has read/grep/find/ls/edit/write/bash, and a run searches/lists via
+  the dedicated grep/find/ls tools, not bash.
 
 - [ ] TOO-004 DeepSWE tool adapter		#deepswe @blocked_by:PNL-009
   Adapt the working POC to run DeepSWE as a panel model; DeepSWE expects its own tool surface, not the standard local tools.
