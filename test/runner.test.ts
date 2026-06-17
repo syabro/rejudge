@@ -1,8 +1,35 @@
 import { test, expect } from "vitest";
-import { resolveModel, runPanelAgent } from "../src/runner.ts";
+import { createAgentSession } from "@earendil-works/pi-coding-agent";
+import { mkdtempSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { PANEL_TOOLS, resolveModel, runPanelAgent } from "../src/runner.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
 const STUB = "opencode-go/kimi-k2.6";
+
+// Real SDK, no model call: a session created with PANEL_TOOLS actually activates
+// the full local tool set — read, the dedicated grep/find/ls search/list tools,
+// and edit/write/bash — so inner agents search/list with the dedicated tools
+// instead of shelling out through bash (TLS-003). Whether a model then *picks*
+// grep over bash is nondeterministic and left to the live demo, not asserted here.
+test("a session built from PANEL_TOOLS activates the dedicated grep/find/ls tools", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
+  const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));
+  const { session } = await createAgentSession({
+    model: resolveModel(STUB),
+    cwd,
+    agentDir,
+    tools: [...PANEL_TOOLS],
+  });
+  try {
+    expect(session.getActiveToolNames()).toEqual(
+      expect.arrayContaining(["read", "grep", "find", "ls", "edit", "write", "bash"]),
+    );
+  } finally {
+    session.dispose();
+  }
+}, 30_000);
 
 test("resolveModel rejects malformed and unknown model ids", () => {
   expect(() => resolveModel("no-slash")).toThrow();

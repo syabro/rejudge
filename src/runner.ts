@@ -9,12 +9,15 @@ import { attachActivityLog } from "./activity.ts";
 import { attachDebugLog, type DebugLog } from "./debug-log.ts";
 
 /**
- * The hand-picked tool set every panel agent runs with: full local
- * read/edit/write/bash in the trusted environment. Host extensions are not
- * inherited — only these built-in tools are exposed (which also keeps the
- * agent from re-entering `fusion_agents`).
+ * The hand-picked tool set every panel agent runs with: the SDK's full built-in
+ * local tools — read, the dedicated grep/find/ls search-and-list tools, and
+ * edit/write/bash — in the trusted environment. grep/find/ls are wired in so
+ * agents search and list with the dedicated tools rather than shelling out
+ * through bash (slow and noisy). Host extensions are not inherited — only these
+ * built-in tools are exposed (which also keeps the agent from re-entering
+ * `fusion_agents`).
  */
-export const PANEL_TOOLS = ["read", "edit", "write", "bash"] as const;
+export const PANEL_TOOLS = ["read", "grep", "find", "ls", "edit", "write", "bash"] as const;
 
 export interface PanelAgentResult {
   /** The "provider/model" id this agent ran on. */

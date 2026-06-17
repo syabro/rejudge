@@ -6,6 +6,8 @@ The extension registers one external tool, `fusion_agents`. Call it explicitly w
 
 The output instructions are carried end-to-end: they are composed into the prompt every panel agent receives and the synthesis is told to honor the task's format, so the returned answer respects the requested format. A missing/invalid config or a technical failure of the panel/synthesis surfaces as a tool error — never a fabricated answer. The package loads as a Pi extension via the `pi.extensions` manifest (entry `src/index.ts`).
 
+Each inner agent (the panel models and the synthesis) runs with the full local tool set in the working directory: `read`, the dedicated `grep`/`find`/`ls` search-and-list tools, and `edit`/`write`/`bash`. The dedicated tools let agents search and list directly instead of shelling out through bash. The set is fixed (host extensions are not inherited); `bash` keeps full write/exec, accepted for the trusted POC.
+
 # Tasks
 
 - [x] TLS-001 Scaffold pi-fusion-agents extension and register the fusion_agents tool		#poc @blocked_by:PRJ-012
@@ -29,7 +31,7 @@ The output instructions are carried end-to-end: they are composed into the promp
   - A technical failure of the panel or synthesis (or a missing/invalid config) surfaces as a tool error, never a fabricated answer.
   - Smoke test (`test/tool.test.ts`, no mocks): loads the extension through Pi's real loader, invokes the registered tool with output instructions on real stub models, and asserts the returned answer applies the requested format and preserves the fused content; plus a deterministic `buildInvocationPrompt` unit test.
 
-- [ ] TLS-003 Full local tools for inner agents		#poc @blocked_by:PRJ-012
+- [x] TLS-003 Full local tools for inner agents		#poc @blocked_by:PRJ-012
   Inner agents only get read/edit/write/bash, so they search and list through bash — slow and
   noisy. The Pi SDK also ships dedicated grep/find/ls tools that aren't wired in; the task is to
   give inner agents those so they search/list with the dedicated tools instead of bash.
@@ -38,6 +40,11 @@ The output instructions are carried end-to-end: they are composed into the promp
   production-safe).
   Acceptance: a panel agent has read/grep/find/ls/edit/write/bash, and a run searches/lists via
   the dedicated grep/find/ls tools, not bash.
+
+  **Implemented:**
+  - `PANEL_TOOLS` (src/runner.ts) now lists all seven SDK built-ins — read/grep/find/ls/edit/write/bash; it's the single source consumed by both the panel agents and the synth agent, so all inner agents gain the dedicated grep/find/ls search/list tools.
+  - Tool selection at runtime is the model's own choice; capability is what's wired and verified.
+  - Test (test/runner.test.ts): a real `createAgentSession` built from `PANEL_TOOLS` (isolated temp dirs, no model call) asserts `getActiveToolNames()` contains all seven, proving the SDK activates grep/find/ls from the allow-list.
 
 - [ ] TLS-004 DeepSWE tool adapter		#deepswe @blocked_by:PNL-009
   Adapt the working POC to run DeepSWE as a panel model; DeepSWE expects its own tool surface, not the standard local tools.
