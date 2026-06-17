@@ -9,5 +9,5 @@
     "panel": "xhigh",
     "synth": "medium"
   },
-  "debugLog": false
+  "debugLog": true
 }
