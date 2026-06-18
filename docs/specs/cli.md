@@ -44,19 +44,17 @@ local use from within the repo tree — not a portable/published artifact.
 
 ## `/fusion` skill
 
-A Claude Code skill that lives in this repo as the top-level `SKILL.md` and is exposed to
-Claude Code by symlinking that file into `~/.claude/skills/fusion/SKILL.md`. This repo ships
-a single skill, so the file sits at the root — no `docs/skills/<name>/` grouping like a
-multi-skill repo (e.g. mdtask) needs. It runs the fusion bin: one invocation = one run of
-`bin/fusion.js` = one fused panel answer (3-model panel + synth). Read-only by default;
+A Claude Code skill that lives in this repo at `docs/skills/fusion/SKILL.md` and is exposed
+to Claude Code by a **directory** symlink into `~/.claude/skills/fusion` (the mdtask pattern,
+so the repo can hold more than one skill). It runs the fusion bin: one invocation = one run
+of `bin/fusion.js` = one fused panel answer (3-model panel + synth). Read-only by default;
 foreground/blocking; the prompt is written to a file and passed with `-f`; the fused answer
 is the result. Use it for a multi-model panel review or a fused multi-model answer.
 
 Install the symlink once, from the repo root:
 
 ```
-mkdir -p ~/.claude/skills/fusion
-ln -s "$PWD/SKILL.md" ~/.claude/skills/fusion/SKILL.md
+ln -s "$PWD/docs/skills/fusion" ~/.claude/skills/fusion
 ```
 
 # Tasks
@@ -134,6 +132,10 @@ ln -s "$PWD/SKILL.md" ~/.claude/skills/fusion/SKILL.md
     ask-subagent), each naming the other, so the harness never cross-triggers.
   - The `/fusion` skill is version-controlled here; `ask-subagent` stays user-global (outside
     the repo), with its backup kept at `ask-subagent/SKILL.md.bak`.
+  - Later update (skills restructure): the file moved from the repo root to
+    `docs/skills/fusion/SKILL.md`, now exposed via a directory symlink
+    `~/.claude/skills/fusion` → `docs/skills/fusion` (mdtask pattern), to make room for a
+    second in-repo skill.
 
 - [ ] CLI-027 Read the fusion CLI prompt from stdin
   Right now a long, multi-line prompt has to go through a temp file: write a heredoc into
