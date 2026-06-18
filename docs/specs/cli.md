@@ -44,17 +44,19 @@ local use from within the repo tree — not a portable/published artifact.
 
 ## `/fusion` skill
 
-A Claude Code skill that lives in this repo at `docs/skills/fusion/SKILL.md` and is exposed
-to Claude Code by a symlink into `~/.claude/skills/fusion` (same pattern as mdtask). It runs
-the fusion bin: one invocation = one run of `bin/fusion.js` = one fused panel answer
-(3-model panel + synth). Read-only by default; foreground/blocking; the prompt is written to
-a file and passed with `-f`; the fused answer is the result. Use it for a multi-model panel
-review or a fused multi-model answer.
+A Claude Code skill that lives in this repo as the top-level `SKILL.md` and is exposed to
+Claude Code by symlinking that file into `~/.claude/skills/fusion/SKILL.md`. This repo ships
+a single skill, so the file sits at the root — no `docs/skills/<name>/` grouping like a
+multi-skill repo (e.g. mdtask) needs. It runs the fusion bin: one invocation = one run of
+`bin/fusion.js` = one fused panel answer (3-model panel + synth). Read-only by default;
+foreground/blocking; the prompt is written to a file and passed with `-f`; the fused answer
+is the result. Use it for a multi-model panel review or a fused multi-model answer.
 
 Install the symlink once, from the repo root:
 
 ```
-ln -s "$PWD/docs/skills/fusion" ~/.claude/skills/fusion
+mkdir -p ~/.claude/skills/fusion
+ln -s "$PWD/SKILL.md" ~/.claude/skills/fusion/SKILL.md
 ```
 
 # Tasks
@@ -122,9 +124,9 @@ ln -s "$PWD/docs/skills/fusion" ~/.claude/skills/fusion
   `ask-subagent` (single agent); neither's purpose bleeds into the other.
 
   **Implemented:**
-  - New `docs/skills/fusion/SKILL.md` (in-repo, symlinked into `~/.claude/skills/fusion`,
-    same pattern as mdtask) wraps `bin/fusion.js` (read-only default, foreground/blocking,
-    prompt-to-file, strict 3-section output under `### Fused answer`).
+  - New top-level `SKILL.md` (in-repo, symlinked into `~/.claude/skills/fusion/SKILL.md`)
+    wraps `bin/fusion.js` (read-only default, foreground/blocking, prompt-to-file, strict
+    3-section output under `### Fused answer`).
   - `~/.claude/skills/ask-subagent/SKILL.md` restored to single-subagent use (one model per
     invocation), modernized: dropped the hard-banned `ask-claude` routing, kept the
     codex/Agent-tool route and the tmux launch/poll protocol and the no-fanout ban clause.
