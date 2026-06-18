@@ -44,11 +44,18 @@ local use from within the repo tree — not a portable/published artifact.
 
 ## `/fusion` skill
 
-A Claude Code user-global skill (under `~/.claude/skills/`, outside this repo — documented
-here, not version-controlled here) that runs the fusion bin: one invocation = one run of
-`bin/fusion.js` = one fused panel answer (3-model panel + synth). Read-only by default;
-foreground/blocking; the prompt is written to a file and passed with `-f`; the fused answer
-is the result. Use it for a multi-model panel review or a fused multi-model answer.
+A Claude Code skill that lives in this repo at `docs/skills/fusion/SKILL.md` and is exposed
+to Claude Code by a symlink into `~/.claude/skills/fusion` (same pattern as mdtask). It runs
+the fusion bin: one invocation = one run of `bin/fusion.js` = one fused panel answer
+(3-model panel + synth). Read-only by default; foreground/blocking; the prompt is written to
+a file and passed with `-f`; the fused answer is the result. Use it for a multi-model panel
+review or a fused multi-model answer.
+
+Install the symlink once, from the repo root:
+
+```
+ln -s "$PWD/docs/skills/fusion" ~/.claude/skills/fusion
+```
 
 # Tasks
 
@@ -115,12 +122,13 @@ is the result. Use it for a multi-model panel review or a fused multi-model answ
   `ask-subagent` (single agent); neither's purpose bleeds into the other.
 
   **Implemented:**
-  - New `~/.claude/skills/fusion/SKILL.md` wraps `bin/fusion.js` (read-only default,
-    foreground/blocking, prompt-to-file, strict 3-section output under `### Fused answer`).
+  - New `docs/skills/fusion/SKILL.md` (in-repo, symlinked into `~/.claude/skills/fusion`,
+    same pattern as mdtask) wraps `bin/fusion.js` (read-only default, foreground/blocking,
+    prompt-to-file, strict 3-section output under `### Fused answer`).
   - `~/.claude/skills/ask-subagent/SKILL.md` restored to single-subagent use (one model per
     invocation), modernized: dropped the hard-banned `ask-claude` routing, kept the
     codex/Agent-tool route and the tmux launch/poll protocol and the no-fanout ban clause.
   - Descriptions are word-disjoint (panel/fused → fusion; single reviewer/second opinion →
     ask-subagent), each naming the other, so the harness never cross-triggers.
-  - Skill files are user-global (outside the repo); only this spec change is committed. The
-    original single-subagent backup is kept at `ask-subagent/SKILL.md.bak`.
+  - The `/fusion` skill is version-controlled here; `ask-subagent` stays user-global (outside
+    the repo), with its backup kept at `ask-subagent/SKILL.md.bak`.
