@@ -8,6 +8,7 @@ import type { Model, ThinkingLevel } from "@earendil-works/pi-ai";
 import { err, ok, type Result } from "neverthrow";
 import { attachActivityLog } from "./activity.ts";
 import { attachDebugLog, type DebugLog } from "./debug-log.ts";
+import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "./git-diff-tool.ts";
 
 /**
  * The full local tool set: the SDK's built-ins — read, the dedicated grep/find/ls
@@ -120,11 +121,17 @@ export async function runPanelAgent(
     // Read-only is the default (CLI-023): the agent gets read/grep/find/ls unless the
     // caller opts into the full local set (edit/write/bash) via `fullTools`. Same
     // selection for every inner agent (panel and synth).
-    const tools = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
+    const builtins = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
+    // Always add the custom read-only `git_diff` tool (TLS-026) so a review agent can fetch
+    // the working-tree diff itself. It's registered via `customTools` AND named in the tools
+    // allow-list (createAgentSession enables only listed names); the READONLY_TOOLS/PANEL_TOOLS
+    // constants stay built-in-only so they don't mix SDK names with our custom tool.
+    const tools = [...builtins, GIT_DIFF_TOOL_NAME];
     ({ session } = await createAgentSession({
       model,
       cwd: options.cwd ?? process.cwd(),
-      tools: [...tools],
+      tools,
+      customTools: [gitDiffTool],
       // Reasoning level comes from the caller (fuse threads it per stage from the
       // config); default "xhigh" for direct callers that don't set one. Pi clamps
       // the level to what each model actually supports.

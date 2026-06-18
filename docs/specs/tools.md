@@ -8,6 +8,8 @@ The output instructions are carried end-to-end: they are composed into the promp
 
 Each inner agent (the panel models and the synthesis) runs read-only by default in the working directory: `read` plus the dedicated `grep`/`find`/`ls` search-and-list tools — no `edit`/`write`/`bash` — so the tool cannot change files or run shell commands. The dedicated tools let agents search and list directly instead of shelling out. The full local set (adding `edit`/`write`/`bash`) is an explicit opt-in (`fullTools`), not exposed through the `fusion_agents` tool itself today; the CLI exposes it via `--unsafe`/`--full` (see `cli.md`). Host extensions are not inherited.
 
+For code review, every inner agent also gets a custom read-only `git_diff` tool. It returns the working-tree diff so a reviewing agent sees the actual change instead of depending on the diff being pasted into the prompt. Parameters: `mode` (`stat` default = the change map + untracked list / `full` = the whole diff / `file` = one path), `ref` (default `HEAD`; a branch name or commit hash to review committed work), and `path` (only for `mode=file`). It only reads git state — never modifies the repo. An oversized diff hard-stops with guidance (narrow with `mode=file`, or `read` a huge single file) rather than flooding the context; there is no truncation.
+
 # Tasks
 
 - [x] TLS-001 Scaffold pi-fusion-agents extension and register the fusion_agents tool		#poc @blocked_by:PRJ-012
@@ -56,7 +58,7 @@ Each inner agent (the panel models and the synthesis) runs read-only by default 
   answers are "guarded" by a single English sentence — a caller can inject
   instructions. For the trusted POC, document the trust boundary; harden when wider.
 
-- [ ] TLS-026 Add a `git diff HEAD` tool for code review
+- [x] TLS-026 Add a `git diff HEAD` tool for code review
   Read-only inner agents can inspect files but not the working-tree diff, so a code review
   only reaches them if the diff is pasted into the prompt by hand — otherwise they review the
   current snapshot, not what changed.
@@ -90,3 +92,17 @@ Each inner agent (the panel models and the synthesis) runs read-only by default 
   - a read-only inner agent can fetch the `HEAD` diff for its cwd in all three modes
   - a too-large diff yields a hard stop with guidance, not a truncated/partial diff
   - a fusion code review no longer depends on the diff being pasted into the prompt
+
+  **Implemented:**
+  - `src/git-diff-tool.ts` defines the custom `git_diff` tool (`defineTool`): `mode`
+    (`stat`|`full`|`file`), `ref` (default `HEAD`), `path` (file mode). `stat` is a numstat
+    summary + untracked listing; `full`/`file` are the unified diff. Always working-tree-vs-ref
+    (commit ranges rejected), git run via `spawn` (no shell), `-M` rename detection.
+  - Over a per-mode byte cap the tool returns a hard stop with guidance and no diff content
+    (no truncation). Git failures (not a repo, no commits, missing git, bad ref, abort) come
+    back as clean text, never a throw.
+  - Wired into every inner agent via `customTools` + the tool name in the allow-list
+    (`src/runner.ts`); `READONLY_TOOLS`/`PANEL_TOOLS` stay built-in-only.
+  - Tests (`test/git-diff-tool.test.ts`, real git, no mocks): pure helpers, the three modes,
+    untracked-only, hard-stop caps, and every guard/error path; plus a runner test that
+    `git_diff` activates in a read-only session.

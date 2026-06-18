@@ -4,6 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { PANEL_TOOLS, READONLY_TOOLS, resolveModel, runPanelAgent } from "../src/runner.ts";
+import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "../src/git-diff-tool.ts";
 import { integrationTest } from "./integration.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
@@ -32,6 +33,27 @@ test("a session built from PANEL_TOOLS activates the dedicated grep/find/ls tool
   }
 }, 30_000);
 
+// Real SDK, no model call: the custom read-only git_diff tool (TLS-026) is wired into a
+// session via customTools + its name in the allow-list, so it actually activates alongside
+// the read-only built-ins. This proves the SDK enables a custom tool only when both
+// registered AND allow-listed (the wiring runPanelAgent uses).
+test("a session with git_diff in customTools + allow-list activates it", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
+  const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));
+  const { session } = await createAgentSession({
+    model: resolveModel(STUB),
+    cwd,
+    agentDir,
+    tools: [...READONLY_TOOLS, GIT_DIFF_TOOL_NAME],
+    customTools: [gitDiffTool],
+  });
+  try {
+    expect(session.getActiveToolNames()).toContain(GIT_DIFF_TOOL_NAME);
+  } finally {
+    session.dispose();
+  }
+}, 30_000);
+
 test("resolveModel rejects malformed and unknown model ids", () => {
   expect(() => resolveModel("no-slash")).toThrow();
   expect(() => resolveModel("opencode-go/")).toThrow();
@@ -49,7 +71,7 @@ integrationTest("runPanelAgent defaults to read-only (read/grep/find/ls only)", 
   if (result.isOk()) {
     try {
       expect([...result.value.session.getActiveToolNames()].sort()).toEqual(
-        [...READONLY_TOOLS].sort(),
+        [...READONLY_TOOLS, GIT_DIFF_TOOL_NAME].sort(),
       );
     } finally {
       result.value.session.dispose();
@@ -66,7 +88,9 @@ integrationTest("runPanelAgent with fullTools gives the full local tool set", as
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     try {
-      expect([...result.value.session.getActiveToolNames()].sort()).toEqual([...PANEL_TOOLS].sort());
+      expect([...result.value.session.getActiveToolNames()].sort()).toEqual(
+        [...PANEL_TOOLS, GIT_DIFF_TOOL_NAME].sort(),
+      );
     } finally {
       result.value.session.dispose();
     }
