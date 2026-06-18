@@ -42,6 +42,14 @@ auth) — Pi reads it directly; the CLI never handles or bakes in a key.
 Note: the built bin resolves its dependencies from this repo's `node_modules`, so it's for
 local use from within the repo tree — not a portable/published artifact.
 
+## `/fusion` skill
+
+A Claude Code user-global skill (under `~/.claude/skills/`, outside this repo — documented
+here, not version-controlled here) that runs the fusion bin: one invocation = one run of
+`bin/fusion.js` = one fused panel answer (3-model panel + synth). Read-only by default;
+foreground/blocking; the prompt is written to a file and passed with `-f`; the fused answer
+is the result. Use it for a multi-model panel review or a fused multi-model answer.
+
 # Tasks
 
 - [x] CLI-015 Ship fusion as a standalone CLI binary on the Pi library
@@ -93,7 +101,7 @@ local use from within the repo tree — not a portable/published artifact.
   - Tests: pure `parseCliArgs` (default read-only; `--unsafe`/`--full` enable full tools; order-independent); real-model runner tests asserting the default agent's active tools are exactly read/grep/find/ls and that `fullTools` yields the full set.
   - Verified end-to-end through the built bin: a default run's debug log shows only grep/read calls, zero edit/write/bash.
 
-- [ ] CLI-025 Dedicated `/fusion` skill, separate from `ask-subagent`
+- [x] CLI-025 Dedicated `/fusion` skill, separate from `ask-subagent`
   `ask-subagent` was repurposed to run the fusion bin (panel + synth), which lost its real
   job — one external opinion from a single subagent.
 
@@ -105,3 +113,14 @@ local use from within the repo tree — not a portable/published artifact.
 
   Acceptance: two distinct skills — `/fusion` (3-panel + synth via the bin) and
   `ask-subagent` (single agent); neither's purpose bleeds into the other.
+
+  **Implemented:**
+  - New `~/.claude/skills/fusion/SKILL.md` wraps `bin/fusion.js` (read-only default,
+    foreground/blocking, prompt-to-file, strict 3-section output under `### Fused answer`).
+  - `~/.claude/skills/ask-subagent/SKILL.md` restored to single-subagent use (one model per
+    invocation), modernized: dropped the hard-banned `ask-claude` routing, kept the
+    codex/Agent-tool route and the tmux launch/poll protocol and the no-fanout ban clause.
+  - Descriptions are word-disjoint (panel/fused → fusion; single reviewer/second opinion →
+    ask-subagent), each naming the other, so the harness never cross-triggers.
+  - Skill files are user-global (outside the repo); only this spec change is committed. The
+    original single-subagent backup is kept at `ask-subagent/SKILL.md.bak`.
