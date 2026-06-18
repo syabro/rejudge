@@ -1,5 +1,7 @@
+import { Result } from "neverthrow";
 import {
   runPanelAgent,
+  type AgentFailure,
   type PanelAgentResult,
   type RunPanelAgentOptions,
 } from "./runner.ts";
@@ -14,34 +16,31 @@ import {
  * in input order, each with its session left alive for a later synthesis/judge
  * step (the caller disposes them).
  *
- * Failure is loud, never a silent partial panel: if any agent fails (malformed
- * model id, model/tool/runtime error, incomplete run, or empty output), the
- * agents that did finish are disposed and the first error is surfaced.
+ * All-or-nothing, never a silent partial panel: if any agent fails (malformed model
+ * id, model/tool/runtime error, incomplete run, empty output, or a cancel), the agents
+ * that did finish are disposed and the first failure is returned as `err`.
  */
 export async function runPanel(
   models: string[],
   prompt: string,
   options: RunPanelAgentOptions = {},
-): Promise<PanelAgentResult[]> {
-  // allSettled (not Promise.all) so every agent finishes before we return: a
-  // fast rejection under Promise.all would leave the still-running agents'
-  // sessions un-disposed. Here we can deterministically clean up every success.
-  const settled = await Promise.allSettled(
+): Promise<Result<PanelAgentResult[], AgentFailure>> {
+  // runPanelAgent never throws (it returns a Result), so plain Promise.all is safe:
+  // every agent runs to completion and we get one Result each.
+  const results = await Promise.all(
     models.map((modelId) => runPanelAgent(modelId, prompt, options)),
   );
 
-  const ok: PanelAgentResult[] = [];
-  const errors: unknown[] = [];
-  for (const s of settled) {
-    if (s.status === "fulfilled") ok.push(s.value);
-    else errors.push(s.reason);
+  // combine → ok([all results]) when every agent succeeded, else the first err.
+  const combined = Result.combine(results);
+
+  // On any failure, dispose the sessions that DID succeed so nothing leaks.
+  if (combined.isErr()) {
+    for (const r of results) {
+      if (r.isErr()) continue;
+      r.value.session.dispose();
+    }
   }
 
-  if (errors.length > 0) {
-    for (const r of ok) r.session.dispose();
-    const first = errors[0];
-    throw first instanceof Error ? first : new Error(String(first));
-  }
-
-  return ok;
+  return combined;
 }

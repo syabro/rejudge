@@ -34,8 +34,8 @@ console.error(`panel: ${config.panel.join(", ")} | synth: ${config.synth}`);
 console.error("running fusion on real models (this takes a few minutes)…");
 
 const result = await fuse(config, question, { cwd });
-if (!result.ok) {
-  console.error(`fusion failed: ${formatFailure(result.failure)}`);
+if (result.isErr()) {
+  console.error(`fusion failed: ${formatFailure(result.error)}`);
   process.exit(1);
 }
-console.log(result.answer);
+console.log(result.value);

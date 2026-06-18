@@ -10,6 +10,18 @@ Do not run npm publish yourself. The user must run the publish step manually bec
 
 Use `@` prefix for file paths in skill prompts (e.g., `@README.md`). This is Claude Code file inclusion syntax.
 
+## Code style
+
+No linter is configured — these are upheld by reading the code (and by LLM code review).
+Keep code readable like prose:
+
+- **Blank lines as paragraphs.** Group related statements into paragraphs separated by
+  blank lines, the way prose breaks into paragraphs. Don't write walls of code with no
+  breaks — a reader should see the steps.
+- **Inline `if` only for control jumps.** A one-line `if (cond) <stmt>` is allowed only
+  when `<stmt>` is `return`, `throw`, `continue`, or `break`. For an assignment or a call,
+  put the body on its own line in braces.
+
 ## Reviews (mdtask)
 
 For the two review steps in the `mdtask-do` / `mdtask-next` skills — plan

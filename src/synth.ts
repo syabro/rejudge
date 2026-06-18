@@ -1,5 +1,7 @@
+import { type Result } from "neverthrow";
 import {
   runPanelAgent,
+  type AgentFailure,
   type PanelAgentResult,
   type RunPanelAgentOptions,
 } from "./runner.ts";
@@ -61,11 +63,13 @@ export async function synthesize(
   prompt: string,
   panel: PanelOutput[],
   options: RunPanelAgentOptions = {},
-): Promise<string> {
-  const synth = await runPanelAgent(synthModelId, buildSynthesisPrompt(prompt, panel), options);
-  try {
-    return synth.text;
-  } finally {
+): Promise<Result<string, AgentFailure>> {
+  const result = await runPanelAgent(synthModelId, buildSynthesisPrompt(prompt, panel), options);
+  // On success take the fused text and dispose the synth session; on failure pass the
+  // AgentFailure straight through.
+  return result.map((synth) => {
+    const text = synth.text;
     synth.session.dispose();
-  }
+    return text;
+  });
 }

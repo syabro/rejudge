@@ -69,11 +69,11 @@ async function main(): Promise<number> {
   console.error("running fusion on real models (this takes a few minutes)…");
 
   const result = await fuse(config, prompt, { cwd, fullTools: args.fullTools });
-  if (!result.ok) {
-    console.error(`fusion: ${formatFailure(result.failure)}`);
+  if (result.isErr()) {
+    console.error(`fusion: ${formatFailure(result.error)}`);
     return 1;
   }
-  console.log(result.answer);
+  console.log(result.value);
   return 0;
 }
 

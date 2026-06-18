@@ -29,7 +29,9 @@ export function truncate(s: string): string {
       ...lines.slice(-TAIL_LINES),
     ].join("\n");
   }
-  if (out.length > MAX_CHARS) out = `${out.slice(0, MAX_CHARS)}… (${out.length - MAX_CHARS} more chars)`;
+  if (out.length > MAX_CHARS) {
+    out = `${out.slice(0, MAX_CHARS)}… (${out.length - MAX_CHARS} more chars)`;
+  }
   return out;
 }
 
@@ -92,7 +94,9 @@ export function attachDebugLog(session: AgentSession, modelId: string, log: Debu
   return session.subscribe((event) => {
     try {
       const rec = recordFor(event);
-      if (rec) log.write({ t: Date.now(), model, ...rec });
+      if (rec) {
+        log.write({ t: Date.now(), model, ...rec });
+      }
     } catch {
       // Never let a logging failure break the agent run.
     }

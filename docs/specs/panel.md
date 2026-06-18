@@ -32,17 +32,18 @@ session, own tool-use path) — and collects one finished result per model.
 ## Fusion (all-or-nothing)
 
 `fuse(config, prompt, { cwd?, signal?, fullTools? })` runs the whole flow — panel fan-out
-then one synthesis call — and returns an all-or-nothing result:
+then one synthesis call — and returns a neverthrow `Result<string, FusionFailure>` (it never
+throws):
 
-- `{ ok: true, answer }` only when all three panels **and** synthesis complete without a
-  technical (model/tool/runtime) error. `answer` is the single final text; intermediate
-  panel outputs are never surfaced.
-- `{ ok: false, failure }` on any technical failure. There is still no partial path:
-  synthesis is never attempted on an incomplete panel, and there is no 2-of-3 result. The
-  `failure` carries which `stage` broke (`"panel"` | `"synth"`), the `model` id that broke
-  (when the failure came from a specific inner agent), the `error` text, and `aborted`
-  (true for a deliberate cancel rather than a model fault). `formatFailure(failure)` renders
-  it as a one-line `<stage> (<model>) failed: <error>` (or `… aborted`) for CLI/tool output.
+- `ok(answer)` only when all three panels **and** synthesis complete without a technical
+  (model/tool/runtime) error. The value is the single final text; intermediate panel
+  outputs are never surfaced.
+- `err(failure)` on any technical failure. There is still no partial path: synthesis is
+  never attempted on an incomplete panel, and there is no 2-of-3 result. The `failure`
+  carries which `stage` broke (`"panel"` | `"synth"`), the `model` id, the `error` text, and
+  `aborted` (true for a deliberate cancel rather than a model fault). `formatFailure(failure)`
+  renders it as a one-line `<stage> (<model>) failed: <error>` (or `… aborted`) for CLI/tool
+  output.
 
 "Success" means technical completion, not answer quality. The synthesis stage itself
 (output-instruction threading, format preservation) is described under Synthesis in
@@ -51,8 +52,8 @@ then one synthesis call — and returns an all-or-nothing result:
 **Cancellation.** Pass an `AbortSignal` as `signal` (the `fusion_agents` tool forwards the
 one it gets from Pi). It threads down to every panel agent and the synthesis agent;
 aborting it stops the in-flight agents (and short-circuits any not yet started), so a
-cancelled run returns `{ ok: false, failure }` with `aborted: true` instead of leaving
-agents running and burning credits.
+cancelled run returns `err(failure)` with `aborted: true` instead of leaving agents running
+and burning credits.
 
 ## Demo
 
@@ -198,12 +199,12 @@ and a final `agent_end` per agent. A logging failure never breaks the run.
   result) so failures are debuggable.
 
   **Implemented:**
-  - `fuse` now returns `{ ok: false, failure }` where `failure` is `{ stage, model?, error,
-    aborted }` — still all-or-nothing, just with the reason attached.
-  - `runPanelAgent` normalizes every throw into a `PanelAgentError` carrying the `modelId`,
-    so `fuse` reports the failing model as structured data, not by parsing the message.
-    `aborted` is read from the cancel signal, so a user cancel reads as an abort, not a
-    model fault.
+  - `fuse` returns a neverthrow `Result<string, FusionFailure>`; `err(failure)` carries
+    `{ stage, model, error, aborted }` — still all-or-nothing, just with the reason attached.
+  - `runPanelAgent` returns `Result<PanelAgentResult, AgentFailure>` (model + error) and
+    never throws, so `fuse` reports the failing model as structured data rather than parsing
+    a message. `aborted` is read from the cancel signal, so a user cancel reads as an abort,
+    not a model fault.
   - The CLI, the `fusion_agents` tool, and the demo all surface the stage/model/error via a
     shared `formatFailure` one-liner.
   - Tests: a deterministic pre-abort assert (`stage:"panel"`, `aborted:true`, first model)

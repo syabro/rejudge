@@ -18,6 +18,10 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 - Package: source in `src/`, entry `src/index.ts` in package.json `pi.extensions`.
 - Provider: `OPENCODE_GO` (not `opencode`).
 
+## Error handling
+- Expected failures are values, not exceptions: the fusion chain (`runPanelAgent` → `runPanel` → `synthesize` → `fuse`) returns a neverthrow `Result<T, E>` and never throws out of our code. SDK throws are caught at the `runPanelAgent` boundary and turned into `err`.
+- Runtime dep: `neverthrow` (pure ESM, zero deps). The "only @earendil-works/pi-coding-agent" rule is about agent packages — a Result utility is fine.
+
 ## Models (provider `opencode-go`)
 - Panel (3): `opencode-go/deepseek-v4-pro`, `opencode-go/mimo-v2.5-pro`, `opencode-go/minimax-m3`.
 - Synth: `opencode-go/glm-5.1`.

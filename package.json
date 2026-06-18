@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "^0.79.0",
+    "neverthrow": "^8.2.0",
     "typebox": "^1.2.3"
   },
   "scripts": {

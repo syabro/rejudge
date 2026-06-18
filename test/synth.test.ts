@@ -40,10 +40,14 @@ integrationTest("synthesize fuses panel outputs into one answer respecting the f
   // synthesis applied the original task's output instruction.
   const prompt = "What is the capital of France? Begin your reply with the token RESULT:";
 
-  const answer = await synthesize(STUB, prompt, panel);
+  const result = await synthesize(STUB, prompt, panel);
 
-  expect(answer.trim().length).toBeGreaterThan(0);
-  // Format applied (the task's instruction), AND fused content preserved.
-  expect(answer.trim()).toMatch(/^RESULT\s*:/i);
-  expect(answer).toMatch(/Paris/i);
+  expect(result.isOk()).toBe(true);
+  if (result.isOk()) {
+    const answer = result.value;
+    expect(answer.trim().length).toBeGreaterThan(0);
+    // Format applied (the task's instruction), AND fused content preserved.
+    expect(answer.trim()).toMatch(/^RESULT\s*:/i);
+    expect(answer).toMatch(/Paris/i);
+  }
 }, 120_000);

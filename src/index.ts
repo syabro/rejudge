@@ -55,12 +55,12 @@ export default function (pi: ExtensionAPI): void {
       // calling agent can't get edit/write/bash behind the user's back. No opt-in path
       // from the tool today; that would be a separate, deliberate decision.
       const result = await fuse(config, prompt, { cwd: ctx.cwd, signal });
-      if (!result.ok) {
+      if (result.isErr()) {
         // No fabricated answer on a technical failure — surface as a tool error
         // naming the stage/model that broke.
-        throw new Error(`fusion_agents: ${formatFailure(result.failure)}`);
+        throw new Error(`fusion_agents: ${formatFailure(result.error)}`);
       }
-      return { content: [{ type: "text", text: result.answer }], details: {} };
+      return { content: [{ type: "text", text: result.value }], details: {} };
     },
   });
 }

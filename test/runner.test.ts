@@ -45,10 +45,15 @@ test("resolveModel rejects malformed and unknown model ids", () => {
 // exactly READONLY_TOOLS, nothing more.
 integrationTest("runPanelAgent defaults to read-only (read/grep/find/ls only)", async () => {
   const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.");
-  try {
-    expect([...result.session.getActiveToolNames()].sort()).toEqual([...READONLY_TOOLS].sort());
-  } finally {
-    result.session.dispose();
+  expect(result.isOk()).toBe(true);
+  if (result.isOk()) {
+    try {
+      expect([...result.value.session.getActiveToolNames()].sort()).toEqual(
+        [...READONLY_TOOLS].sort(),
+      );
+    } finally {
+      result.value.session.dispose();
+    }
   }
 }, 60_000);
 
@@ -58,20 +63,26 @@ integrationTest("runPanelAgent with fullTools gives the full local tool set", as
   const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.", {
     fullTools: true,
   });
-  try {
-    expect([...result.session.getActiveToolNames()].sort()).toEqual([...PANEL_TOOLS].sort());
-  } finally {
-    result.session.dispose();
+  expect(result.isOk()).toBe(true);
+  if (result.isOk()) {
+    try {
+      expect([...result.value.session.getActiveToolNames()].sort()).toEqual([...PANEL_TOOLS].sort());
+    } finally {
+      result.value.session.dispose();
+    }
   }
 }, 60_000);
 
 // Real run, no mocks: one agent runs end-to-end on a real model and returns text.
 integrationTest("runPanelAgent runs one model end-to-end and returns finished text", async () => {
   const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.");
-  try {
-    expect(result.modelId).toBe(STUB);
-    expect(result.text.trim().length).toBeGreaterThan(0);
-  } finally {
-    result.session.dispose();
+  expect(result.isOk()).toBe(true);
+  if (result.isOk()) {
+    try {
+      expect(result.value.modelId).toBe(STUB);
+      expect(result.value.text.trim().length).toBeGreaterThan(0);
+    } finally {
+      result.value.session.dispose();
+    }
   }
 }, 60_000);

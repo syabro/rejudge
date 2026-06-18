@@ -31,7 +31,7 @@ const CONFIG: FusionConfig = {
 integrationTest("a debugLog run writes a per-run JSONL file of inner-agent activity", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-dbg-"));
   const result = await fuse(CONFIG, "Reply with exactly the word: PONG. Nothing else.", { cwd });
-  expect(result.ok).toBe(true);
+  expect(result.isOk()).toBe(true);
 
   const dir = join(cwd, ".pi", "fusion-logs");
   const files = readdirSync(dir).filter((f) => f.endsWith(".jsonl"));

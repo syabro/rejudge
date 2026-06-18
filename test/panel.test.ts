@@ -12,23 +12,32 @@ const STUB = "opencode-go/kimi-k2.6";
 // three independent finished outputs, one per model id, in input order.
 integrationTest("runPanel fans the same prompt out to three agents and collects three outputs", async () => {
   const models = [STUB, STUB, STUB];
-  const results = await runPanel(models, "Reply with exactly the word: PONG. Nothing else.");
-  try {
-    expect(results).toHaveLength(3);
-    expect(results.map((r) => r.modelId)).toEqual(models);
-    for (const r of results) {
-      expect(r.text.trim().length).toBeGreaterThan(0);
+  const result = await runPanel(models, "Reply with exactly the word: PONG. Nothing else.");
+  expect(result.isOk()).toBe(true);
+  if (result.isOk()) {
+    const outputs = result.value;
+    try {
+      expect(outputs).toHaveLength(3);
+      expect(outputs.map((r) => r.modelId)).toEqual(models);
+      for (const r of outputs) {
+        expect(r.text.trim().length).toBeGreaterThan(0);
+      }
+      // Three independent sessions, not one reused.
+      expect(new Set(outputs.map((r) => r.session)).size).toBe(3);
+    } finally {
+      for (const r of outputs) r.session.dispose();
     }
-    // Three independent sessions, not one reused.
-    expect(new Set(results.map((r) => r.session)).size).toBe(3);
-  } finally {
-    for (const r of results) r.session.dispose();
   }
 }, 120_000);
 
-// A failure in any single agent surfaces loudly — no silent partial panel.
+// A failure in any single agent surfaces as err naming that model — no partial panel.
 integrationTest("runPanel surfaces a failure instead of returning a partial panel", async () => {
-  await expect(
-    runPanel([STUB, "opencode-go/not-a-real-model", STUB], "Reply with exactly the word: PONG."),
-  ).rejects.toThrow();
+  const result = await runPanel(
+    [STUB, "opencode-go/not-a-real-model", STUB],
+    "Reply with exactly the word: PONG.",
+  );
+  expect(result.isErr()).toBe(true);
+  if (result.isErr()) {
+    expect(result.error.model).toBe("opencode-go/not-a-real-model");
+  }
 }, 120_000);
