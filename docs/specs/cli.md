@@ -57,6 +57,20 @@ Install the symlink once, from the repo root:
 ln -s "$PWD/docs/skills/fusion" ~/.claude/skills/fusion
 ```
 
+## `/fusion-review` skill
+
+A Claude Code skill at `docs/skills/fusion-review/SKILL.md`, dir-symlinked into
+`~/.claude/skills/fusion-review`. It runs `bin/fusion.js` (the same panel as `/fusion`) with a
+code-review prompt: the inner agents use the `git_diff` tool to read the diff and review it,
+read-only. The diff is taken against a ref (default `HEAD`). Use it for a multi-model code
+review of a change; for a single-reviewer review use the global `code-review` skill.
+
+Install the symlink once, from the repo root:
+
+```
+ln -s "$PWD/docs/skills/fusion-review" ~/.claude/skills/fusion-review
+```
+
 # Tasks
 
 - [x] CLI-015 Ship fusion as a standalone CLI binary on the Pi library
