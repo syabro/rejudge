@@ -1,6 +1,6 @@
 # pi-fusion-agents
 
-**Always read @justfile at the start of every session.** It defines project commands — use `just` instead of raw bun/npm for build, test, release, etc.
+Dev commands are npm/bun scripts in `package.json` — `bun run test`, `bun run test:unit`, `bun run typecheck`, `bun run build:cli`. See @README.md for what this is and how to run it.
 
 ## Release publishing
 

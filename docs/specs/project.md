@@ -2,7 +2,7 @@
 
 ## Setup
 
-`pi-fusion-agents` is a Node-first TypeScript Pi extension. bun is the dev package manager and script runner; the code and types have no dependency on bun, so it also runs under npm + plain Node (Node ≥ 23.6 for TS type-stripping).
+`pi-fusion-agents` is a Node-first TypeScript Pi extension. bun is the dev package manager and script runner; the code and types have no dependency on bun, so it also runs under npm + plain Node (Node ≥ 23.6 for TS type-stripping). `README.md` is the one-page overview (what it is, the commands, where keys go); this section is the fuller reference.
 
 - Install: `bun install` (or `npm install`)
 - Test: `npm test` / `bun run test` — runs **Vitest** (`vitest run`)
@@ -52,7 +52,14 @@ Source lives in `src/`; the extension entry is `src/index.ts`, declared in `pack
     shape (3 panel + non-empty synth + `debugLog`); model-ID validity stays an integration
     concern.
 
-- [ ] PRJ-021 Fix onboarding: dead justfile reference and no README
+- [x] PRJ-021 Fix onboarding: dead justfile reference and no README
   AGENTS.md's first line says "read justfile", which doesn't exist, and there's no
   README. Remove the dead pointer and add a short README (what it is, the two
   commands, where keys go).
+
+  **Implemented:**
+  - AGENTS.md's opening no longer points at a non-existent justfile; it names the real
+    npm/bun scripts (`test`, `test:unit`, `typecheck`, `build:cli`) and links `README.md`.
+  - New `README.md`: what the extension is, install, the dev commands, the CLI (with the
+    read-only default and `--unsafe`/`--full` opt-in), and where the model key + config live.
+  - No remaining justfile references in the repo.
