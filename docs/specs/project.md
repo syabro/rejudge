@@ -63,3 +63,10 @@ Source lives in `src/`; the extension entry is `src/index.ts`, declared in `pack
   - New `README.md`: what the extension is, install, the dev commands, the CLI (with the
     read-only default and `--unsafe`/`--full` opt-in), and where the model key + config live.
   - No remaining justfile references in the repo.
+
+- [ ] PRJ-024 Cheap LLM style-review pass for the AGENTS.md code-style rules
+  No linter enforces the AGENTS.md "Code style" rules. Run a cheap/fast LLM over the diff,
+  fed those rules, to flag violations during code review.
+  Constraints: cheap stub-tier model, not the fusion panel; a bare one-shot call — no tools,
+  no agent session — just the diff + rules in the prompt; advisory only (flags, never fixes).
+  Acceptance: a diff that breaks a rule gets the offending lines flagged; a clean diff passes.
