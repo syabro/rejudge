@@ -55,3 +55,38 @@ Each inner agent (the panel models and the synthesis) runs read-only by default 
   outputInstructions is pasted into the panel/synth prompts verbatim, and candidate
   answers are "guarded" by a single English sentence — a caller can inject
   instructions. For the trusted POC, document the trust boundary; harden when wider.
+
+- [ ] TLS-026 Add a `git diff HEAD` tool for code review
+  Read-only inner agents can inspect files but not the working-tree diff, so a code review
+  only reaches them if the diff is pasted into the prompt by hand — otherwise they review the
+  current snapshot, not what changed.
+
+  Add a custom read-only tool `git_diff` that shows the working-tree diff against a ref
+  (default `HEAD`) for the agent's cwd. Three modes:
+  - `stat` (default) — the change map: which files changed with line counts, plus a list of
+    untracked files. Never a patch.
+  - `full` — the entire unified diff.
+  - `file` — the diff of a single file or directory given by `path`.
+
+  The comparison base is the `ref` param (default `HEAD`); it may be a branch name or a commit
+  hash, so the agent can review against a base branch, not just uncommitted changes. It is
+  always the working tree vs `ref` — the full change, staged or not.
+
+  Output is capped. Over the cap the tool returns a hard stop (e.g. "diff too large — use
+  `mode=file`"), never a partial or chopped diff. Untracked files are surfaced in `stat`;
+  their content is read with the existing `read` tool, so the tool never injects new-file
+  content into a diff. Runs git directly via `spawn` (no shell), no commit-range syntax (always
+  working tree vs a single `ref`), with rename detection (`-M`).
+
+  User decisions:
+  - tool name `git_diff`; params `mode` (`stat` default | `full` | `file`), `ref`, and `path`
+  - comparison base is `ref`, default `HEAD`, may be a branch or commit hash; always the
+    working tree vs `ref` (the full diff, staged or not)
+  - `path` applies only to `mode=file`
+  - default is `stat` (the change map), not a diff
+  - no truncation — at the cap, stop hard; never return a chopped diff
+
+  DoD:
+  - a read-only inner agent can fetch the `HEAD` diff for its cwd in all three modes
+  - a too-large diff yields a hard stop with guidance, not a truncated/partial diff
+  - a fusion code review no longer depends on the diff being pasted into the prompt
