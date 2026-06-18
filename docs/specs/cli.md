@@ -134,3 +134,24 @@ ln -s "$PWD/SKILL.md" ~/.claude/skills/fusion/SKILL.md
     ask-subagent), each naming the other, so the harness never cross-triggers.
   - The `/fusion` skill is version-controlled here; `ask-subagent` stays user-global (outside
     the repo), with its backup kept at `ask-subagent/SKILL.md.bak`.
+
+- [ ] CLI-027 Read the fusion CLI prompt from stdin
+  Right now a long, multi-line prompt has to go through a temp file: write a heredoc into
+  `/tmp`, then pass it with `-f`. The prompt is the payload — often 30+ lines — so making a
+  throwaway file just to hand it over is pure friction. Let the prompt come from stdin
+  instead, so `fusion <<'EOF' … EOF` or `cmd | fusion` works with no temp file.
+
+  Read stdin only when there is no positional and no `-f`, so there is still one prompt from
+  one source. On a terminal with no pipe and no prompt, print usage and exit instead of
+  blocking on stdin; treat empty stdin as a usage error (exit `2`), like an empty `-f` file.
+
+  Also update the `/fusion` skill and the CLI docs (`README.md`, `docs/specs/cli.md`) to
+  teach the heredoc/stdin form for long prompts, replacing the current "write the prompt to
+  a file, pass with `-f`" instruction.
+
+  DoD:
+  - `fusion <<'EOF' … EOF` and `cmd | fusion` run the piped text as the prompt
+  - `fusion "question"` and `fusion -f file` behave exactly as before
+  - bare `fusion` on a terminal with no pipe prints usage and exits, does not hang
+  - empty stdin exits `2`
+  - the `/fusion` skill shows the heredoc form for a long prompt
