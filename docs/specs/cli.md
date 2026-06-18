@@ -157,3 +157,18 @@ ln -s "$PWD/docs/skills/fusion" ~/.claude/skills/fusion
   - bare `fusion` on a terminal with no pipe prints usage and exits, does not hang
   - empty stdin exits `2`
   - the `/fusion` skill shows the heredoc form for a long prompt
+
+- [ ] CLI-028 Drop the numeric exit-code scheme — one failure code + a readable error
+  The fusion CLI exits `0` / `1` / `2` to mean success / panel-or-synth didn't complete / bad
+  config or usage (`src/cli.ts`, documented in `cli.md`). These numeric codes are semaphores
+  the caller has to decode instead of just reading what went wrong. A failure should be a
+  single non-zero exit plus a clear, human-readable message in the output.
+
+  User decision: collapse to `0` = success, one non-zero = failure; the reason goes in the
+  output as plain text, not encoded in the exit number. Drop the 1-vs-2 distinction.
+
+  DoD:
+  - the CLI exits `0` on success and a single non-zero code on any failure;
+  - the failure reason (bad/missing config, unreadable `-f` file, panel/synth didn't
+    complete) is a clear message in the output — not inferred from the exit number;
+  - `cli.md` and the in-repo skills (`fusion`, `fusion-review`) stop documenting exit 1 vs 2.
