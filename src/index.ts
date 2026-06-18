@@ -1,7 +1,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { loadFusionConfig } from "./config.ts";
-import { fuse } from "./fusion.ts";
+import { formatFailure, fuse } from "./fusion.ts";
 
 const parameters = Type.Object({
   question: Type.String({
@@ -56,8 +56,9 @@ export default function (pi: ExtensionAPI): void {
       // from the tool today; that would be a separate, deliberate decision.
       const result = await fuse(config, prompt, { cwd: ctx.cwd, signal });
       if (!result.ok) {
-        // No fabricated answer on a technical failure — surface as a tool error.
-        throw new Error("fusion_agents: the panel or synthesis did not complete");
+        // No fabricated answer on a technical failure — surface as a tool error
+        // naming the stage/model that broke.
+        throw new Error(`fusion_agents: ${formatFailure(result.failure)}`);
       }
       return { content: [{ type: "text", text: result.answer }], details: {} };
     },

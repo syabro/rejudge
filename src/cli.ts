@@ -13,7 +13,7 @@ import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { parseCliArgs, USAGE } from "./cli-args.ts";
 import { resolveFusionConfig } from "./config.ts";
-import { fuse } from "./fusion.ts";
+import { formatFailure, fuse } from "./fusion.ts";
 
 function msg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -70,7 +70,7 @@ async function main(): Promise<number> {
 
   const result = await fuse(config, prompt, { cwd, fullTools: args.fullTools });
   if (!result.ok) {
-    console.error("fusion: the panel or synthesis did not complete");
+    console.error(`fusion: ${formatFailure(result.failure)}`);
     return 1;
   }
   console.log(result.answer);

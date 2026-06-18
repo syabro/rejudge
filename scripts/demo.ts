@@ -11,7 +11,7 @@
 // current dir, so asking about the repo lets them read it to answer; this demo does
 // not opt into write tools.
 import { loadFusionConfig } from "../src/config.ts";
-import { fuse } from "../src/fusion.ts";
+import { formatFailure, fuse } from "../src/fusion.ts";
 
 const DEFAULT_QUESTION =
   "Based on this project's source code, explain what the pi-fusion-agents" +
@@ -35,7 +35,7 @@ console.error("running fusion on real models (this takes a few minutes)…");
 
 const result = await fuse(config, question, { cwd });
 if (!result.ok) {
-  console.error("fusion failed: the panel or synthesis did not complete");
+  console.error(`fusion failed: ${formatFailure(result.failure)}`);
   process.exit(1);
 }
 console.log(result.answer);

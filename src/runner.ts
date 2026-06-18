@@ -80,6 +80,23 @@ export function resolveModel(modelId: string): Model<any> {
 }
 
 /**
+ * A failure from a single inner agent, carrying the `modelId` that broke so a caller can
+ * report which panel/synth model failed as structured data instead of parsing the message.
+ * `cause` keeps the original error (stack, abort reason). Every throw out of
+ * {@link runPanelAgent} is normalized to this.
+ */
+export class PanelAgentError extends Error {
+  constructor(
+    readonly modelId: string,
+    message: string,
+    options?: { cause?: unknown },
+  ) {
+    super(message, options);
+    this.name = "PanelAgentError";
+  }
+}
+
+/**
  * Run one panel agent end-to-end on a single model and return its finished text.
  *
  * The agent runs in the local environment with the read-only {@link READONLY_TOOLS}
@@ -96,67 +113,77 @@ export async function runPanelAgent(
   prompt: string,
   options: RunPanelAgentOptions = {},
 ): Promise<PanelAgentResult> {
-  options.signal?.throwIfAborted(); // already cancelled → don't even spin up a session
-  const model = resolveModel(modelId);
-  // Read-only is the default (CLI-023): the agent gets read/grep/find/ls unless the
-  // caller opts into the full local set (edit/write/bash) via `fullTools`. Same
-  // selection for every inner agent (panel and synth).
-  const tools = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
-  const { session } = await createAgentSession({
-    model,
-    cwd: options.cwd ?? process.cwd(),
-    tools: [...tools],
-    // Reasoning level comes from the caller (fuse threads it per stage from the
-    // config); default "xhigh" for direct callers that don't set one. Pi clamps
-    // the level to what each model actually supports.
-    thinkingLevel: options.thinkingLevel ?? "xhigh",
-  });
-  // Log this agent's activity changes to stderr. Detached in `finally`; on the error
-  // path dispose() has already removed the listener, so detach is then a no-op.
-  const detach = attachActivityLog(session, modelId);
-  // Persist a richer per-run debug log when fuse enabled it (config.debugLog).
-  const detachDebug = options.debugLog && attachDebugLog(session, modelId, options.debugLog);
-  // Bridge the cancel signal to the SDK's session.abort() for the in-flight run. An
-  // abort makes prompt() resolve with stopReason "aborted", which the check below
-  // surfaces as a thrown error → the whole fusion fails, never a silent partial.
-  const onAbort = () => void session.abort();
-  options.signal?.addEventListener("abort", onAbort, { once: true });
   try {
-    // If the signal fired during the async createAgentSession above, the listener's
-    // session.abort() is a no-op (prompt() hasn't created an abortable run yet), so
-    // throw here to cancel. Once prompt() is running, the listener does the work.
-    options.signal?.throwIfAborted();
-    await session.prompt(prompt);
+    options.signal?.throwIfAborted(); // already cancelled → don't even spin up a session
+    const model = resolveModel(modelId);
+    // Read-only is the default (CLI-023): the agent gets read/grep/find/ls unless the
+    // caller opts into the full local set (edit/write/bash) via `fullTools`. Same
+    // selection for every inner agent (panel and synth).
+    const tools = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
+    const { session } = await createAgentSession({
+      model,
+      cwd: options.cwd ?? process.cwd(),
+      tools: [...tools],
+      // Reasoning level comes from the caller (fuse threads it per stage from the
+      // config); default "xhigh" for direct callers that don't set one. Pi clamps
+      // the level to what each model actually supports.
+      thinkingLevel: options.thinkingLevel ?? "xhigh",
+    });
+    // Log this agent's activity changes to stderr. Detached in `finally`; on the error
+    // path dispose() has already removed the listener, so detach is then a no-op.
+    const detach = attachActivityLog(session, modelId);
+    // Persist a richer per-run debug log when fuse enabled it (config.debugLog).
+    const detachDebug = options.debugLog && attachDebugLog(session, modelId, options.debugLog);
+    // Bridge the cancel signal to the SDK's session.abort() for the in-flight run. An
+    // abort makes prompt() resolve with stopReason "aborted", which the check below
+    // surfaces as a thrown error → the whole fusion fails, never a silent partial.
+    const onAbort = () => void session.abort();
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    try {
+      // If the signal fired during the async createAgentSession above, the listener's
+      // session.abort() is a no-op (prompt() hasn't created an abortable run yet), so
+      // throw here to cancel. Once prompt() is running, the listener does the work.
+      options.signal?.throwIfAborted();
+      await session.prompt(prompt);
 
-    // Failures don't throw — the stream contract encodes them as the final
-    // assistant message with stopReason "error"/"aborted". Surface them loudly.
-    const last = [...session.state.messages]
-      .reverse()
-      .find((m): m is Extract<typeof m, { role: "assistant" }> => m.role === "assistant");
-    if (!last) {
-      throw new Error(`Panel agent ${modelId} produced no response`);
-    }
-    // Only "stop" is a clean completion. "length" (truncated), "toolUse" (loop
-    // ended mid tool-cycle), "error" and "aborted" are all partial/failed runs —
-    // surface them instead of returning a silent partial answer.
-    if (last.stopReason !== "stop") {
-      const detail = last.errorMessage ? `: ${last.errorMessage}` : "";
-      throw new Error(
-        `Panel agent ${modelId} did not complete cleanly (stopReason: ${last.stopReason})${detail}`,
-      );
-    }
+      // Failures don't throw — the stream contract encodes them as the final
+      // assistant message with stopReason "error"/"aborted". Surface them loudly.
+      const last = [...session.state.messages]
+        .reverse()
+        .find((m): m is Extract<typeof m, { role: "assistant" }> => m.role === "assistant");
+      if (!last) {
+        throw new Error(`Panel agent ${modelId} produced no response`);
+      }
+      // Only "stop" is a clean completion. "length" (truncated), "toolUse" (loop
+      // ended mid tool-cycle), "error" and "aborted" are all partial/failed runs —
+      // surface them instead of returning a silent partial answer.
+      if (last.stopReason !== "stop") {
+        const detail = last.errorMessage ? `: ${last.errorMessage}` : "";
+        throw new Error(
+          `Panel agent ${modelId} did not complete cleanly (stopReason: ${last.stopReason})${detail}`,
+        );
+      }
 
-    const text = session.getLastAssistantText();
-    if (!text || text.trim() === "") {
-      throw new Error(`Panel agent ${modelId} returned empty text`);
+      const text = session.getLastAssistantText();
+      if (!text || text.trim() === "") {
+        throw new Error(`Panel agent ${modelId} returned empty text`);
+      }
+      return { modelId, text, session };
+    } catch (err) {
+      session.dispose();
+      throw err;
+    } finally {
+      options.signal?.removeEventListener("abort", onAbort);
+      if (detachDebug) detachDebug();
+      detach();
     }
-    return { modelId, text, session };
   } catch (err) {
-    session.dispose();
-    throw err;
-  } finally {
-    options.signal?.removeEventListener("abort", onAbort);
-    if (detachDebug) detachDebug();
-    detach();
+    // Normalize every failure (resolveModel / createAgentSession / abort / run) so the
+    // caller can report which model broke as structured data, not by string-parsing.
+    // Already-typed errors pass through unchanged.
+    if (err instanceof PanelAgentError) throw err;
+    throw new PanelAgentError(modelId, err instanceof Error ? err.message : String(err), {
+      cause: err,
+    });
   }
 }

@@ -31,24 +31,28 @@ session, own tool-use path) — and collects one finished result per model.
 
 ## Fusion (all-or-nothing)
 
-`fuse(config, prompt, { cwd?, signal? })` runs the whole flow — panel fan-out then one
-synthesis call — and returns a binary result:
+`fuse(config, prompt, { cwd?, signal?, fullTools? })` runs the whole flow — panel fan-out
+then one synthesis call — and returns an all-or-nothing result:
 
 - `{ ok: true, answer }` only when all three panels **and** synthesis complete without a
   technical (model/tool/runtime) error. `answer` is the single final text; intermediate
   panel outputs are never surfaced.
-- `{ ok: false }` (no answer text) on any technical failure. There is no partial path:
-  synthesis is never attempted on an incomplete panel, and there is no 2-of-3 result.
+- `{ ok: false, failure }` on any technical failure. There is still no partial path:
+  synthesis is never attempted on an incomplete panel, and there is no 2-of-3 result. The
+  `failure` carries which `stage` broke (`"panel"` | `"synth"`), the `model` id that broke
+  (when the failure came from a specific inner agent), the `error` text, and `aborted`
+  (true for a deliberate cancel rather than a model fault). `formatFailure(failure)` renders
+  it as a one-line `<stage> (<model>) failed: <error>` (or `… aborted`) for CLI/tool output.
 
-"Success" means technical completion, not answer quality, and which stage failed is not
-reported (kept binary). The synthesis stage itself (output-instruction threading, format
-preservation) is described under Synthesis in `synth.md`.
+"Success" means technical completion, not answer quality. The synthesis stage itself
+(output-instruction threading, format preservation) is described under Synthesis in
+`synth.md`.
 
 **Cancellation.** Pass an `AbortSignal` as `signal` (the `fusion_agents` tool forwards the
 one it gets from Pi). It threads down to every panel agent and the synthesis agent;
 aborting it stops the in-flight agents (and short-circuits any not yet started), so a
-cancelled run returns `{ ok: false }` instead of leaving agents running and burning
-credits — consistent with the binary result, no special error.
+cancelled run returns `{ ok: false, failure }` with `aborted: true` instead of leaving
+agents running and burning credits.
 
 ## Demo
 
@@ -188,10 +192,23 @@ and a final `agent_end` per agent. A logging failure never breaks the run.
   - Tests (`test/fusion.test.ts`, real runs): an already-aborted signal fails fast with no
     model call; a mid-run abort cancels the fusion to `{ ok: false }`.
 
-- [ ] PNL-017 Report which stage and model failed on a fusion failure
+- [x] PNL-017 Report which stage and model failed on a fusion failure
   Fusion returns a bare {ok:false}; on failure you can't tell which panel/synth model
   broke or why. Surface the failing stage, model, and error (relaxing the binary
   result) so failures are debuggable.
+
+  **Implemented:**
+  - `fuse` now returns `{ ok: false, failure }` where `failure` is `{ stage, model?, error,
+    aborted }` — still all-or-nothing, just with the reason attached.
+  - `runPanelAgent` normalizes every throw into a `PanelAgentError` carrying the `modelId`,
+    so `fuse` reports the failing model as structured data, not by parsing the message.
+    `aborted` is read from the cancel signal, so a user cancel reads as an abort, not a
+    model fault.
+  - The CLI, the `fusion_agents` tool, and the demo all surface the stage/model/error via a
+    shared `formatFailure` one-liner.
+  - Tests: a deterministic pre-abort assert (`stage:"panel"`, `aborted:true`, first model)
+    plus integration asserts that a bad panel/synth model surfaces its stage + id with
+    `aborted:false`.
 
 - [x] PNL-022 Persist a debug log of inner-agent activity		!high
   The live activity log only goes to stderr and vanishes with the run. Write it to a
