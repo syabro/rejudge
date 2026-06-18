@@ -92,3 +92,16 @@ local use from within the repo tree — not a portable/published artifact.
   - CLI opt-in: `--unsafe` and its synonym `--full` set `fullTools` (src/cli-args.ts → src/cli.ts); the CLI prints an `unsafe:` warning when on. Default (no flag) is read-only.
   - Tests: pure `parseCliArgs` (default read-only; `--unsafe`/`--full` enable full tools; order-independent); real-model runner tests asserting the default agent's active tools are exactly read/grep/find/ls and that `fullTools` yields the full set.
   - Verified end-to-end through the built bin: a default run's debug log shows only grep/read calls, zero edit/write/bash.
+
+- [ ] CLI-025 Dedicated `/fusion` skill, separate from `ask-subagent`
+  `ask-subagent` was repurposed to run the fusion bin (panel + synth), which lost its real
+  job — one external opinion from a single subagent.
+
+  Add a separate `/fusion` skill that runs the bin, and return `ask-subagent` to
+  single-agent use.
+
+  Constraints: `/fusion` wraps `bin/fusion.js` (read-only default); `ask-subagent` goes back
+  to one model / one subagent.
+
+  Acceptance: two distinct skills — `/fusion` (3-panel + synth via the bin) and
+  `ask-subagent` (single agent); neither's purpose bleeds into the other.
