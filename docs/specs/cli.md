@@ -29,9 +29,10 @@ pipe and no prompt, the CLI prints usage and exits instead of blocking on stdin;
 is a usage error, like an empty `-f` file. (`-f -` is a file literally named `-`, not a stdin
 alias.)
 
-The fused answer goes to stdout, progress/diagnostics to stderr. Exit codes: `0` answer,
-`1` the panel or synthesis did not complete, `2` bad usage / missing-or-invalid config /
-unreadable `-f` file / empty stdin.
+The fused answer goes to stdout, progress/diagnostics to stderr. Exit status: `0` on success;
+any non-zero exit is a failure, and the reason (bad usage, missing/invalid config, unreadable
+`-f` file, empty prompt, panel/synth didn't complete) is printed to stderr as plain text —
+read the message, don't decode the number.
 
 **Read-only by default.** Every inner agent (panel and synthesis) runs with only the
 SDK's read-only tools — `read`/`grep`/`find`/`ls`, no `edit`/`write`/`bash` — so a
@@ -194,7 +195,7 @@ ln -s "$PWD/docs/skills/fusion-review" ~/.claude/skills/fusion-review
     (spawns the built bin, empty stdin → exit `2`, no key needed); verified end-to-end that a
     piped prompt reaches the panel.
 
-- [ ] CLI-028 Drop the numeric exit-code scheme — one failure code + a readable error
+- [x] CLI-028 Drop the numeric exit-code scheme — one failure code + a readable error
   The fusion CLI exits `0` / `1` / `2` to mean success / panel-or-synth didn't complete / bad
   config or usage (`src/cli.ts`, documented in `cli.md`). These numeric codes are semaphores
   the caller has to decode instead of just reading what went wrong. A failure should be a
@@ -208,3 +209,17 @@ ln -s "$PWD/docs/skills/fusion-review" ~/.claude/skills/fusion-review
   - the failure reason (bad/missing config, unreadable `-f` file, panel/synth didn't
     complete) is a clear message in the output — not inferred from the exit number;
   - `cli.md` and the in-repo skills (`fusion`, `fusion-review`) stop documenting exit 1 vs 2.
+
+  **Implemented:**
+  - `src/cli.ts` now exits `0` on success and `1` on every failure (the old `2` paths —
+    parse/usage error, unreadable or empty `-f`, stdin TTY guard / read error / empty stdin,
+    config resolve error — all collapsed to `1`). Each path already prints a clear
+    `fusion: <reason>` line to stderr, so the reason is read, not decoded.
+  - **Breaking**: a caller testing `$? -eq 2` no longer sees `2`; any non-zero is now `1`.
+    This is the intended change — branch on zero/non-zero and read the message.
+  - Docs stripped of the 1-vs-2 mapping: the `cli.md` feature section, and the `fusion` skill
+    (Prerequisites, launch step, Failure modes) now describe exit status as 0 / non-zero with
+    the reason on stderr; `fusion-review` says "exit status", not "exit codes".
+  - Tests: the real-bin smoke test now asserts empty stdin exits `1`. Only that one failure
+    path is covered by an automated test (pre-existing gap, unchanged here); the others were
+    verified by hand against the built bin.

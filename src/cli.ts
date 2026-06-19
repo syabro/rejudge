@@ -42,53 +42,53 @@ async function main(): Promise<number> {
   }
   if (args.kind === "error") {
     console.error(`fusion: ${args.message}\n\n${USAGE}`);
-    return 2;
+    return 1;
   }
 
   // Resolve the prompt text from its source: a positional, a file (-f), or stdin.
-  // All of this runs before config resolution, so a bad/empty prompt exits 2 early.
+  // All of this runs before config resolution, so a bad/empty prompt fails early.
   let prompt: string;
   if (args.kind === "file") {
     try {
       prompt = readFileSync(args.path, "utf8");
     } catch (err) {
       console.error(`fusion: cannot read prompt file ${args.path} (${msg(err)})`);
-      return 2;
+      return 1;
     }
     if (prompt.trim() === "") {
       console.error(`fusion: prompt file is empty: ${args.path}`);
-      return 2;
+      return 1;
     }
   } else if (args.kind === "stdin") {
     // A bare interactive terminal has nothing to read — print usage instead of
     // hanging on stdin waiting for input that will never come.
     if (process.stdin.isTTY) {
       console.error(`fusion: no prompt given\n\n${USAGE}`);
-      return 2;
+      return 1;
     }
     try {
       prompt = await readStdin();
     } catch (err) {
       console.error(`fusion: cannot read prompt from stdin (${msg(err)})`);
-      return 2;
+      return 1;
     }
     if (prompt.trim() === "") {
       console.error("fusion: prompt on stdin is empty");
-      return 2;
+      return 1;
     }
   } else {
     prompt = args.text;
   }
 
   // Resolve config: project's .pi/, else ~/.config/. A missing/invalid config is a setup
-  // error the user must fix → exit 2 (distinct from a runtime fusion failure → exit 1).
+  // error the user must fix; like every failure it exits non-zero with the reason printed.
   const cwd = process.cwd();
   let config, path;
   try {
     ({ config, path } = resolveFusionConfig(cwd));
   } catch (err) {
     console.error(`fusion: ${msg(err)}\n\n${USAGE}`);
-    return 2;
+    return 1;
   }
 
   console.error(`config: ${path}`);

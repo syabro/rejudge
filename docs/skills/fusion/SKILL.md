@@ -32,8 +32,8 @@ elsewhere. The bin is a gitignored build artifact: (re)build it after a fresh ch
   has its OWN `.pi/fusion-agents.json` silently shadows the global panel (different
   models) — check the `config: <path>` line fusion prints to stderr matches the file you
   expect before trusting the answer. If that project's config has `debugLog: true`, runs
-  also write logs under its `.pi/fusion-logs/`. A run that exits `2` means config
-  missing/invalid — tell the user, don't guess models.
+  also write logs under its `.pi/fusion-logs/`. A non-zero exit means something went wrong;
+  read the stderr message — if it names a config problem, tell the user, don't guess models.
 - **Key**: `OPENCODE_API_KEY` exported (it's in `~/.zshrc`), or Pi's stored auth
   (`pi login`). Never baked in. A missing key isn't instant — all agents fail a minute or
   two in, so confirm auth before a long run.
@@ -67,7 +67,7 @@ config lookup and the panel agents' tools):
 - stdin (the heredoc) = the prompt; `> /tmp/fusion-<id>.md` captures the fused answer.
 - stdout (`/tmp/fusion-<id>.md`) = the fused answer (the artifact).
 - stderr (tool output) = progress + any error.
-- Exit codes: `0` answer, `1` panel/synthesis didn't complete, `2` bad config / usage / empty prompt.
+- Exit status: `0` = the fused answer; any non-zero = failure, with the reason printed to stderr.
 
 (A prompt already sitting in a file still works with `-f <file>`; stdin is the no-temp-file path.)
 
@@ -99,9 +99,10 @@ Read it yourself, then output exactly three sections:
 
 ## Failure modes
 
-- **exit 2 (no config)**: config missing/invalid — tell the user; don't invent models.
-- **exit 1 (didn't complete)**: a model/tool failed — report the stderr tail; don't retry
-  without confirmation.
+A non-zero exit always prints why on stderr — read the message, don't decode the number:
+- **config missing/invalid**: tell the user; don't invent models.
+- **didn't complete** (a model/tool failed): report the stderr tail; don't retry without
+  confirmation.
 - **bin missing**: build it (`bun run build:cli` in the repo), then retry.
 - **killed for time**: report and re-run; consider a lighter panel for that repo. Never
   background.

@@ -73,16 +73,17 @@ test("-f without a value is an error, not a throw", () => {
   expect(parseCliArgs(["-f"]).kind).toBe("error");
 });
 
-// Real-bin smoke test for the stdin guard: empty stdin must exit 2 (not hang, not run the
-// panel). This path short-circuits before config/fuse, so it needs no API key — but it does
-// need the built bin, so it's skipped when ./bin/fusion.js hasn't been built. The TTY-true
-// branch can't be exercised here (a spawned child's stdin is a pipe, never a terminal).
+// Real-bin smoke test for the stdin guard: empty stdin must fail (exit 1, the single
+// non-zero failure code), not hang, not run the panel. This path short-circuits before
+// config/fuse, so it needs no API key — but it does need the built bin, so it's skipped
+// when ./bin/fusion.js hasn't been built. The TTY-true branch can't be exercised here
+// (a spawned child's stdin is a pipe, never a terminal).
 const BIN = fileURLToPath(new URL("../bin/fusion.js", import.meta.url));
 
-test.skipIf(!existsSync(BIN))("built bin: empty stdin exits 2 without hanging", () => {
+test.skipIf(!existsSync(BIN))("built bin: empty stdin fails (exit 1) without hanging", () => {
   for (const input of ["", "   \n  "]) {
     const run = spawnSync(process.execPath, [BIN], { input, encoding: "utf8", timeout: 10_000 });
-    expect(run.status).toBe(2);
+    expect(run.status).toBe(1);
     expect(run.stderr).toContain("stdin");
   }
 });

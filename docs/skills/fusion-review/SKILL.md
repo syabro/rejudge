@@ -8,7 +8,7 @@ user_invocable: true
 
 A code review through the fusion panel — this is `/fusion` pointed at a diff. Same bin, same
 rules: read the `fusion` skill for the launch mechanics (foreground/blocking, prompt written
-to a file and passed with `-f`, read-only by default, exit codes, rebuild-after-pull). This
+to a file and passed with `-f`, read-only by default, exit status, rebuild-after-pull). This
 skill owns only *what prompt to feed* and *how to present the result*.
 
 For a generic multi-model question that isn't a code review, use `fusion`; for an
