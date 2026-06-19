@@ -58,3 +58,21 @@ The `fusion` CLI additionally falls back to a user-global `~/.config/fusion-agen
     panel, so no runtime code changed — only the validator and count-bearing comments
     (`config.ts`, `cli.ts`, `fusion.ts`) and the normative panel-size wording in the docs.
   - Tests: a panel of 1 or 0 is rejected; a panel of 2 and of 4 loads and returns the given IDs.
+
+- [ ] CFG-030 Encode reasoning level per model in the model ID (`provider/model@level`)
+  Reasoning level is set today in a separate `thinking: { panel, synth }` block. Move it onto
+  the model: each ID carries its level as an `@` suffix, e.g. `opencode-go/glm-5.1@high` — for
+  both panel models and the synth (judge). This replaces the `thinking` block entirely.
+
+  A missing `@level` is a config error, not a silent default — someone will forget it,
+  silently get reasoning off, and not understand why fusion underperforms.
+
+  User decisions:
+  - reasoning level lives in the model ID via `@level` (panel models + synth);
+  - it replaces the `thinking` block entirely;
+  - the suffix is required — a model ID without `@level` is a config error.
+
+  DoD:
+  - `opencode-go/glm-5.1@high` runs that model at `high`, for a panel model and synth;
+  - a model ID without `@level` fails config validation with a clear message;
+  - the `thinking` block no longer exists in the config format.
