@@ -19,6 +19,20 @@ function msg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+/** Read the whole of stdin as UTF-8 text. Used when the prompt is piped/heredoc'd in. */
+function readStdin(): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let data = "";
+    process.stdin.setEncoding("utf8");
+    process.stdin.resume(); // make flowing-mode intent explicit (survives a future refactor)
+    process.stdin.on("data", (chunk) => {
+      data += chunk;
+    });
+    process.stdin.on("end", () => resolve(data));
+    process.stdin.on("error", reject);
+  });
+}
+
 async function main(): Promise<number> {
   const args = parseCliArgs(process.argv.slice(2));
 
@@ -31,7 +45,8 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  // Resolve the prompt text (file I/O only for -f).
+  // Resolve the prompt text from its source: a positional, a file (-f), or stdin.
+  // All of this runs before config resolution, so a bad/empty prompt exits 2 early.
   let prompt: string;
   if (args.kind === "file") {
     try {
@@ -42,6 +57,23 @@ async function main(): Promise<number> {
     }
     if (prompt.trim() === "") {
       console.error(`fusion: prompt file is empty: ${args.path}`);
+      return 2;
+    }
+  } else if (args.kind === "stdin") {
+    // A bare interactive terminal has nothing to read — print usage instead of
+    // hanging on stdin waiting for input that will never come.
+    if (process.stdin.isTTY) {
+      console.error(`fusion: no prompt given\n\n${USAGE}`);
+      return 2;
+    }
+    try {
+      prompt = await readStdin();
+    } catch (err) {
+      console.error(`fusion: cannot read prompt from stdin (${msg(err)})`);
+      return 2;
+    }
+    if (prompt.trim() === "") {
+      console.error("fusion: prompt on stdin is empty");
       return 2;
     }
   } else {

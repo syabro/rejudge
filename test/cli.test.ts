@@ -1,4 +1,7 @@
 import { test, expect } from "vitest";
+import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { parseCliArgs } from "../src/cli-args.ts";
 
 test("a single positional becomes the prompt (read-only by default)", () => {
@@ -55,8 +58,11 @@ test("-f together with a positional is an error", () => {
   expect(parseCliArgs(["-f", "p.txt", "extra"]).kind).toBe("error");
 });
 
-test("no arguments is an error", () => {
-  expect(parseCliArgs([]).kind).toBe("error");
+test("no positional and no -f means read from stdin", () => {
+  expect(parseCliArgs([])).toEqual({ kind: "stdin", fullTools: false });
+  // flags-only (no prompt source) is still stdin; the flag rides along
+  expect(parseCliArgs(["--unsafe"])).toEqual({ kind: "stdin", fullTools: true });
+  expect(parseCliArgs(["--full"])).toEqual({ kind: "stdin", fullTools: true });
 });
 
 test("an unknown flag is an error, not a throw", () => {
@@ -65,4 +71,18 @@ test("an unknown flag is an error, not a throw", () => {
 
 test("-f without a value is an error, not a throw", () => {
   expect(parseCliArgs(["-f"]).kind).toBe("error");
+});
+
+// Real-bin smoke test for the stdin guard: empty stdin must exit 2 (not hang, not run the
+// panel). This path short-circuits before config/fuse, so it needs no API key — but it does
+// need the built bin, so it's skipped when ./bin/fusion.js hasn't been built. The TTY-true
+// branch can't be exercised here (a spawned child's stdin is a pipe, never a terminal).
+const BIN = fileURLToPath(new URL("../bin/fusion.js", import.meta.url));
+
+test.skipIf(!existsSync(BIN))("built bin: empty stdin exits 2 without hanging", () => {
+  for (const input of ["", "   \n  "]) {
+    const run = spawnSync(process.execPath, [BIN], { input, encoding: "utf8", timeout: 10_000 });
+    expect(run.status).toBe(2);
+    expect(run.stderr).toContain("stdin");
+  }
 });

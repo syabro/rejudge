@@ -16,13 +16,22 @@ Run it:
 ```
 bin/fusion.js "your question here"     # prompt as a positional argument
 bin/fusion.js -f prompt.txt            # or read the prompt from a file
+bin/fusion.js <<'EOF' … EOF            # or pipe/heredoc the prompt on stdin
+cmd | bin/fusion.js                    # (same — stdin) no temp file needed
 bin/fusion.js --unsafe "..."           # opt into full tools (edit/write/bash)
 bin/fusion.js --help
 ```
 
+The prompt comes from exactly one source. Precedence: a positional question, else `-f <file>`,
+else stdin — stdin is read only when there is no positional and no `-f`. A long multi-line
+prompt is best handed over by heredoc/pipe (no throwaway file). On a bare terminal with no
+pipe and no prompt, the CLI prints usage and exits instead of blocking on stdin; empty stdin
+is a usage error, like an empty `-f` file. (`-f -` is a file literally named `-`, not a stdin
+alias.)
+
 The fused answer goes to stdout, progress/diagnostics to stderr. Exit codes: `0` answer,
 `1` the panel or synthesis did not complete, `2` bad usage / missing-or-invalid config /
-unreadable `-f` file.
+unreadable `-f` file / empty stdin.
 
 **Read-only by default.** Every inner agent (panel and synthesis) runs with only the
 SDK's read-only tools — `read`/`grep`/`find`/`ls`, no `edit`/`write`/`bash` — so a
@@ -48,8 +57,8 @@ A Claude Code skill that lives in this repo at `docs/skills/fusion/SKILL.md` and
 to Claude Code by a **directory** symlink into `~/.claude/skills/fusion` (the mdtask pattern,
 so the repo can hold more than one skill). It runs the fusion bin: one invocation = one run
 of `bin/fusion.js` = one fused panel answer (3-model panel + synth). Read-only by default;
-foreground/blocking; the prompt is written to a file and passed with `-f`; the fused answer
-is the result. Use it for a multi-model panel review or a fused multi-model answer.
+foreground/blocking; the prompt is fed on stdin via a quoted heredoc (no temp file); the
+fused answer is the result. Use it for a multi-model panel review or a fused multi-model answer.
 
 Install the symlink once, from the repo root:
 
@@ -151,7 +160,7 @@ ln -s "$PWD/docs/skills/fusion-review" ~/.claude/skills/fusion-review
     `~/.claude/skills/fusion` → `docs/skills/fusion` (mdtask pattern), to make room for a
     second in-repo skill.
 
-- [ ] CLI-027 Read the fusion CLI prompt from stdin
+- [x] CLI-027 Read the fusion CLI prompt from stdin
   Right now a long, multi-line prompt has to go through a temp file: write a heredoc into
   `/tmp`, then pass it with `-f`. The prompt is the payload — often 30+ lines — so making a
   throwaway file just to hand it over is pure friction. Let the prompt come from stdin
@@ -171,6 +180,19 @@ ln -s "$PWD/docs/skills/fusion-review" ~/.claude/skills/fusion-review
   - bare `fusion` on a terminal with no pipe prints usage and exits, does not hang
   - empty stdin exits `2`
   - the `/fusion` skill shows the heredoc form for a long prompt
+
+  **Implemented:**
+  - `parseCliArgs` gained a `{kind:"stdin"}` intent: with no positional and no `-f` it now
+    routes to stdin instead of erroring. The prompt still comes from exactly one source
+    (positional → `-f` → stdin). `-f -` stays a file literally named `-`.
+  - `src/cli.ts` reads stdin via a `readStdin()` helper; a `process.stdin.isTTY` guard prints
+    usage and exits `2` on a bare terminal (no hang), and empty/whitespace stdin exits `2`,
+    mirroring the empty-`-f` check. Read errors exit `2` with a clear message.
+  - Docs teach the heredoc/stdin form: `README.md`, this file, and the `/fusion` skill (its
+    launch steps switched from "write to /tmp + `-f`" to a heredoc piped to the bin).
+  - Tests: `parseCliArgs` unit cases for the stdin routing, plus a real-bin smoke test
+    (spawns the built bin, empty stdin → exit `2`, no key needed); verified end-to-end that a
+    piped prompt reaches the panel.
 
 - [ ] CLI-028 Drop the numeric exit-code scheme — one failure code + a readable error
   The fusion CLI exits `0` / `1` / `2` to mean success / panel-or-synth didn't complete / bad

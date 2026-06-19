@@ -51,26 +51,25 @@ Run it in the foreground and wait. No tmux, no detached sessions, no polling, no
 jobs. The activity log streams to stderr (shown in the tool output); the fused answer goes
 to stdout.
 
-### Step 1 — write the prompt to a file
+### Step 1 — feed the prompt on stdin via a quoted heredoc
 
-Never pass the prompt via `$(...)`, a pipe, or inline. Write it to a file, pass with `-f`:
-
-    cat > /tmp/fusion-<id>.txt <<'EOF'
-    ... full prompt body, multi-line, no escaping ...
-    EOF
-
-### Step 2 — run from the project being reviewed
-
-The bin uses the current directory for BOTH config lookup and the panel agents' tools, so
-run it from the project root you want reviewed:
+The bin reads the prompt from stdin — no temp file. Use a **quoted** heredoc (`<<'EOF'`) so
+nothing is escaped or interpolated. Never pass the prompt via `$(...)`, an unquoted heredoc,
+or an inline argument. Run it from the project root you want reviewed (the cwd drives BOTH
+config lookup and the panel agents' tools):
 
     # read-only by default — do NOT add --unsafe or --full (those enable write/bash)
-    node /Users/syabro/code/pi-fusion-agents/bin/fusion.js -f /tmp/fusion-<id>.txt > /tmp/fusion-<id>.md
+    node /Users/syabro/code/pi-fusion-agents/bin/fusion.js > /tmp/fusion-<id>.md <<'EOF'
+    ... full prompt body, multi-line, no escaping ...
+    EOF
     echo "exit=$?"
 
+- stdin (the heredoc) = the prompt; `> /tmp/fusion-<id>.md` captures the fused answer.
 - stdout (`/tmp/fusion-<id>.md`) = the fused answer (the artifact).
 - stderr (tool output) = progress + any error.
-- Exit codes: `0` answer, `1` panel/synthesis didn't complete, `2` bad config / usage.
+- Exit codes: `0` answer, `1` panel/synthesis didn't complete, `2` bad config / usage / empty prompt.
+
+(A prompt already sitting in a file still works with `-f <file>`; stdin is the no-temp-file path.)
 
 A real run is minutes (the panel runs at xhigh), so set a generous timeout on the bash
 command itself (the timeout is per-invocation). If a run is killed for time, report it and

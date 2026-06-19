@@ -27,9 +27,15 @@ bun run build:cli    # build the local CLI → ./bin/fusion.js (gitignored)
 ```
 bin/fusion.js "your question"     # the fused answer to stdout
 bin/fusion.js -f prompt.txt       # read the prompt from a file
+bin/fusion.js <<'EOF' … EOF       # or pipe/heredoc the prompt on stdin (no temp file)
+cmd | bin/fusion.js               # (same — stdin)
 bin/fusion.js --unsafe "..."      # (or --full) opt into write tools; default is read-only
 bin/fusion.js --help
 ```
+
+The prompt comes from one source — a positional, else `-f`, else stdin (read only when there
+is neither). A bare terminal with no pipe prints usage instead of blocking; empty stdin is a
+usage error.
 
 ## Configuration & keys
 
