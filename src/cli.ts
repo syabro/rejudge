@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // fusion — local CLI for pi-fusion-agents. Ask a question, get the single fused answer
-// (3-model panel + 1-model synthesis). Built into ./bin via `bun run build:cli`.
+// (a panel of >= 2 models + 1-model synthesis). Built into ./bin via `bun run build:cli`.
 //
 //   fusion "your question here"
 //   fusion -f prompt.txt

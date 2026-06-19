@@ -15,8 +15,7 @@ const VALID_THINKING_LEVELS: readonly ThinkingLevel[] = [
 /**
  * Default thinking level per stage when the config omits it. Panel agents do the
  * real work and stay at max; synthesis only fuses, so it defaults lower to save
- * cost/time. Omitting `thinking` therefore lowers synth from the old hardcoded
- * "xhigh" — a deliberate behavior change.
+ * cost/time.
  */
 const DEFAULT_THINKING: ThinkingConfig = { panel: "xhigh", synth: "medium" };
 
@@ -26,7 +25,7 @@ export interface ThinkingConfig {
   synth: ThinkingLevel;
 }
 
-/** Spike config: exactly 3 panel model IDs + 1 synthesis model ID. */
+/** A panel of >= 2 model IDs + 1 synthesis model ID. */
 export interface FusionConfig {
   panel: string[];
   synth: string;
@@ -72,9 +71,9 @@ export function resolveFusionConfig(cwd: string): ResolvedConfig {
 /**
  * Load and validate `<cwd>/.pi/fusion-agents.json`.
  *
- * Valid = exactly 3 non-empty panel model IDs + 1 non-empty synthesis ID (full
+ * Valid = at least 2 non-empty panel model IDs + 1 non-empty synthesis ID (full
  * provider/model form). Throws a clear error on a missing file, malformed JSON,
- * wrong panel count, or missing synthesis ID — `fusion_agents` must not run on a
+ * too few panel models, or missing synthesis ID — `fusion_agents` must not run on a
  * bad config. Config shape beyond these IDs is deferred.
  */
 export function loadFusionConfig(cwd: string): FusionConfig {
@@ -101,8 +100,8 @@ export function loadFusionConfigFromPath(path: string): FusionConfig {
   const panel = cfg.panel;
   const synth = cfg.synth;
 
-  if (!Array.isArray(panel) || panel.length !== 3 || !panel.every((m) => typeof m === "string" && m.trim() !== "")) {
-    throw new Error(`config "panel" must be exactly 3 non-empty model IDs`);
+  if (!Array.isArray(panel) || panel.length < 2 || !panel.every((m) => typeof m === "string" && m.trim() !== "")) {
+    throw new Error(`config "panel" must be at least 2 non-empty model IDs`);
   }
   if (typeof synth !== "string" || synth.trim() === "") {
     throw new Error(`config "synth" must be a non-empty model ID`);

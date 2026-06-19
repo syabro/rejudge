@@ -13,7 +13,7 @@
 }
 ```
 
-Exactly 3 `panel` model IDs + 1 `synth` model ID, full provider/model form. A missing file, malformed JSON, wrong panel count, or missing `synth` makes the tool error out with a clear message.
+At least 2 `panel` model IDs + 1 `synth` model ID, full provider/model form (the example above uses 3 — the project default — but any panel of 2 or more is accepted). A missing file, malformed JSON, fewer than 2 panel models, or missing `synth` makes the tool error out with a clear message.
 
 The `fusion` CLI additionally falls back to a user-global `~/.config/fusion-agents.json` (honoring `XDG_CONFIG_HOME`) when the current project has no `.pi/fusion-agents.json`, so it can run in projects that don't carry their own config — see the fusion CLI section in `cli.md`. The Pi extension does not use this fallback; it reads the project file only.
 
@@ -46,6 +46,15 @@ The `fusion` CLI additionally falls back to a user-global `~/.config/fusion-agen
   - Validation rejects a non-object `thinking` and any present-but-invalid level (case-sensitive list; `off` excluded); a missing block or sub-field falls back to the default. Omitting `thinking` lowers synth from the old hardcoded `xhigh` — a deliberate behavior change.
   - Tests (`test/config.test.ts`, pure): defaults, per-stage values, partial block, `null`, invalid level, non-object block; existing `fuse` smoke tests updated for the new field.
 
-- [ ] CFG-018 Allow panel sizes other than exactly 3		!low
+- [x] CFG-018 Allow panel sizes other than exactly 3		!low
   Config hardcodes panel.length === 3, though runPanel is generic. Accept a range
   (e.g. >= 2) so panel size isn't frozen in code.
+
+  **Implemented:**
+  - `loadFusionConfigFromPath` now validates `panel.length >= 2` (was `=== 3`); the error
+    message reads "config \"panel\" must be at least 2 non-empty model IDs". No upper bound —
+    a larger panel is the caller's cost/choice; a 1-model panel stays rejected (nothing to fuse).
+  - The whole pipeline (`runPanel` → `synthesize` → `fuse`) was already array-generic over the
+    panel, so no runtime code changed — only the validator and count-bearing comments
+    (`config.ts`, `cli.ts`, `fusion.ts`) and the normative panel-size wording in the docs.
+  - Tests: a panel of 1 or 0 is rejected; a panel of 2 and of 4 loads and returns the given IDs.

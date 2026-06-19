@@ -32,7 +32,7 @@ function withGlobalConfig(content: string | null, fn: () => void): void {
 const PROJECT_CFG = JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4" });
 const GLOBAL_CFG = JSON.stringify({ panel: ["g/1", "g/2", "g/3"], synth: "g/4" });
 
-test("valid config returns the 3 panel + 1 synth IDs, defaulting thinking and debugLog", () => {
+test("valid config returns the panel + synth IDs, defaulting thinking and debugLog", () => {
   const cwd = projectWith(JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4" }));
   expect(loadFusionConfig(cwd)).toEqual({
     panel: ["a/1", "b/2", "c/3"],
@@ -116,11 +116,18 @@ test("missing config file is rejected", () => {
   expect(() => loadFusionConfig(projectWith(null))).toThrow();
 });
 
-test("wrong panel count is rejected", () => {
+test("a panel smaller than 2 is rejected", () => {
+  const one = projectWith(JSON.stringify({ panel: ["a/1"], synth: "d/4" }));
+  expect(() => loadFusionConfig(one)).toThrow(/panel/);
+  const none = projectWith(JSON.stringify({ panel: [], synth: "d/4" }));
+  expect(() => loadFusionConfig(none)).toThrow(/panel/);
+});
+
+test("a panel of 2 or more is accepted", () => {
   const two = projectWith(JSON.stringify({ panel: ["a/1", "b/2"], synth: "d/4" }));
-  expect(() => loadFusionConfig(two)).toThrow(/panel/);
+  expect(loadFusionConfig(two).panel).toEqual(["a/1", "b/2"]);
   const four = projectWith(JSON.stringify({ panel: ["a/1", "b/2", "c/3", "e/5"], synth: "d/4" }));
-  expect(() => loadFusionConfig(four)).toThrow(/panel/);
+  expect(loadFusionConfig(four).panel).toEqual(["a/1", "b/2", "c/3", "e/5"]);
 });
 
 test("missing synth is rejected", () => {

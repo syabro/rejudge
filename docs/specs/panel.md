@@ -27,7 +27,7 @@ session, own tool-use path) — and collects one finished result per model.
 - Returns one result per model in input order, each with its session left alive for a later
   synthesis/judge step (the caller disposes them).
 - Failure is loud, never a silent partial panel: if any agent fails, the agents that did
-  finish are disposed and the error is surfaced (no 2-of-3 result).
+  finish are disposed and the error is surfaced (no partial-panel result).
 
 ## Fusion (all-or-nothing)
 
@@ -35,11 +35,11 @@ session, own tool-use path) — and collects one finished result per model.
 then one synthesis call — and returns a neverthrow `Result<string, FusionFailure>` (it never
 throws):
 
-- `ok(answer)` only when all three panels **and** synthesis complete without a technical
+- `ok(answer)` only when every panel **and** synthesis complete without a technical
   (model/tool/runtime) error. The value is the single final text; intermediate panel
   outputs are never surfaced.
 - `err(failure)` on any technical failure. There is still no partial path: synthesis is
-  never attempted on an incomplete panel, and there is no 2-of-3 result. The `failure`
+  never attempted on an incomplete panel, and there is no partial-panel result. The `failure`
   carries which `stage` broke (`"panel"` | `"synth"`), the `model` id, the `error` text, and
   `aborted` (true for a deliberate cancel rather than a model fault). `formatFailure(failure)`
   renders it as a one-line `<stage> (<model>) failed: <error>` (or `… aborted`) for CLI/tool

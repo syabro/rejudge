@@ -24,7 +24,7 @@ export interface FusionFailure {
 /**
  * Fusion outcome (neverthrow {@link Result}). `ok(answer)` is the single final text;
  * `err(failure)` carries the {@link FusionFailure}. There is no partial/degraded path: a
- * 2-of-3 panel or synthesis-on-partial never happens.
+ * partial panel or synthesis-on-partial never happens.
  */
 export type FusionResult = Result<string, FusionFailure>;
 
