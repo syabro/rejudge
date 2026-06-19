@@ -223,3 +223,14 @@ ln -s "$PWD/docs/skills/fusion-review" ~/.claude/skills/fusion-review
   - Tests: the real-bin smoke test now asserts empty stdin exits `1`. Only that one failure
     path is covered by an automated test (pre-existing gap, unchanged here); the others were
     verified by hand against the built bin.
+
+- [ ] CLI-031 Remove scripts/demo.ts — superseded by the CLI
+  `scripts/demo.ts` is the old POC demo; the CLI (`bin/fusion.js` / `bun src/cli.ts`) does
+  everything it does plus `-f`/stdin and config fallback. It lacks `-f`, which forced
+  `$(cat …)` for fusion reviews.
+
+  User decision: delete `scripts/demo.ts`; run fusion reviews via `bun src/cli.ts -f <file>`.
+
+  DoD:
+  - `scripts/demo.ts` removed;
+  - the review rule in AGENTS.md and the `panel.md` Demo mention use `bun src/cli.ts -f`, not `bun scripts/demo.ts`.
