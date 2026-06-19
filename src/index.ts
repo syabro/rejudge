@@ -1,6 +1,6 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
-import { loadFusionConfig } from "./config.ts";
+import { resolveFusionConfig } from "./config.ts";
 import { formatFailure, fuse } from "./fusion.ts";
 
 const parameters = Type.Object({
@@ -46,9 +46,10 @@ export default function (pi: ExtensionAPI): void {
       "Run the same question across a panel of models and fuse their answers into one. Call explicitly with a question or instruction.",
     parameters,
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      // Gate: refuse to start on a missing/invalid config — loadFusionConfig
-      // throws a clear error, which surfaces as a tool error (not a fake answer).
-      const config = loadFusionConfig(ctx.cwd);
+      // Gate: refuse to start on a missing/invalid config. Resolve the project's
+      // .pi/fusion-agents.json, else the user-global ~/.config one. A clear throw on
+      // neither surfaces as a tool error, not a fake answer.
+      const { config } = resolveFusionConfig(ctx.cwd);
       const prompt = buildInvocationPrompt(params.question, params.outputInstructions);
       // Thread the cancel signal end-to-end: aborting stops every in-flight agent.
       // Read-only by default (no `fullTools`) — the tool is a Q&A/review surface, so a
