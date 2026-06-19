@@ -36,3 +36,22 @@ single final answer and returns only that text.
   Constraints: requires panel sessions to stay alive and be re-promptable after round 1; otherwise a deliberately undesigned placeholder.
 
   Acceptance: a second round returns each panel's verdict on the others' findings; the judge can escalate a disputed point to a specific panel; works with a lighter judge model than the panels.
+
+- [ ] SYN-029 Resumable fusion: new run vs context-restoring follow-up		@blocked_by:SYN-011
+  Each fusion run is one-shot and cold — fine for an unrelated question. But a follow-up to
+  a run just held is cold too: it restarts the panel and synth from scratch and loses what
+  they already reasoned about. The follow-up often only surfaces later, in the ongoing chat
+  with the main agent, when you want to put a sharper question back to the same panel.
+
+  SYN-011 makes the judge able to keep prompting the panel sessions within a run. This task
+  extends that: restore the judge and panel state so the caller can either start a NEW run
+  (fresh panel + synth, no prior context) or send a FOLLOW-UP that resumes the same sessions
+  and answers with their earlier context. Whether follow-up must also survive across separate
+  invocations (a fresh CLI process or a later `fusion_agents` call) is not yet decided.
+
+  User decision: the caller chooses per question — a new run, or a follow-up that resumes a
+  specific prior run. Resuming is opt-in, not the implicit default for the next question.
+
+  DoD: a question sent as a new run starts clean; a question sent as a follow-up to a named
+  prior run resumes the same panel and synth sessions and its answer reflects the earlier
+  round's context.
