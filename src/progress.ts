@@ -206,6 +206,19 @@ function fitDetail(detail: string, room: number): string {
   return `…${body.slice(-(room - 1))}`;
 }
 
+/**
+ * Final safety net for the TUI contract: every emitted line MUST be ≤ width, or pi-tui throws an
+ * uncaught exception that crashes the HOST process. The tree rows fit width by construction, but
+ * the expanded fused answer (wrapped at spaces) can still overflow on an unbreakable long token
+ * (a path, URL, or code line), and a long error reason can overrun its row — so clamp every line
+ * as a last pass. Lossy only on the rare offender; the full answer is always in the result text.
+ * A non-finite width (the unbounded default used in tests) means no clamping.
+ */
+function clampLines(lines: string[], width: number): string[] {
+  if (!Number.isFinite(width)) return lines;
+  return lines.map((line) => (visibleWidth(line) > width ? truncateToWidth(line, width, "…") : line));
+}
+
 /** Theme color for a diagnostic line per severity. */
 const DIAGNOSTIC_COLOR = { error: "error", warn: "warning", info: "dim" } as const;
 
@@ -295,7 +308,7 @@ export function renderProgress(
   }
 
   lines.push(theme.fg("dim", `Total ${formatDur((s.endedAt ?? now) - s.startedAt)}`));
-  return lines;
+  return clampLines(lines, width);
 }
 
 /**
@@ -317,7 +330,9 @@ export function progressComponent(
       if (expanded && answer && answer.trim()) {
         lines.push("", ...wrapTextWithAnsi(answer, width));
       }
-      return lines;
+      // renderProgress already clamped its own lines; clamp again so the appended answer
+      // (wrapped only at spaces) can't overflow width and crash the host TUI.
+      return clampLines(lines, width);
     },
   };
 }
