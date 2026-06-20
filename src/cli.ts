@@ -14,6 +14,7 @@ import { pathToFileURL } from "node:url";
 import { parseCliArgs, USAGE } from "./cli-args.ts";
 import { resolveFusionConfig } from "./config.ts";
 import { formatFailure, fuse } from "./fusion.ts";
+import { createStderrSink } from "./stderr-sink.ts";
 
 function msg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -100,7 +101,12 @@ async function main(): Promise<number> {
   );
   console.error("running fusion on real models (this takes a few minutes)…");
 
-  const result = await fuse(config, prompt, { cwd, fullTools: args.fullTools });
+  // Live progress to stderr (durations per step + a total); the fused answer owns stdout.
+  const result = await fuse(config, prompt, {
+    cwd,
+    fullTools: args.fullTools,
+    activitySink: createStderrSink(),
+  });
   if (result.isErr()) {
     console.error(`fusion: ${formatFailure(result.error)}`);
     return 1;

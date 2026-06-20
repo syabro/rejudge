@@ -71,21 +71,26 @@ prints a failure and exits non-zero — never a partial answer.
 
 ## Activity log
 
-While a fusion runs, every inner agent (each panel model, then the synthesis model) logs a
-line to **stderr** each time its activity changes — `HH:MM:SS <model> <activity>`:
+The engine writes nothing to stdout/stderr on its own. While a fusion runs it emits
+structured progress events to a caller-supplied sink (`activitySink`): a model's start and
+end (with its status and duration), each step's start and end (every tool call, plus the
+`thinking`/`writing` phases — the end carries the step's duration), the panel/synth stage
+times, the total run time, and diagnostics. With no sink the engine stays silent; each
+consumer renders the events its own way.
 
-    19:41:02 deepseek-v4-pro thinking
-    19:41:04 deepseek-v4-pro bash
-    19:41:13 deepseek-v4-pro read
-    19:41:15 deepseek-v4-pro writing
-    19:41:18 deepseek-v4-pro done
+The CLI (and demo) render them to **stderr** as a plain append log — a line per step as it
+finishes (with its duration), then per-model, per-stage, and total times. The panel agents
+run concurrently, so their lines interleave, told apart by the model name. stderr keeps the
+log off stdout, where the fused answer goes.
 
-`activity` is `thinking`, the concrete tool it runs (`bash`/`read`/`edit`/`write`/…),
-`writing` (composing the answer), or `done`. The timestamp is the moment of the change, so
-the gap to the next line is how long the previous activity took — no separate timer and no
-hang-detection. It's a plain append log (no in-place redraw): the three panel agents run
-concurrently so their lines interleave, told apart by the model name. The output goes to
-stderr, so it never pollutes the final answer on stdout.
+    19:41:13 deepseek-v4-pro thinking 11.0s
+    19:41:13 deepseek-v4-pro read 0.2s
+    19:44:33 deepseek-v4-pro done in 3:31
+    panel stage done in 10:02
+    fusion done in 10:57
+
+The `fusion_agents` Pi tool renders the same events as a live in-place block instead — see
+`extension.md`.
 
 ## Debug log
 

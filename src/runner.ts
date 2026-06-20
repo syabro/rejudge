@@ -1,13 +1,18 @@
 import {
   AuthStorage,
   createAgentSession,
+  DefaultResourceLoader,
+  getAgentDir,
   ModelRegistry,
+  SessionManager,
+  SettingsManager,
   type AgentSession,
 } from "@earendil-works/pi-coding-agent";
 import type { Model, ThinkingLevel } from "@earendil-works/pi-ai";
 import { err, ok, type Result } from "neverthrow";
 import { attachActivityLog } from "./activity.ts";
 import { attachDebugLog, type DebugLog } from "./debug-log.ts";
+import type { ActivitySink, ModelRole, RunStatus } from "./events.ts";
 import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "./git-diff-tool.ts";
 
 /**
@@ -29,6 +34,14 @@ export const PANEL_TOOLS = ["read", "grep", "find", "ls", "edit", "write", "bash
  * default; only read and search.
  */
 export const READONLY_TOOLS = ["read", "grep", "find", "ls"] as const;
+
+/**
+ * A host extension tool the inner agents opt into when the host provides it: `web_search`.
+ * It's read-only, so it rides on top of either tool set — but only when actually available
+ * (detected per run from the loaded extensions). Environments without it simply don't get it,
+ * instead of every run naming a tool that isn't there.
+ */
+export const WEB_SEARCH_TOOL = "web_search";
 
 export interface PanelAgentResult {
   /** The "provider/model" id this agent ran on. */
@@ -63,6 +76,15 @@ export interface RunPanelAgentOptions {
    * {@link READONLY_TOOLS}. Read-only is the safe default; writing is an explicit opt-in.
    */
   fullTools?: boolean;
+  /**
+   * Progress sink. When set, this agent emits `model_start`/`activity`/`model_end`
+   * {@link ActivitySink} events through it so a consumer can render live progress. When
+   * omitted the agent is silent — it writes nothing to stdout/stderr itself. `fuse`
+   * forwards it (and tags each stage's {@link role}) to every panel and synth agent.
+   */
+  activitySink?: ActivitySink;
+  /** This agent's role, stamped on its progress events. Default: "panel". */
+  role?: ModelRole;
 }
 
 /**
@@ -102,8 +124,9 @@ export interface AgentFailure {
  * `err({ model, error })` — never a throw, never a silent partial. On success the session
  * is left open (the caller disposes it) so a later synthesis/judge step can re-query it.
  *
- * While it runs, a line is logged to stderr each time the agent's activity changes
- * (with the time of the change) — see {@link attachActivityLog}.
+ * When an `activitySink` is given the agent emits `model_start`/`activity`/`model_end`
+ * progress events through it (see {@link attachActivityLog}); with no sink it is silent and
+ * writes nothing to stdout/stderr.
  */
 export async function runPanelAgent(
   modelId: string,
@@ -114,89 +137,152 @@ export async function runPanelAgent(
     err({ model: modelId, error });
   const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-  let session: AgentSession;
+  // A cancel reads as "cancelled", anything else as "error" — used for the model_end status.
+  const endStatusFor = (): RunStatus => (options.signal?.aborted ? "cancelled" : "error");
+
+  const sink = options.activitySink;
+  const role = options.role ?? "panel";
+  const startedAt = Date.now();
+  sink?.({ kind: "model_start", t: startedAt, model: modelId, role });
+
+  // Recorded on whichever path we exit by, then emitted once as model_end in the outer
+  // finally — so the event fires exactly once no matter how the run ends.
+  let endStatus: RunStatus = "error";
+  let endError: string | undefined;
+
   try {
-    options.signal?.throwIfAborted(); // already cancelled → don't even spin up a session
-    const model = resolveModel(modelId);
-    // Read-only is the default (CLI-023): the agent gets read/grep/find/ls unless the
-    // caller opts into the full local set (edit/write/bash) via `fullTools`. Same
-    // selection for every inner agent (panel and synth).
-    const builtins = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
-    // Always add the custom read-only `git_diff` tool (TLS-026) so a review agent can fetch
-    // the working-tree diff itself. It's registered via `customTools` AND named in the tools
-    // allow-list (createAgentSession enables only listed names); the READONLY_TOOLS/PANEL_TOOLS
-    // constants stay built-in-only so they don't mix SDK names with our custom tool.
-    const tools = [...builtins, GIT_DIFF_TOOL_NAME];
-    ({ session } = await createAgentSession({
-      model,
-      cwd: options.cwd ?? process.cwd(),
-      tools,
-      customTools: [gitDiffTool],
-      // Reasoning level comes from the caller (fuse threads it per stage from the
-      // config); default "xhigh" for direct callers that don't set one. Pi clamps
-      // the level to what each model actually supports.
-      thinkingLevel: options.thinkingLevel ?? "xhigh",
-    }));
-  } catch (e) {
-    // resolveModel / createAgentSession / a pre-start abort: nothing to dispose yet.
-    return fail(message(e));
-  }
+    let session: AgentSession;
+    try {
+      options.signal?.throwIfAborted(); // already cancelled → don't even spin up a session
+      const model = resolveModel(modelId);
+      const cwd = options.cwd ?? process.cwd();
 
-  // Cleanup handles are assigned inside the try below so that a throw from the setup
-  // calls (attach*/addEventListener) is caught too — keeping the no-throw contract that
-  // runPanel's Promise.all relies on. Declared here so `finally` can always run them.
-  let detach: () => void = () => {};
-  let detachDebug: (() => void) | undefined;
-  const onAbort = () => void session.abort();
-  try {
-    // Log this agent's activity changes to stderr; persist a richer per-run debug log
-    // when fuse enabled it (config.debugLog); bridge the cancel signal to session.abort()
-    // (an abort makes prompt() resolve with stopReason "aborted", caught as a failed run).
-    detach = attachActivityLog(session, modelId);
-    if (options.debugLog) {
-      detachDebug = attachDebugLog(session, modelId, options.debugLog);
-    }
-    options.signal?.addEventListener("abort", onAbort, { once: true });
+      // Read-only is the default (CLI-023): the agent gets read/grep/find/ls unless the
+      // caller opts into the full local set (edit/write/bash) via `fullTools`. Plus the custom
+      // read-only `git_diff` tool (TLS-026), registered via `customTools` and named in the
+      // allow-list so a review agent can fetch the working-tree diff itself.
+      const builtins = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
+      const tools = [...builtins, GIT_DIFF_TOOL_NAME];
 
-    // If the signal fired during the async createAgentSession above, the listener's
-    // session.abort() is a no-op (prompt() hasn't created an abortable run yet), so
-    // throw here to cancel. Once prompt() is running, the listener does the work.
-    options.signal?.throwIfAborted();
-    await session.prompt(prompt);
+      // The resource loader loads the host's extensions; the `tools` allow-list above is what
+      // gates which are enabled, so host tools never leak in unnamed. The one we opt into is
+      // `web_search` — enabled only when the host actually provides it (detected here), so a
+      // run elsewhere just doesn't get it. We build and reload the loader ourselves to read
+      // that list, then hand the same instance to createAgentSession (which skips its own).
+      const agentDir = getAgentDir();
+      const settingsManager = SettingsManager.create(cwd, agentDir);
+      const resourceLoader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
+      await resourceLoader.reload();
+      const hostTools = new Set(
+        resourceLoader.getExtensions().extensions.flatMap((e) => [...e.tools.keys()]),
+      );
+      if (hostTools.has(WEB_SEARCH_TOOL)) {
+        tools.push(WEB_SEARCH_TOOL);
+      }
 
-    // Failures don't throw — the stream contract encodes them as the final assistant
-    // message with stopReason "error"/"aborted". Turn them into err().
-    const last = [...session.state.messages]
-      .reverse()
-      .find((m): m is Extract<typeof m, { role: "assistant" }> => m.role === "assistant");
-
-    // Only "stop" is a clean completion. "length" (truncated), "toolUse" (loop ended
-    // mid tool-cycle), "error" and "aborted" are all partial/failed runs.
-    let outcome: Result<PanelAgentResult, AgentFailure>;
-    if (!last) {
-      outcome = fail(`produced no response`);
-    } else if (last.stopReason !== "stop") {
-      const detail = last.errorMessage ? `: ${last.errorMessage}` : "";
-      outcome = fail(`did not complete cleanly (stopReason: ${last.stopReason})${detail}`);
-    } else {
-      const text = session.getLastAssistantText();
-      outcome =
-        !text || text.trim() === "" ? fail(`returned empty text`) : ok({ modelId, text, session });
+      ({ session } = await createAgentSession({
+        model,
+        cwd,
+        tools,
+        customTools: [gitDiffTool],
+        resourceLoader,
+        settingsManager,
+        // Reasoning level comes from the caller (fuse threads it per stage from the
+        // config); default "xhigh" for direct callers that don't set one. Pi clamps
+        // the level to what each model actually supports.
+        thinkingLevel: options.thinkingLevel ?? "xhigh",
+        // In-memory session, never written to disk: an inner panel/synth agent must not
+        // leave a saved .jsonl that floods the host's /resume list.
+        sessionManager: SessionManager.inMemory(cwd),
+      }));
+    } catch (e) {
+      // resolveModel / createAgentSession / a pre-start abort: nothing to dispose yet.
+      const error = message(e);
+      endStatus = endStatusFor();
+      endError = error;
+      return fail(error);
     }
 
-    // Keep the session alive only on success; the caller disposes it then.
-    if (outcome.isErr()) {
+    // Cleanup handles are assigned inside the try below so that a throw from the setup
+    // calls (attach*/addEventListener) is caught too — keeping the no-throw contract that
+    // runPanel's Promise.all relies on. Declared here so `finally` can always run them.
+    let detach: () => void = () => {};
+    let detachDebug: (() => void) | undefined;
+    const onAbort = () => void session.abort();
+    try {
+      // Emit this agent's activity changes through the sink (only when one is set — the
+      // engine is otherwise silent); persist a richer per-run debug log when fuse enabled
+      // it (config.debugLog); bridge the cancel signal to session.abort() (an abort makes
+      // prompt() resolve with stopReason "aborted", caught as a failed run).
+      if (sink) {
+        detach = attachActivityLog(session, modelId, sink);
+      }
+      if (options.debugLog) {
+        detachDebug = attachDebugLog(session, modelId, options.debugLog);
+      }
+      options.signal?.addEventListener("abort", onAbort, { once: true });
+
+      // If the signal fired during the async createAgentSession above, the listener's
+      // session.abort() is a no-op (prompt() hasn't created an abortable run yet), so
+      // throw here to cancel. Once prompt() is running, the listener does the work.
+      options.signal?.throwIfAborted();
+      await session.prompt(prompt);
+
+      // Failures don't throw — the stream contract encodes them as the final assistant
+      // message with stopReason "error"/"aborted". Turn them into err().
+      const last = [...session.state.messages]
+        .reverse()
+        .find((m): m is Extract<typeof m, { role: "assistant" }> => m.role === "assistant");
+
+      // Only "stop" is a clean completion. "length" (truncated), "toolUse" (loop ended
+      // mid tool-cycle), "error" and "aborted" are all partial/failed runs.
+      let outcome: Result<PanelAgentResult, AgentFailure>;
+      if (!last) {
+        outcome = fail(`produced no response`);
+      } else if (last.stopReason !== "stop") {
+        const detail = last.errorMessage ? `: ${last.errorMessage}` : "";
+        outcome = fail(`did not complete cleanly (stopReason: ${last.stopReason})${detail}`);
+      } else {
+        const text = session.getLastAssistantText();
+        outcome =
+          !text || text.trim() === "" ? fail(`returned empty text`) : ok({ modelId, text, session });
+      }
+
+      // Keep the session alive only on success; the caller disposes it then.
+      if (outcome.isErr()) {
+        session.dispose();
+        endStatus = endStatusFor();
+        endError = outcome.error.error;
+      } else {
+        endStatus = "done";
+      }
+      return outcome;
+    } catch (e) {
       session.dispose();
+      const error = message(e);
+      endStatus = endStatusFor();
+      endError = error;
+      return fail(error);
+    } finally {
+      options.signal?.removeEventListener("abort", onAbort);
+      if (detachDebug) {
+        detachDebug();
+      }
+      // Flush still-open activity steps (emits their aborted ends) before model_end below.
+      detach();
     }
-    return outcome;
-  } catch (e) {
-    session.dispose();
-    return fail(message(e));
   } finally {
-    options.signal?.removeEventListener("abort", onAbort);
-    if (detachDebug) {
-      detachDebug();
+    if (sink) {
+      const t = Date.now();
+      sink({
+        kind: "model_end",
+        t,
+        model: modelId,
+        role,
+        status: endStatus,
+        durationMs: t - startedAt,
+        ...(endError ? { error: endError } : {}),
+      });
     }
-    detach();
   }
 }

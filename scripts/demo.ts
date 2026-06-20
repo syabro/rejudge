@@ -12,6 +12,7 @@
 // not opt into write tools.
 import { loadFusionConfig } from "../src/config.ts";
 import { formatFailure, fuse } from "../src/fusion.ts";
+import { createStderrSink } from "../src/stderr-sink.ts";
 
 const DEFAULT_QUESTION =
   "Based on this project's source code, explain what the pi-fusion-agents" +
@@ -33,7 +34,7 @@ console.error(`question: ${question}`);
 console.error(`panel: ${config.panel.join(", ")} | synth: ${config.synth}`);
 console.error("running fusion on real models (this takes a few minutes)…");
 
-const result = await fuse(config, question, { cwd });
+const result = await fuse(config, question, { cwd, activitySink: createStderrSink() });
 if (result.isErr()) {
   console.error(`fusion failed: ${formatFailure(result.error)}`);
   process.exit(1);

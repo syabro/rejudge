@@ -1,18 +1,28 @@
 ---
 name: fusion
-description: Run the fusion panel — fan a question to a 3-model panel and fuse their replies into one answer via bin/fusion.js (read-only). Use when the user says /fusion, wants a multi-model panel review, or wants a fused multi-model answer. For a single external reviewer (one model), use ask-subagent instead.
+description: Run the fusion panel — fan a question to a multi-model panel and fuse their replies into one answer (the fusion_agents tool when inside Pi, else the bin/fusion.js CLI; read-only). Use when the user says /fusion, wants a multi-model panel review, or wants a fused multi-model answer. For a single external reviewer (one model), use ask-subagent instead.
 user_invocable: true
 ---
 
 # Fusion
 
-This skill runs the fusion bin: one invocation = one run of the fusion CLI = one fused
-panel answer. Fusion fans the question out to a panel of models and fuses their replies
-with a synthesis model into a single answer — that fused answer IS the result. Want two
-runs? Invoke the skill twice.
+One invocation = one fused panel answer: the panel fans the question out to several models and
+a synthesis model fuses their replies into one — that fused answer IS the result. Want two
+runs? Invoke the skill twice. For ONE external opinion from a SINGLE subagent (one model), use
+`ask-subagent` instead — this one is the multi-model panel.
 
-For ONE external opinion from a SINGLE subagent (one model), use the `ask-subagent` skill
-instead — that's its job; this one is the multi-model panel.
+## Pick the path by where you're running — THIS FIRST
+
+- **Inside Pi** — if the `fusion_agents` tool is available to you, **call that tool** with the
+  question (and any output instructions). Do NOT run the CLI: it spawns a whole separate
+  process that re-runs the entire panel for nothing. The tool IS the fusion run; its result is
+  the fused answer. Everything below about the bin DOES NOT APPLY — skip straight to
+  "Output to the user".
+- **Anywhere else** (Claude Code or any harness without the `fusion_agents` tool) — run the
+  CLI bin as described below.
+
+If you can see a `fusion_agents` tool in your available tools, you are in the first case. When
+in doubt, prefer the tool; only fall back to the CLI when the tool genuinely isn't there.
 
 ## The binary
 
@@ -45,7 +55,9 @@ agent (3 panel + synth) gets only `read`/`grep`/`find`/`ls`, never `edit`/`write
 so a review cannot modify files or run shell commands in the reviewed cwd. Just run the bin;
 do NOT pass `--unsafe`/`--full` (they enable write/bash and defeat the point of an ask).
 
-## Launch — foreground, blocking (never tmux/background)
+## Launch — foreground, blocking (never tmux/background) — CLI path only
+
+(Skip this whole section when inside Pi — call the `fusion_agents` tool instead.)
 
 Run it in the foreground and wait. No tmux, no detached sessions, no polling, no background
 jobs. The activity log streams to stderr (shown in the tool output); the fused answer goes
@@ -84,11 +96,12 @@ Give the agents what to reason about:
 
 ## Output to the user (strict)
 
-The full fused answer lives in the artifact file; don't paste it verbatim unless asked.
-Read it yourself, then output exactly three sections:
+The full fused answer is the run's result — the `fusion_agents` tool result inside Pi, or the
+artifact file (`/tmp/fusion-<id>.md`) from the CLI. Don't paste it verbatim unless asked. Read
+it yourself, then output exactly three sections:
 
     ### Fused answer
-    Full answer in: /tmp/fusion-<id>.md
+    (CLI only) Full answer in: /tmp/fusion-<id>.md
     <3-7 concise bullets, no long quotes/diffs/logs>
 
     ### Summary

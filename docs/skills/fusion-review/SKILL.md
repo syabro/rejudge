@@ -6,10 +6,11 @@ user_invocable: true
 
 # Fusion Review
 
-A code review through the fusion panel — this is `/fusion` pointed at a diff. Same bin, same
-rules: read the `fusion` skill for the launch mechanics (foreground/blocking, prompt written
-to a file and passed with `-f`, read-only by default, exit status, rebuild-after-pull). This
-skill owns only *what prompt to feed* and *how to present the result*.
+A code review through the fusion panel — this is `/fusion` pointed at a diff. Same rules and
+the same launch decision: read the `fusion` skill first — **inside Pi call the `fusion_agents`
+tool, do NOT run the CLI**; only use the bin (`-f`, foreground/blocking, rebuild-after-pull)
+where the tool isn't available. This skill owns only *what prompt to feed* and *how to present
+the result*. Either way the panel runs read-only and fetches the diff itself via `git_diff`.
 
 For a generic multi-model question that isn't a code review, use `fusion`; for an
 implementation-plan review, use `plan-review`.
@@ -24,10 +25,15 @@ The panel always diffs the working tree against one ref. Choose `<REF>`:
 
 State the ref you used in the output header.
 
-## Run — foreground, read-only
+## Run — read-only (review is an ask; never `--unsafe`/`--full`)
 
-Write the prompt to a file, then run the bin **from the repo being reviewed** (cwd drives
-`git_diff` and config lookup). Do NOT pass `--unsafe`/`--full` — a review is an ask.
+The review prompt below is the same whichever way you launch. Pick the path:
+
+- **Inside Pi** — call the `fusion_agents` tool with the prompt as its `question`. The inner
+  panel fetches the diff via `git_diff` against the cwd, so run it from the repo being
+  reviewed. No file, no bin. Its result is the fused review.
+- **Anywhere else** — write the prompt to a file and run the bin **from the repo being
+  reviewed** (cwd drives `git_diff` and config lookup), as below.
 
     cat > /tmp/fusion-review-<id>.txt <<'EOF'
     Review my change against <REF> — only the change, not the rest of the codebase.
@@ -64,8 +70,9 @@ Write the prompt to a file, then run the bin **from the repo being reviewed** (c
 ## Output — review, then fixes
 
 The panel runs read-only — it only produces the review; applying fixes is this skill's job,
-and the outcome for the user is fixed code, not a wall of text. Read the fused review at
-`/tmp/fusion-review-<id>.md`, then present **each** finding in this exact shape:
+and the outcome for the user is fixed code, not a wall of text. Read the fused review (the
+`fusion_agents` tool result inside Pi, or `/tmp/fusion-review-<id>.md` from the CLI), then
+present **each** finding in this exact shape:
 
     path/to/file.ts
 
