@@ -7,6 +7,7 @@ import {
   SessionManager,
   SettingsManager,
   type AgentSession,
+  type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import type { Model, ThinkingLevel } from "@earendil-works/pi-ai";
 import { err, ok, type Result } from "neverthrow";
@@ -94,6 +95,13 @@ export interface RunPanelAgentOptions {
   activitySink?: ActivitySink;
   /** This agent's role, stamped on its progress events. Default: "panel". */
   role?: ModelRole;
+  /**
+   * Extra custom tools to expose to THIS agent on top of the built-in `git_diff` — their names
+   * are added to the allow-list and the tools to `customTools`. `fuse` uses this to give the
+   * synth/"judge" agent the `ask_panel` tool (SYN-011), so it can re-query a panel for a second
+   * round; panel agents pass none. Default: none.
+   */
+  extraTools?: ToolDefinition[];
 }
 
 /**
@@ -171,7 +179,8 @@ export async function runPanelAgent(
       // read-only `git_diff` tool (TLS-026), registered via `customTools` and named in the
       // allow-list so a review agent can fetch the working-tree diff itself.
       const builtins = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
-      const tools = [...builtins, GIT_DIFF_TOOL_NAME];
+      const extra = options.extraTools ?? [];
+      const tools = [...builtins, GIT_DIFF_TOOL_NAME, ...extra.map((t) => t.name)];
 
       // Load the host's extensions, but keep only those that provide a tool an inner agent may
       // opt into ({@link OPT_IN_HOST_TOOLS}, today just `web_search`). Everything else is
@@ -205,7 +214,7 @@ export async function runPanelAgent(
         model,
         cwd,
         tools,
-        customTools: [gitDiffTool],
+        customTools: [gitDiffTool, ...extra],
         resourceLoader,
         settingsManager,
         // Reasoning level comes from the caller (fuse threads it per stage from the

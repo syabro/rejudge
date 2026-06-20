@@ -2,6 +2,7 @@ import { err, ok, type Result } from "neverthrow";
 import type { FusionConfig } from "./config.ts";
 import { runPanel } from "./panel.ts";
 import { synthesize } from "./synth.ts";
+import { makeAskPanelTool } from "./ask-panel-tool.ts";
 import type { AgentFailure, RunPanelAgentOptions } from "./runner.ts";
 import type { RunStatus } from "./events.ts";
 import { createDebugLog } from "./debug-log.ts";
@@ -87,15 +88,22 @@ export async function fuse(
     const panelEnd = Date.now();
     sink?.({ kind: "stage_end", t: panelEnd, stage: "panel", durationMs: panelEnd - runStart });
 
+    // SYN-011: give the judge a second round on demand. `ask_panel` is bound to the LIVE panel
+    // sessions, so the synth agent can re-query a panel (cross-examine a disagreement, pressure a
+    // disputed point) before fusing. The panels are still alive here — they're disposed in the
+    // finally below, after synthesis has run.
+    const askPanel = makeAskPanelTool(panel.value);
+
     const synthStart = Date.now();
     try {
-      // synthesize owns its synth session; it only reads the panel outputs (text), never
-      // the panel sessions. Synthesis runs at its own configured level.
+      // synthesize owns its synth session and reads the panel outputs (text); via `ask_panel` the
+      // judge can also re-query the live panel sessions. Synthesis runs at its own configured level.
       const synth = await synthesize(config.synth, prompt, panel.value, {
         ...options,
         debugLog,
         role: "synth",
         thinkingLevel: config.thinking.synth,
+        extraTools: [askPanel],
       });
       if (synth.isErr()) {
         status = aborted() ? "cancelled" : "error";
@@ -106,9 +114,9 @@ export async function fuse(
       status = "done";
       return ok(synth.value);
     } finally {
-      // Single-shot fusion owns the panel lifecycle and disposes once synthesis has
-      // consumed the outputs. SYN-011 (multi-round judge re-query) is the task that
-      // needs the panels alive across rounds — it moves this disposal out.
+      // The panel sessions stay alive THROUGH synthesis so the judge can re-query them via
+      // `ask_panel` for a second round (SYN-011); they're disposed here, exactly once, after
+      // synth has run. (Keeping them alive past the run for a later follow-up is SYN-029.)
       for (const r of panel.value) r.session.dispose();
     }
   } finally {
