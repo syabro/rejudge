@@ -242,10 +242,14 @@ export function renderProgress(
 ): string[] {
   const byModel = new Map(s.models.map((m) => [m.model, m]));
 
-  // Header: "Fusion <title>", colored by status. The time is not here — it's the Total line.
-  // Clip the plain text to width BEFORE styling, so a long title never wraps (and the ANSI
-  // stays well-formed — we never cut inside a color code).
-  const root = tintRow(theme, s.status, theme.bold(truncateToWidth(`Fusion${s.title ? ` ${s.title}` : ""}`, width, "…")));
+  // Header: bold "Fusion" + the title in normal weight, colored by status. The time is not
+  // here — it's the Total line. Clip the plain text to width BEFORE styling, so a long title
+  // never wraps (and the ANSI stays well-formed — we never cut inside a style code).
+  const headerText = truncateToWidth(`Fusion${s.title ? ` ${s.title}` : ""}`, width, "…");
+  const header = headerText.startsWith("Fusion")
+    ? theme.bold("Fusion") + headerText.slice("Fusion".length)
+    : theme.bold(headerText);
+  const root = tintRow(theme, s.status, header);
 
   // Build each model row, then align the status cell to one shared column.
   const judgeName = shortModel(s.synthModel);
