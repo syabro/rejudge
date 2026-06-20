@@ -1,6 +1,20 @@
 # Extension — mdtask
 
-The `fusion_agents` Pi extension tool: how it registers and behaves inside a host Pi agent, including its live progress UI. Engine internals live in `panel.md`; the CLI in `cli.md`.
+The `fusion_agents` Pi extension tool: how it registers and behaves inside a host Pi agent, including its live progress UI. Engine internals live in `panel.md`; the inner-agent tools in `tools.md`; config in `config.md`; the CLI in `cli.md`.
+
+## The tool
+
+The package loads as a Pi extension via the `pi.extensions` manifest (entry `src/index.ts`) and registers one external tool, `fusion_agents`. It is invoked explicitly — never auto-invoked — with:
+
+- `question` (required) — the question or instruction to run across the panel.
+- `outputInstructions` (optional) — the desired output format (e.g. a requested structure, or P0/P1/P2/P3 buckets).
+- `title` (optional) — a short phrase for what the run is about, shown in the live progress header (see below).
+
+It runs the question across the configured panel, fuses the answers via synthesis, and returns a single final answer, text only — intermediate panel outputs are never surfaced. The output instructions are carried end-to-end: they are composed into the prompt every panel agent receives, and synthesis is told to honor the task's format, so the returned answer respects the requested format.
+
+A missing or invalid config makes the tool fail — it throws, which the host reports as a tool error. A technical failure of the panel or synthesis instead returns a non-fabricated failure result naming the stage, model, and error; either way the tool never invents an answer.
+
+Each inner agent (the panel models and synthesis) runs read-only by default in the working directory. The inner-agent tool surface — the read-only set, the `fullTools` opt-in, and the custom `git_diff` tool — is described in `tools.md`.
 
 ## Live progress
 
@@ -49,8 +63,13 @@ While `fusion_agents` runs inside Pi it shows a live block, refreshed every seco
   - The CLI/demo render the same events to stderr (one line per finished step with its duration, then per-model, per-stage and total times); durations are `NNs`/`NmNNs`.
   - Side fixes folded in: inner sessions are in-memory (no `/resume` spam), `web_search` is offered to inner agents when the host provides it, and debug-log notices ride the sink as diagnostics. Skills `fusion`/`fusion-review` call the tool inside Pi, the CLI elsewhere.
 
-- [ ] EXT-033 Consolidate how the fusion_agents tool works into this spec
+- [x] EXT-033 Consolidate how the fusion_agents tool works into this spec
   How the `fusion_agents` Pi tool works is scattered across other specs (e.g. tools.md `## fusion_agents`, plus mentions in panel.md / cli.md / config.md). Review every spec and move the "how the extension/tool works" content here, leaving the others to their own scope (engine internals, CLI, config, inner-agent tools) with a cross-reference where needed.
 
   DoD:
   - no other spec describes the fusion_agents tool surface; it lives in extension.md, with the others cross-referencing it instead of duplicating.
+
+  **Implemented:**
+  - The external tool surface now lives in a single `## The tool` section here: how it registers (the `pi.extensions` manifest), that it's invoked explicitly, its params (`question`/`outputInstructions`/`title`), that it returns one final answer text only, end-to-end output instructions, and the precise failure modes (bad config throws → tool error; a panel/synth failure returns a non-fabricated result naming stage/model/error).
+  - `tools.md` lost its external-contract paragraphs; its `## fusion_agents` heading became `## Inner-agent tools` and now opens with a cross-reference here, keeping only its own scope (the read-only/`fullTools` tool set and `git_diff`).
+  - `config.md` and `cli.md` keep only their own scope and gained short cross-references back here; `panel.md`/`synth.md` already cross-referenced this spec. Verified no other spec restates the tool surface.

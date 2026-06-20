@@ -1,10 +1,8 @@
 # Tools — mdtask
 
-## fusion_agents
+## Inner-agent tools
 
-The extension registers one external tool, `fusion_agents`. Call it explicitly with a `question` (a question or instruction) and, optionally, `outputInstructions` describing the desired output format (e.g. a requested structure or P0/P1/P2/P3 buckets). It runs the question across the configured panel, fuses the answers via synthesis, and returns a single final answer, text only.
-
-The output instructions are carried end-to-end: they are composed into the prompt every panel agent receives and the synthesis is told to honor the task's format, so the returned answer respects the requested format. A missing/invalid config or a technical failure of the panel/synthesis surfaces as a tool error — never a fabricated answer. The package loads as a Pi extension via the `pi.extensions` manifest (entry `src/index.ts`).
+The external `fusion_agents` tool surface — its params, what it returns, and the invocation contract — is in `extension.md`. This section covers the tools the inner agents (the panel models and synthesis) run with.
 
 Each inner agent (the panel models and the synthesis) runs read-only by default in the working directory: `read` plus the dedicated `grep`/`find`/`ls` search-and-list tools — no `edit`/`write`/`bash` — so the tool cannot change files or run shell commands. The dedicated tools let agents search and list directly instead of shelling out. The full local set (adding `edit`/`write`/`bash`) is an explicit opt-in (`fullTools`), not exposed through the `fusion_agents` tool itself today; the CLI exposes it via `--unsafe`/`--full` (see `cli.md`). Host extensions are not inherited.
 

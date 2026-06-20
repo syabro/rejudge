@@ -2,7 +2,7 @@
 
 ## fusion CLI
 
-A local command-line wrapper around fusion: ask a question, get the single fused answer (3-model panel + 1-model synthesis) — the same engine as the `fusion_agents` tool.
+A local command-line wrapper around fusion: ask a question, get the single fused answer (3-model panel + 1-model synthesis) — the same engine as the `fusion_agents` tool (described in `extension.md`).
 
 Build it (dev-only; bun is just the build tool, the bin runs on plain Node):
 

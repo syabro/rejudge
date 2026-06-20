@@ -15,7 +15,7 @@
 
 At least 2 `panel` model IDs + 1 `synth` model ID, full provider/model form (the example above uses 3 — the project default — but any panel of 2 or more is accepted). A missing file, malformed JSON, fewer than 2 panel models, or missing `synth` makes the tool error out with a clear message.
 
-Config resolves from the project's `.pi/fusion-agents.json`, else the user-global `~/.config/fusion-agents.json` (honoring `XDG_CONFIG_HOME`); the project file, when present, wins.
+Config resolves from the project's `.pi/fusion-agents.json`, else the user-global `~/.config/fusion-agents.json` (honoring `XDG_CONFIG_HOME`); the project file, when present, wins. (The tool that consumes this config is described in `extension.md`; the CLI in `cli.md`.)
 
 `thinking` is optional and sets the reasoning level per stage. Valid levels: `minimal`, `low`, `medium`, `high`, `xhigh`. Each sub-field may be omitted; the whole block may be omitted. Defaults when unset: panel `xhigh`, synth `medium` — panel agents do the real work and stay at max, synthesis only fuses so it runs lower to save cost/time. (The values shown above match those defaults.) Note: omitting `thinking` lowers synth from the old hardcoded `xhigh` — a deliberate behavior change. A present-but-invalid value (a non-object block, or a level outside the list — levels are lowercase and `off` is not one) is a config error and makes the tool refuse to start.
 
