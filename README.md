@@ -1,9 +1,6 @@
 # pi-fusion-agents
 
-A [Pi](https://pi.dev) extension that exposes one tool, `fusion_agents`: it fans an
-identical question out to a panel of 3 models, then fuses their answers with a 4th
-(synthesis) model into a single answer. The same engine ships as a local CLI
-(`bin/fusion.js`).
+A [Pi](https://pi.dev) extension that exposes one tool, `fusion_agents`: it fans an identical question out to a panel of 3 models, then fuses their answers with a 4th (synthesis) model into a single answer. The same engine ships as a local CLI (`bin/fusion.js`).
 
 ## Install
 
@@ -33,14 +30,11 @@ bin/fusion.js --unsafe "..."      # (or --full) opt into write tools; default is
 bin/fusion.js --help
 ```
 
-The prompt comes from one source — a positional, else `-f`, else stdin (read only when there
-is neither). A bare terminal with no pipe prints usage instead of blocking; empty stdin is a
-usage error.
+The prompt comes from one source — a positional, else `-f`, else stdin (read only when there is neither). A bare terminal with no pipe prints usage instead of blocking; empty stdin is a usage error.
 
 ## Configuration & keys
 
-Models are set in `.pi/fusion-agents.json` (project) or `~/.config/fusion-agents.json`
-(user-global) — 3 panel model IDs + 1 synth:
+Models are set in `.pi/fusion-agents.json` (project) or `~/.config/fusion-agents.json` (user-global) — 3 panel model IDs + 1 synth:
 
 ```json
 {
@@ -53,6 +47,4 @@ Models are set in `.pi/fusion-agents.json` (project) or `~/.config/fusion-agents
 }
 ```
 
-The model API key lives in the `OPENCODE_API_KEY` environment variable (or Pi's stored
-`pi login` auth) — never baked into the code. Without a key the deterministic tests still
-run (`bun run test:unit`); the integration tests skip.
+The model API key lives in the `OPENCODE_API_KEY` environment variable (or Pi's stored `pi login` auth) — never baked into the code. Without a key the deterministic tests still run (`bun run test:unit`); the integration tests skip.

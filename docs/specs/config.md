@@ -24,9 +24,7 @@ Config resolves from the project's `.pi/fusion-agents.json`, else the user-globa
 # Tasks
 
 - [x] CFG-005 Load and validate .pi/fusion-agents.json and gate fusion_agents		#poc @blocked_by:PRJ-012
-  `fusion_agents` starts only when a valid config exists at `<project>/.pi/fusion-agents.json` with full provider/model IDs (e.g. anthropic/claude-sonnet-4-5).
-  Constraints: exactly 3 panel model IDs + 1 synthesis model ID; that list is the model selection; config shape beyond these IDs is deferred.
-  Acceptance: valid config (3 panel + 1 synthesis) lets the tool proceed and exposes the four IDs to the runner; missing file / wrong panel count / missing synthesis ID -> refuse to start with a clear error.
+  `fusion_agents` starts only when a valid config exists at `<project>/.pi/fusion-agents.json` with full provider/model IDs (e.g. anthropic/claude-sonnet-4-5). Constraints: exactly 3 panel model IDs + 1 synthesis model ID; that list is the model selection; config shape beyond these IDs is deferred. Acceptance: valid config (3 panel + 1 synthesis) lets the tool proceed and exposes the four IDs to the runner; missing file / wrong panel count / missing synthesis ID -> refuse to start with a clear error.
 
   **Implemented:**
   - `src/config.ts` `loadFusionConfig(cwd)` reads `<cwd>/.pi/fusion-agents.json`, validates exactly 3 `panel` IDs + 1 `synth` ID, returns them; throws a clear error on missing file / malformed JSON / wrong panel count / missing synth.
@@ -34,11 +32,9 @@ Config resolves from the project's `.pi/fusion-agents.json`, else the user-globa
   - Tests: real `.pi/fusion-agents.json` files in temp dirs (valid, missing, 2/4 panels, missing synth, malformed) — no mocks. typecheck + tests green.
 
 - [x] CFG-014 Set thinking level per stage in the config		!high
-  Thinking level is hardcoded "xhigh" for every inner agent; synth doesn't need max
-  and wastes cost/time on it.
+  Thinking level is hardcoded "xhigh" for every inner agent; synth doesn't need max and wastes cost/time on it.
 
-  Let .pi/fusion-agents.json set it per stage (e.g. panel "xhigh", synth "medium"),
-  with a default when unset.
+  Let .pi/fusion-agents.json set it per stage (e.g. panel "xhigh", synth "medium"), with a default when unset.
 
   **Implemented:**
   - `.pi/fusion-agents.json` takes an optional `thinking: { panel, synth }` block; `loadFusionConfig` resolves it to a fully-populated `FusionConfig.thinking`, defaulting panel `xhigh` / synth `medium` when omitted.
@@ -47,25 +43,17 @@ Config resolves from the project's `.pi/fusion-agents.json`, else the user-globa
   - Tests (`test/config.test.ts`, pure): defaults, per-stage values, partial block, `null`, invalid level, non-object block; existing `fuse` smoke tests updated for the new field.
 
 - [x] CFG-018 Allow panel sizes other than exactly 3		!low
-  Config hardcodes panel.length === 3, though runPanel is generic. Accept a range
-  (e.g. >= 2) so panel size isn't frozen in code.
+  Config hardcodes panel.length === 3, though runPanel is generic. Accept a range (e.g. >= 2) so panel size isn't frozen in code.
 
   **Implemented:**
-  - `loadFusionConfigFromPath` now validates `panel.length >= 2` (was `=== 3`); the error
-    message reads "config \"panel\" must be at least 2 non-empty model IDs". No upper bound —
-    a larger panel is the caller's cost/choice; a 1-model panel stays rejected (nothing to fuse).
-  - The whole pipeline (`runPanel` → `synthesize` → `fuse`) was already array-generic over the
-    panel, so no runtime code changed — only the validator and count-bearing comments
-    (`config.ts`, `cli.ts`, `fusion.ts`) and the normative panel-size wording in the docs.
+  - `loadFusionConfigFromPath` now validates `panel.length >= 2` (was `=== 3`); the error message reads "config \"panel\" must be at least 2 non-empty model IDs". No upper bound — a larger panel is the caller's cost/choice; a 1-model panel stays rejected (nothing to fuse).
+  - The whole pipeline (`runPanel` → `synthesize` → `fuse`) was already array-generic over the panel, so no runtime code changed — only the validator and count-bearing comments (`config.ts`, `cli.ts`, `fusion.ts`) and the normative panel-size wording in the docs.
   - Tests: a panel of 1 or 0 is rejected; a panel of 2 and of 4 loads and returns the given IDs.
 
 - [ ] CFG-030 Encode reasoning level per model in the model ID (`provider/model@level`)
-  Reasoning level is set today in a separate `thinking: { panel, synth }` block. Move it onto
-  the model: each ID carries its level as an `@` suffix, e.g. `opencode-go/glm-5.1@high` — for
-  both panel models and the synth (judge). This replaces the `thinking` block entirely.
+  Reasoning level is set today in a separate `thinking: { panel, synth }` block. Move it onto the model: each ID carries its level as an `@` suffix, e.g. `opencode-go/glm-5.1@high` — for both panel models and the synth (judge). This replaces the `thinking` block entirely.
 
-  A missing `@level` is a config error, not a silent default — someone will forget it,
-  silently get reasoning off, and not understand why fusion underperforms.
+  A missing `@level` is a config error, not a silent default — someone will forget it, silently get reasoning off, and not understand why fusion underperforms.
 
   User decisions:
   - reasoning level lives in the model ID via `@level` (panel models + synth);
