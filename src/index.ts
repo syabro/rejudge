@@ -12,8 +12,8 @@ import { formatFailure, fuse } from "./fusion.ts";
 import {
   applyEvent,
   createProgressState,
+  progressComponent,
   type ProgressSnapshot,
-  renderProgress,
 } from "./progress.ts";
 
 const parameters = Type.Object({
@@ -134,12 +134,9 @@ export default function (pi: ExtensionAPI): void {
       // No snapshot (shouldn't happen mid-run) → just show whatever text there is.
       if (!s || !Array.isArray(s.models)) return new Text(text);
 
-      const lines = renderProgress(s, theme);
-      // Expanded view appends the fused answer below the tree.
-      if (options.expanded && text) {
-        lines.push("", text);
-      }
-      return new Text(lines.join("\n"));
+      // Width-aware: the component lays the tree out for the host's viewport on each render
+      // (detail column trims to fit, no wrapping); expanded view appends the fused answer.
+      return progressComponent(s, theme, options.expanded ? text : undefined);
     },
   });
 }

@@ -26,7 +26,9 @@ panel models, with a total at the bottom:
   the step (`thinking`/`writing`/the tool name), the step's duration (live while it runs,
   frozen between steps so the gap shows the previous step, not a blank), then a dimmed detail —
   the tool's params (a read's path, `git_diff`'s mode, a `web_search` query) or the live tail
-  of the streamed thinking/writing text. Before the first step the cell is empty.
+  of the streamed thinking/writing text. The detail trims to the terminal width (keeping its
+  end), so the block fits the window and never wraps, and it reflows on resize. Before the first
+  step the cell is empty.
 - **A finished model** reads `✓ done (time | N tools)` in green; a broken one `✗ <reason>
   (…)` in red; one cancelled by an abort `⊘ cancelled (…)` in dim.
 - Durations are `NNs` under a minute, `NmNNs` at or past one. The **Total** line (dimmed) at

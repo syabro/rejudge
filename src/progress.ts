@@ -1,5 +1,5 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { visibleWidth } from "@earendil-works/pi-tui";
+import { type Component, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { type ModelRole, type ProgressEvent, formatDur, shortModel } from "./events.ts";
 
 /**
@@ -150,31 +150,31 @@ function meta(durationMs: number, toolCount: number): string {
  * Finished models render as before: an icon + the status word + `(total | N tools)`, the whole
  * row tinted (green done, red error with its reason, dim cancelled).
  *
- * A running model is a column layout instead — `nn. tool time args`: a dimmed tool number
+ * A running model is a column layout instead — `nn. tool time detail`: a dimmed tool number
  * (count so far) with a trailing dot, the step name padded to a column, the step's duration,
- * then the params / streamed-text tail dimmed. The duration ticks live while the step runs and
+ * then `detail` (returned separately, raw — params or the streamed-text tail; the caller dims
+ * it and trims it to the row's free width). The duration ticks live while the step runs and
  * freezes once it ends — so the gap between calls keeps showing the previous step, not a blank.
  * Before the first step (nothing has run yet) the cell is empty; the root clock carries the
  * liveness.
  */
-function statusCell(p: ModelProgress, now: number, theme: Theme): string {
+function statusCell(p: ModelProgress, now: number, theme: Theme): { text: string; detail?: string } {
   const total = (p.endedAt ?? now) - p.startedAt;
   switch (p.status) {
     case "done":
-      return `  ✓ done (${meta(total, p.toolCount)})`;
+      return { text: `  ✓ done (${meta(total, p.toolCount)})` };
     case "error":
-      return `  ✗ ${p.error ?? "failed"} (${meta(total, p.toolCount)})`;
+      return { text: `  ✗ ${p.error ?? "failed"} (${meta(total, p.toolCount)})` };
     case "cancelled":
-      return `  ⊘ cancelled (${meta(total, p.toolCount)})`;
+      return { text: `  ⊘ cancelled (${meta(total, p.toolCount)})` };
     default: {
-      if (!p.activity) return "";
-      // Running rows aren't tinted, so the dimmed number/params read cleanly inside the line.
+      if (!p.activity) return { text: "" };
+      // Running rows aren't tinted, so the dimmed number reads cleanly inside the line.
       const num = theme.fg("dim", `${String(p.toolCount).padStart(3)}.`);
       const tool = p.activity.padEnd(10);
       const stepMs = (p.activityEndedAt ?? now) - (p.activityStartedAt ?? now);
       const time = formatDur(stepMs).padStart(5);
-      const args = p.detail ? `  ${theme.fg("dim", p.detail)}` : "";
-      return `${num} ${tool} ${time}${args}`;
+      return { text: `${num} ${tool} ${time}`, detail: p.detail };
     }
   }
 }
@@ -194,18 +194,32 @@ function tintRow(theme: Theme, status: ModelStatus | "waiting", line: string): s
   }
 }
 
+/**
+ * Fit a detail (tool params / streamed text) into `room` columns, keeping the END — the most
+ * recent text of a stream, the filename of a path — with a leading ellipsis. Empty when there's
+ * no usable room.
+ */
+function fitDetail(detail: string, room: number): string {
+  if (room <= 1) return "";
+  const body = detail.replace(/^…/, "");
+  if (visibleWidth(body) <= room) return body;
+  return `…${body.slice(-(room - 1))}`;
+}
+
 /** Theme color for a diagnostic line per severity. */
 const DIAGNOSTIC_COLOR = { error: "error", warn: "warning", info: "dim" } as const;
 
-/** One model row before alignment: its tree-and-name left part and its status cell. */
+/** One model row before alignment: its tree-and-name left part, its status cell, and the
+ *  raw (undimmed, untrimmed) detail to append once the shared column width is known. */
 interface Row {
   left: string;
-  cell: string;
+  text: string;
+  detail?: string;
   status: ModelStatus | "waiting";
 }
 
 /**
- * Draw the live 3-level progress tree as lines:
+ * Draw the live 3-level progress tree as lines, fit to `width` columns:
  *
  *     Fusion review the runner change
  *       glm-5.1 (judge)        0. thinking   12s  …keep it concise
@@ -215,10 +229,17 @@ interface Row {
  *
  * Header is `Fusion <title>`, colored by status (green done, red fail, dim cancel, neutral
  * running). The tree is root → judge → panel models, the status cell aligned to one shared
- * column across the judge (level 2) and the panels (level 3). The overall time lives on a
- * dimmed `Total <time>` line at the bottom. `now` is injected for deterministic tests.
+ * column across the judge (level 2) and the panels (level 3). A running row's dimmed detail is
+ * trimmed to whatever width is left on the line, so it never wraps. The overall time lives on a
+ * dimmed `Total <time>` line at the bottom. `now`/`width` are injected for deterministic tests;
+ * `width` defaults to unbounded (no trimming).
  */
-export function renderProgress(s: ProgressSnapshot, theme: Theme, now: number = Date.now()): string[] {
+export function renderProgress(
+  s: ProgressSnapshot,
+  theme: Theme,
+  now: number = Date.now(),
+  width: number = Number.POSITIVE_INFINITY,
+): string[] {
   const byModel = new Map(s.models.map((m) => [m.model, m]));
 
   // Header: "Fusion <title>", colored by status. The time is not here — it's the Total line.
@@ -230,7 +251,7 @@ export function renderProgress(s: ProgressSnapshot, theme: Theme, now: number = 
   const rows: Row[] = [
     {
       left: `  ${judgeName} (judge)`,
-      cell: synth ? statusCell(synth, now, theme) : "  waiting…",
+      ...(synth ? statusCell(synth, now, theme) : { text: "  waiting…" }),
       status: synth?.status ?? "waiting",
     },
   ];
@@ -240,7 +261,7 @@ export function renderProgress(s: ProgressSnapshot, theme: Theme, now: number = 
     const p = byModel.get(modelId);
     rows.push({
       left: `    ⎿ ${padTo(shortModel(modelId), nameW)}`,
-      cell: p ? statusCell(p, now, theme) : "  waiting…",
+      ...(p ? statusCell(p, now, theme) : { text: "  waiting…" }),
       status: p?.status ?? "waiting",
     });
   }
@@ -249,7 +270,12 @@ export function renderProgress(s: ProgressSnapshot, theme: Theme, now: number = 
 
   const lines = [root];
   for (const r of rows) {
-    lines.push(tintRow(theme, r.status, `${padTo(r.left, leftW)}  ${r.cell}`.trimEnd()));
+    let body = `${padTo(r.left, leftW)}  ${r.text}`;
+    if (r.detail) {
+      const shown = fitDetail(r.detail, width - visibleWidth(body) - 1);
+      if (shown) body += ` ${theme.fg("dim", shown)}`;
+    }
+    lines.push(tintRow(theme, r.status, body.trimEnd()));
   }
 
   for (const d of s.diagnostics) {
@@ -259,4 +285,22 @@ export function renderProgress(s: ProgressSnapshot, theme: Theme, now: number = 
 
   lines.push(theme.fg("dim", `Total ${formatDur((s.endedAt ?? now) - s.startedAt)}`));
   return lines;
+}
+
+/**
+ * A width-aware {@link Component} that draws the progress block: each `render(width)` lays the
+ * tree out for the host's current viewport width (so the detail column trims instead of
+ * wrapping, and a resize reflows) and, when expanded, appends the fused answer wrapped to width.
+ */
+export function progressComponent(s: ProgressSnapshot, theme: Theme, expandedText?: string): Component {
+  return {
+    invalidate() {},
+    render(width: number): string[] {
+      const lines = renderProgress(s, theme, Date.now(), width);
+      if (expandedText && expandedText.trim()) {
+        lines.push("", ...wrapTextWithAnsi(expandedText, width));
+      }
+      return lines;
+    },
+  };
 }
