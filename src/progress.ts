@@ -1,5 +1,5 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
-import { type Component, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
+import { type Component, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import { type ModelRole, type ProgressEvent, formatDur, shortModel } from "./events.ts";
 
 /**
@@ -243,7 +243,9 @@ export function renderProgress(
   const byModel = new Map(s.models.map((m) => [m.model, m]));
 
   // Header: "Fusion <title>", colored by status. The time is not here — it's the Total line.
-  const root = tintRow(theme, s.status, theme.bold(`Fusion${s.title ? ` ${s.title}` : ""}`));
+  // Clip the plain text to width BEFORE styling, so a long title never wraps (and the ANSI
+  // stays well-formed — we never cut inside a color code).
+  const root = tintRow(theme, s.status, theme.bold(truncateToWidth(`Fusion${s.title ? ` ${s.title}` : ""}`, width, "…")));
 
   // Build each model row, then align the status cell to one shared column.
   const judgeName = shortModel(s.synthModel);
@@ -280,7 +282,7 @@ export function renderProgress(
 
   for (const d of s.diagnostics) {
     const text = `  ${d.severity === "info" ? "" : "⚠ "}${d.message}`;
-    lines.push(theme.fg(DIAGNOSTIC_COLOR[d.severity], text));
+    lines.push(theme.fg(DIAGNOSTIC_COLOR[d.severity], truncateToWidth(text, width, "…")));
   }
 
   lines.push(theme.fg("dim", `Total ${formatDur((s.endedAt ?? now) - s.startedAt)}`));

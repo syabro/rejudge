@@ -83,11 +83,14 @@ finishes (with its duration), then per-model, per-stage, and total times. The pa
 run concurrently, so their lines interleave, told apart by the model name. stderr keeps the
 log off stdout, where the fused answer goes.
 
-    19:41:13 deepseek-v4-pro thinking 11.0s
-    19:41:13 deepseek-v4-pro read 0.2s
-    19:44:33 deepseek-v4-pro done in 3:31
-    panel stage done in 10:02
-    fusion done in 10:57
+    19:41:13 deepseek-v4-pro thinking 11s
+    19:41:13 deepseek-v4-pro read src/fusion.ts 00s
+    19:44:33 deepseek-v4-pro done in 3m31s
+    panel stage done in 10m02s
+    fusion done in 10m57s
+
+A step line carries the tool's params (a read's path, a `web_search` query) after the step
+name. Durations are `NNs` under a minute, `NmNNs` at or past one.
 
 The `fusion_agents` Pi tool renders the same events as a live in-place block instead — see
 `extension.md`.
