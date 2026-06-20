@@ -135,8 +135,9 @@ export default function (pi: ExtensionAPI): void {
       if (!s || !Array.isArray(s.models)) return new Text(text);
 
       // Width-aware: the component lays the tree out for the host's viewport on each render
-      // (detail column trims to fit, no wrapping); expanded view appends the fused answer.
-      return progressComponent(s, theme, options.expanded ? text : undefined);
+      // (detail column trims to fit, no wrapping). Expanded (Ctrl+O) shows the full query in
+      // the header and appends the fused answer.
+      return progressComponent(s, theme, options.expanded, text);
     },
   });
 }

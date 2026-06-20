@@ -239,17 +239,23 @@ export function renderProgress(
   theme: Theme,
   now: number = Date.now(),
   width: number = Number.POSITIVE_INFINITY,
+  expanded = false,
 ): string[] {
   const byModel = new Map(s.models.map((m) => [m.model, m]));
 
-  // Header: bold "Fusion" + the title in normal weight, colored by status. The time is not
-  // here — it's the Total line. Clip the plain text to width BEFORE styling, so a long title
-  // never wraps (and the ANSI stays well-formed — we never cut inside a style code).
-  const headerText = truncateToWidth(`Fusion${s.title ? ` ${s.title}` : ""}`, width, "…");
-  const header = headerText.startsWith("Fusion")
-    ? theme.bold("Fusion") + headerText.slice("Fusion".length)
-    : theme.bold(headerText);
-  const root = tintRow(theme, s.status, header);
+  // Header line 1: bold "Fusion", colored by status (the time lives on the Total line).
+  const lines = [tintRow(theme, s.status, theme.bold("Fusion"))];
+
+  // Header line 2: the query. Collapsed → one clipped line + a dimmed expand hint; expanded
+  // (Ctrl+O) → the full query, wrapped. Clip/wrap the plain text so a long query never wraps
+  // by accident and the ANSI stays well-formed.
+  const title = s.title?.trim();
+  if (title && expanded) {
+    lines.push(...wrapTextWithAnsi(title, width));
+  } else if (title) {
+    const hint = " (ctrl+o to expand)";
+    lines.push(`${truncateToWidth(title, width - hint.length, "…")}${theme.fg("dim", hint)}`);
+  }
 
   // Build each model row, then align the status cell to one shared column.
   const judgeName = shortModel(s.synthModel);
@@ -274,7 +280,6 @@ export function renderProgress(
 
   const leftW = Math.max(...rows.map((r) => visibleWidth(r.left)));
 
-  const lines = [root];
   for (const r of rows) {
     let body = `${padTo(r.left, leftW)}  ${r.text}`;
     if (r.detail) {
@@ -296,15 +301,21 @@ export function renderProgress(
 /**
  * A width-aware {@link Component} that draws the progress block: each `render(width)` lays the
  * tree out for the host's current viewport width (so the detail column trims instead of
- * wrapping, and a resize reflows) and, when expanded, appends the fused answer wrapped to width.
+ * wrapping, and a resize reflows). When `expanded` (Ctrl+O) it shows the full query in the
+ * header and appends the fused answer wrapped to width.
  */
-export function progressComponent(s: ProgressSnapshot, theme: Theme, expandedText?: string): Component {
+export function progressComponent(
+  s: ProgressSnapshot,
+  theme: Theme,
+  expanded: boolean,
+  answer?: string,
+): Component {
   return {
     invalidate() {},
     render(width: number): string[] {
-      const lines = renderProgress(s, theme, Date.now(), width);
-      if (expandedText && expandedText.trim()) {
-        lines.push("", ...wrapTextWithAnsi(expandedText, width));
+      const lines = renderProgress(s, theme, Date.now(), width, expanded);
+      if (expanded && answer && answer.trim()) {
+        lines.push("", ...wrapTextWithAnsi(answer, width));
       }
       return lines;
     },
