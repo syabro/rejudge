@@ -43,6 +43,15 @@ export const READONLY_TOOLS = ["read", "grep", "find", "ls"] as const;
  */
 export const WEB_SEARCH_TOOL = "web_search";
 
+/**
+ * Host extension tools an inner agent is allowed to opt into. Only the host extensions that
+ * provide one of these are loaded into an inner session (see {@link runPanelAgent}); every
+ * other host extension is filtered out so its lifecycle handlers never fire for a panel/synth
+ * agent — which is what made a host like Herdr or a session indicator flash on each inner
+ * agent's completion. Today the only opt-in is `web_search`.
+ */
+const OPT_IN_HOST_TOOLS = new Set<string>([WEB_SEARCH_TOOL]);
+
 export interface PanelAgentResult {
   /** The "provider/model" id this agent ran on. */
   modelId: string;
@@ -164,14 +173,26 @@ export async function runPanelAgent(
       const builtins = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
       const tools = [...builtins, GIT_DIFF_TOOL_NAME];
 
-      // The resource loader loads the host's extensions; the `tools` allow-list above is what
-      // gates which are enabled, so host tools never leak in unnamed. The one we opt into is
-      // `web_search` — enabled only when the host actually provides it (detected here), so a
-      // run elsewhere just doesn't get it. We build and reload the loader ourselves to read
-      // that list, then hand the same instance to createAgentSession (which skips its own).
+      // Load the host's extensions, but keep only those that provide a tool an inner agent may
+      // opt into ({@link OPT_IN_HOST_TOOLS}, today just `web_search`). Everything else is
+      // dropped at load: its tools wouldn't be in the allow-list anyway, and — the point here —
+      // its lifecycle handlers (a Herdr/terminal notifier, a session indicator, even
+      // `fusion_agents` itself) then never fire for a panel/synth agent, so the host stops
+      // flashing on every inner-agent completion. We build and reload the loader ourselves to
+      // read the surviving tools, then hand the same instance to createAgentSession.
       const agentDir = getAgentDir();
       const settingsManager = SettingsManager.create(cwd, agentDir);
-      const resourceLoader = new DefaultResourceLoader({ cwd, agentDir, settingsManager });
+      const resourceLoader = new DefaultResourceLoader({
+        cwd,
+        agentDir,
+        settingsManager,
+        extensionsOverride: (base) => ({
+          ...base,
+          extensions: base.extensions.filter((e) =>
+            [...e.tools.keys()].some((name) => OPT_IN_HOST_TOOLS.has(name)),
+          ),
+        }),
+      });
       await resourceLoader.reload();
       const hostTools = new Set(
         resourceLoader.getExtensions().extensions.flatMap((e) => [...e.tools.keys()]),

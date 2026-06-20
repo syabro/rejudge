@@ -6,10 +6,10 @@ The reusable unit behind the panel: `runPanelAgent(modelId, prompt, { cwd?, sign
 runs one agent end-to-end on a single `"provider/model"` id (e.g. `opencode-go/kimi-k2.6`)
 and returns its finished answer text.
 
-- The agent runs in the trusted local environment with a fixed tool set — `read`, `edit`,
-  `write`, `bash` — and nothing else. Host global extensions are not inherited (this keeps
-  the run reproducible, dodges third-party tool schemas the provider rejects, and stops the
-  agent from re-entering `fusion_agents`).
+- Tools: read/grep/find/ls by default (edit/write/bash with `fullTools`), plus `git_diff` and
+  `web_search` when the host offers it. No other host extensions load, so their handlers can't
+  fire on inner agents (no host notifier flashing, no re-entering `fusion_agents`).
+- The session is in-memory — nothing is written to the host's resume list.
 - Failure is loud, never silent: a malformed/unknown model id, a model/tool/runtime error,
   an incomplete run (any stop reason other than a clean `stop`), or empty output all throw a
   clear error instead of returning a partial answer.
