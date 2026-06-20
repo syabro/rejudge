@@ -17,7 +17,8 @@ integrationTest("fuse returns one final answer when all panels and synthesis suc
   const result = await fuse(GOOD, PROMPT);
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
-    expect(result.value.trim().length).toBeGreaterThan(0);
+    expect(result.value.answer.trim().length).toBeGreaterThan(0);
+    expect(result.value.runId.length).toBeGreaterThan(0);
   }
 }, 180_000);
 

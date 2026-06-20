@@ -16,6 +16,17 @@ The judge decides whether and whom to re-query — there is no fixed extra round
 
 `ask_panel` is always available to the judge — there is no config/CLI/tool flag to turn it on or off. Accepted trade-off: every run's synth prompt now carries the tool plus a short cross-examination guidance paragraph (it's omitted only from the internal one-shot synthesis prompt used without the tool). Limitation (v1): a re-queried panel's internal thinking/tool steps don't surface in the live progress block or the debug log — its activity log was detached when round 1 finished — though the judge's own `ask_panel` calls do show in the judge's row.
 
+## Resumable runs: follow up on a prior run
+
+Every run is persisted so a LATER, separate invocation can follow up on it — resuming the same panel + synth sessions and answering with their earlier context. You usually only realise you want a follow-up after seeing the answer, so there's nothing to opt into up front; instead a fresh run prints its id and the CLI resumes by id:
+
+    fusion "review my auth change"                      # stderr: run saved as <runId> — follow up: …
+    fusion --resume <runId> "you missed the CSRF case — re-check it"
+
+The follow-up goes to the run's restored judge — it already holds round 1 and can re-query the restored panels via `ask_panel`; the panel fan-out is not re-run. Resuming is opt-in at use: a run with no `--resume` always starts clean.
+
+Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), never in the project tree and never in Pi's own `/resume` list. They're pruned after ~24h and guarded by the run's working directory — resuming from a different project is refused. Resume is best-effort: if the run expired or its files were cleaned, the follow-up fails with a clear error and you just start a new run. (Resume is CLI-only for now; the `fusion_agents` tool gaining a `resumeRunId` param is a planned follow-up.)
+
 # Tasks
 
 - [x] SYN-010 Synthesize three panel outputs into one answer		#poc @blocked_by:PRJ-012
@@ -41,7 +52,7 @@ The judge decides whether and whom to re-query — there is no fixed extra round
   - The no-throw / all-or-nothing contract holds (every `ask_panel` failure returns as text), and it adds no write capability (it only re-prompts the already read-only panels). Cross-invocation follow-up is SYN-029.
   - Smoke tests (real models, no mocks): a live panel session is re-queried and does fresh work that completes cleanly; deterministic tests cover the unknown-model error and the tool-activation wiring.
 
-- [ ] SYN-029 Resumable fusion: new run vs context-restoring follow-up		@blocked_by:SYN-011
+- [x] SYN-029 Resumable fusion: new run vs context-restoring follow-up		@blocked_by:SYN-011
   Each fusion run is one-shot and cold — fine for an unrelated question. But a follow-up to a run just held is cold too: it restarts the panel and synth from scratch and loses what they already reasoned about. The follow-up often only surfaces later, in the ongoing chat with the main agent, when you want to put a sharper question back to the same panel.
 
   SYN-011 makes the judge able to keep prompting the panel sessions within a run. This task extends that: restore the judge and panel state so the caller can either start a NEW run (fresh panel + synth, no prior context) or send a FOLLOW-UP that resumes the same sessions and answers with their earlier context. Whether follow-up must also survive across separate invocations (a fresh CLI process or a later `fusion_agents` call) is not yet decided.
@@ -49,3 +60,11 @@ The judge decides whether and whom to re-query — there is no fixed extra round
   User decision: the caller chooses per question — a new run, or a follow-up that resumes a specific prior run. Resuming is opt-in, not the implicit default for the next question.
 
   DoD: a question sent as a new run starts clean; a question sent as a follow-up to a named prior run resumes the same panel and synth sessions and its answer reflects the earlier round's context.
+
+  **Implemented:**
+  - Decided the open question: follow-up DOES survive across separate processes. Every run is persisted (by the SDK's SessionManager) to the OS temp dir — `${TMPDIR}/fusion-agents-sessions/<runId>/` — so a fresh CLI process can resume it; the host's `/resume` list is untouched (a different directory entirely).
+  - `src/run-store.ts` owns the run id (sortable timestamp + rand), the per-run dir, a `manifest.json` (cwd + config + model→file map, written last as the commit marker), and 24h TTL GC (by dir mtime, only on runId-shaped dirs). All best-effort — persistence never breaks a run.
+  - `fuse` now returns `{answer, runId}`. A fresh run persists each session and writes the manifest on success; `resumeRunId` reopens the panels (live, for `ask_panel`) and the synth and prompts the synth with the RAW follow-up (round 1 is already in its history — no re-synthesis). Guards: the run's cwd must match, and every session file must still exist, else a clean `resume`-stage failure.
+  - CLI `--resume <id>`: a fresh run prints its id; a resume extends the same run. The runner gained `createInnerSession` + `sessionManager`/`existingSession` options; the engine is otherwise unchanged.
+  - Scope: resume is CLI-only in v1; the `fusion_agents` tool's `resumeRunId` is a planned follow-up.
+  - Smoke tests (real models, no mocks): a fresh run plants a fact, a separate `--resume` follow-up recalls it, a no-resume control can't; deterministic tests cover the run-store (id/manifest/GC) and the resume guards (unknown run, cwd mismatch, missing files).

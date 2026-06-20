@@ -94,24 +94,39 @@ async function main(): Promise<number> {
 
   console.error(`config: ${path}`);
   console.error(`panel: ${config.panel.join(", ")} | synth: ${config.synth}`);
-  console.error(
-    args.fullTools
-      ? "unsafe: inner agents can edit/write/run bash in this directory"
-      : "read-only: inner agents limited to read/grep/find/ls",
-  );
-  console.error("running fusion on real models (this takes a few minutes)…");
+  if (args.resume) {
+    // On resume the tool policy comes from the saved run's manifest, not these flags — so don't
+    // print the read-only/unsafe label (it would misreport).
+    console.error(`resuming run ${args.resume} (this takes a few minutes)…`);
+  } else {
+    console.error(
+      args.fullTools
+        ? "unsafe: inner agents can edit/write/run bash in this directory"
+        : "read-only: inner agents limited to read/grep/find/ls",
+    );
+    console.error("running fusion on real models (this takes a few minutes)…");
+  }
 
   // Live progress to stderr (durations per step + a total); the fused answer owns stdout.
   const result = await fuse(config, prompt, {
     cwd,
     fullTools: args.fullTools,
+    resumeRunId: args.resume,
     activitySink: createStderrSink(),
   });
   if (result.isErr()) {
     console.error(`fusion: ${formatFailure(result.error)}`);
     return 1;
   }
-  console.log(result.value);
+  console.log(result.value.answer);
+  // Surface the run id so a later, separate invocation can follow up (SYN-029). A resume extends
+  // the same run rather than saving a new one.
+  const id = result.value.runId;
+  console.error(
+    args.resume
+      ? `run ${id} extended — follow up again: fusion --resume ${id} "<question>"`
+      : `run saved as ${id} — follow up: fusion --resume ${id} "<question>"`,
+  );
   return 0;
 }
 

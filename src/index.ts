@@ -122,7 +122,7 @@ export default function (pi: ExtensionAPI): void {
         // Return instead: the final snapshot stays in `details` so the block keeps its failed
         // (red/cancelled) rows, and the failure is surfaced as the content text (no fabricated
         // answer — it names the stage/model that broke).
-        const text = result.isErr() ? `fusion_agents failed: ${formatFailure(result.error)}` : result.value;
+        const text = result.isErr() ? `fusion_agents failed: ${formatFailure(result.error)}` : result.value.answer;
         return { content: [{ type: "text", text }], details: structuredClone(state) };
       } finally {
         clearInterval(ticker);

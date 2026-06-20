@@ -26,9 +26,12 @@ export async function runPanel(
   options: RunPanelAgentOptions = {},
 ): Promise<Result<PanelAgentResult[], AgentFailure>> {
   // runPanelAgent never throws (it returns a Result), so plain Promise.all is safe:
-  // every agent runs to completion and we get one Result each.
+  // every agent runs to completion and we get one Result each. When the caller persists the run
+  // (SYN-029) it passes one disk-backed session manager per model in `sessionManagers`; we hand
+  // each agent its own by index (absent → each agent defaults to an in-memory session).
+  const managers = options.sessionManagers;
   const results = await Promise.all(
-    models.map((modelId) => runPanelAgent(modelId, prompt, options)),
+    models.map((modelId, i) => runPanelAgent(modelId, prompt, { ...options, sessionManager: managers?.[i] })),
   );
 
   // combine → ok([all results]) when every agent succeeded, else the first err.

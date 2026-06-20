@@ -102,6 +102,25 @@ export interface RunPanelAgentOptions {
    * round; panel agents pass none. Default: none.
    */
   extraTools?: ToolDefinition[];
+  /**
+   * Where this agent's session is persisted. Default: {@link SessionManager.inMemory} — nothing
+   * on disk, so the host's `/resume` list stays clean. `fuse` passes a disk-backed manager
+   * (`SessionManager.create(cwd, runDir)` for a fresh run, `SessionManager.open(file)` to resume)
+   * when persisting a run for later follow-up (SYN-029).
+   */
+  sessionManager?: SessionManager;
+  /**
+   * Per-agent session managers for {@link runPanel} only — index-aligned with `models`. runPanel
+   * distributes `sessionManagers[i]` into each agent's {@link sessionManager}. Ignored elsewhere.
+   */
+  sessionManagers?: SessionManager[];
+  /**
+   * A pre-built, possibly already-populated session to prompt instead of constructing a new one.
+   * `fuse` uses this to resume a synth/"judge" session opened from disk (SYN-029): the run skips
+   * {@link createInnerSession} and prompts the supplied session, which already carries round-1
+   * context. Default: build a fresh session.
+   */
+  existingSession?: AgentSession;
 }
 
 /**
@@ -130,6 +149,70 @@ export interface AgentFailure {
   model: string;
   /** Human-readable failure reason. */
   error: string;
+}
+
+/**
+ * Build one inner-agent session (no prompt). Resolves the model, loads the host's extensions but
+ * keeps only those that provide an opt-in tool ({@link OPT_IN_HOST_TOOLS}, today just
+ * `web_search`) — everything else is dropped at load so its lifecycle handlers (a Herdr/terminal
+ * notifier, a session indicator, even `fusion_agents` itself) never fire for a panel/synth agent —
+ * then creates the session with the right tool set.
+ *
+ * Read-only is the default (CLI-023): read/grep/find/ls plus the custom `git_diff` (TLS-026),
+ * unless `fullTools` opts into edit/write/bash. `extraTools` (e.g. `ask_panel`, SYN-011) are added
+ * to both the allow-list and `customTools`. The session is in-memory unless a `sessionManager` is
+ * given (SYN-029 persists/resumes via a disk-backed one). Shared by {@link runPanelAgent} (which
+ * then prompts) and the resume path (which opens panel sessions without prompting).
+ */
+export async function createInnerSession(
+  modelId: string,
+  options: RunPanelAgentOptions = {},
+): Promise<AgentSession> {
+  const model = resolveModel(modelId);
+  const cwd = options.cwd ?? process.cwd();
+
+  const builtins = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
+  const extra = options.extraTools ?? [];
+  const tools = [...builtins, GIT_DIFF_TOOL_NAME, ...extra.map((t) => t.name)];
+
+  // Build and reload the loader ourselves so we can read the surviving host tools, then hand the
+  // same instance to createAgentSession.
+  const agentDir = getAgentDir();
+  const settingsManager = SettingsManager.create(cwd, agentDir);
+  const resourceLoader = new DefaultResourceLoader({
+    cwd,
+    agentDir,
+    settingsManager,
+    extensionsOverride: (base) => ({
+      ...base,
+      extensions: base.extensions.filter((e) =>
+        [...e.tools.keys()].some((name) => OPT_IN_HOST_TOOLS.has(name)),
+      ),
+    }),
+  });
+  await resourceLoader.reload();
+  const hostTools = new Set(
+    resourceLoader.getExtensions().extensions.flatMap((e) => [...e.tools.keys()]),
+  );
+  if (hostTools.has(WEB_SEARCH_TOOL)) {
+    tools.push(WEB_SEARCH_TOOL);
+  }
+
+  const { session } = await createAgentSession({
+    model,
+    cwd,
+    tools,
+    customTools: [gitDiffTool, ...extra],
+    resourceLoader,
+    settingsManager,
+    // Reasoning level comes from the caller (fuse threads it per stage); default "xhigh" for
+    // direct callers. Pi clamps it to what each model supports.
+    thinkingLevel: options.thinkingLevel ?? "xhigh",
+    // In-memory by default so an inner agent never floods the host's /resume list; a disk-backed
+    // manager (SYN-029) persists the run for later follow-up, in our own temp dir.
+    sessionManager: options.sessionManager ?? SessionManager.inMemory(cwd),
+  });
+  return session;
 }
 
 /**
@@ -171,62 +254,15 @@ export async function runPanelAgent(
     let session: AgentSession;
     try {
       options.signal?.throwIfAborted(); // already cancelled → don't even spin up a session
-      const model = resolveModel(modelId);
-      const cwd = options.cwd ?? process.cwd();
-
-      // Read-only is the default (CLI-023): the agent gets read/grep/find/ls unless the
-      // caller opts into the full local set (edit/write/bash) via `fullTools`. Plus the custom
-      // read-only `git_diff` tool (TLS-026), registered via `customTools` and named in the
-      // allow-list so a review agent can fetch the working-tree diff itself.
-      const builtins = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
-      const extra = options.extraTools ?? [];
-      const tools = [...builtins, GIT_DIFF_TOOL_NAME, ...extra.map((t) => t.name)];
-
-      // Load the host's extensions, but keep only those that provide a tool an inner agent may
-      // opt into ({@link OPT_IN_HOST_TOOLS}, today just `web_search`). Everything else is
-      // dropped at load: its tools wouldn't be in the allow-list anyway, and — the point here —
-      // its lifecycle handlers (a Herdr/terminal notifier, a session indicator, even
-      // `fusion_agents` itself) then never fire for a panel/synth agent, so the host stops
-      // flashing on every inner-agent completion. We build and reload the loader ourselves to
-      // read the surviving tools, then hand the same instance to createAgentSession.
-      const agentDir = getAgentDir();
-      const settingsManager = SettingsManager.create(cwd, agentDir);
-      const resourceLoader = new DefaultResourceLoader({
-        cwd,
-        agentDir,
-        settingsManager,
-        extensionsOverride: (base) => ({
-          ...base,
-          extensions: base.extensions.filter((e) =>
-            [...e.tools.keys()].some((name) => OPT_IN_HOST_TOOLS.has(name)),
-          ),
-        }),
-      });
-      await resourceLoader.reload();
-      const hostTools = new Set(
-        resourceLoader.getExtensions().extensions.flatMap((e) => [...e.tools.keys()]),
-      );
-      if (hostTools.has(WEB_SEARCH_TOOL)) {
-        tools.push(WEB_SEARCH_TOOL);
-      }
-
-      ({ session } = await createAgentSession({
-        model,
-        cwd,
-        tools,
-        customTools: [gitDiffTool, ...extra],
-        resourceLoader,
-        settingsManager,
-        // Reasoning level comes from the caller (fuse threads it per stage from the
-        // config); default "xhigh" for direct callers that don't set one. Pi clamps
-        // the level to what each model actually supports.
-        thinkingLevel: options.thinkingLevel ?? "xhigh",
-        // In-memory session, never written to disk: an inner panel/synth agent must not
-        // leave a saved .jsonl that floods the host's /resume list.
-        sessionManager: SessionManager.inMemory(cwd),
-      }));
+      // Resume (SYN-029) supplies a session opened from disk; otherwise build a fresh one.
+      session = options.existingSession ?? (await createInnerSession(modelId, options));
     } catch (e) {
-      // resolveModel / createAgentSession / a pre-start abort: nothing to dispose yet.
+      // resolveModel / createAgentSession / a pre-start abort. A freshly built session didn't
+      // survive to assignment, but a caller-supplied existingSession (resume) is ours now —
+      // dispose it so a failed resume doesn't leak the reopened synth session.
+      if (options.existingSession) {
+        options.existingSession.dispose();
+      }
       const error = message(e);
       endStatus = endStatusFor();
       endError = error;

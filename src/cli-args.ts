@@ -11,17 +11,20 @@ export const USAGE = `usage: fusion ["your question"] | fusion -f <file> | fusio
       --unsafe,    give inner agents the full tool set (edit/write/bash) — they can
       --full       change files and run shell in the cwd; default is read-only
                    (read/grep/find/ls)
+      --resume ID  follow up on a prior run: resume its panel + synth sessions and
+                   answer with their earlier context (the prompt is the follow-up).
+                   A fresh run prints its ID; runs expire after ~24h.
   -h, --help       show this help
 
 Config: <cwd>/.pi/fusion-agents.json, else ~/.config/fusion-agents.json.
 Key:    set OPENCODE_API_KEY in the environment (or use Pi's stored auth).`;
 
-/** Parsed CLI intent. `fullTools` rides on the prompt/file/stdin kinds (orthogonal to the source). */
+/** Parsed CLI intent. `fullTools`/`resume` ride on the prompt/file/stdin kinds (orthogonal to the source). */
 export type CliArgs =
   | { kind: "help" }
-  | { kind: "prompt"; text: string; fullTools: boolean }
-  | { kind: "file"; path: string; fullTools: boolean }
-  | { kind: "stdin"; fullTools: boolean }
+  | { kind: "prompt"; text: string; fullTools: boolean; resume?: string }
+  | { kind: "file"; path: string; fullTools: boolean; resume?: string }
+  | { kind: "stdin"; fullTools: boolean; resume?: string }
   | { kind: "error"; message: string };
 
 /**
@@ -33,7 +36,7 @@ export type CliArgs =
  * (read-only default).
  */
 export function parseCliArgs(argv: string[]): CliArgs {
-  let values: { file?: string; help?: boolean; unsafe?: boolean; full?: boolean };
+  let values: { file?: string; help?: boolean; unsafe?: boolean; full?: boolean; resume?: string };
   let positionals: string[];
   try {
     ({ values, positionals } = parseArgs({
@@ -43,6 +46,7 @@ export function parseCliArgs(argv: string[]): CliArgs {
         help: { type: "boolean", short: "h" },
         unsafe: { type: "boolean" },
         full: { type: "boolean" },
+        resume: { type: "string" },
       },
       allowPositionals: true,
     }));
@@ -57,17 +61,25 @@ export function parseCliArgs(argv: string[]): CliArgs {
   const fileVal = values.file;
   const question = positionals.join(" ").trim();
 
+  // --resume <id>: follow up on a prior run. A follow-up still needs a prompt (the question),
+  // so an empty --resume value is an error; the prompt itself is validated by the source below.
+  let resume: string | undefined;
+  if (values.resume !== undefined) {
+    resume = values.resume.trim();
+    if (resume === "") return { kind: "error", message: "--resume needs a run id" };
+  }
+
   if (fileVal !== undefined && question !== "") {
     return { kind: "error", message: "use either -f <file> or a positional question, not both" };
   }
   if (fileVal !== undefined) {
     const path = fileVal.trim();
     if (path === "") return { kind: "error", message: "-f needs a file path" };
-    return { kind: "file", path, fullTools };
+    return { kind: "file", path, fullTools, resume };
   }
 
   // No positional and no -f → the prompt comes from stdin. The actual read and the
   // "is this a bare interactive terminal?" guard live in cli.ts (this stays I/O-free).
-  if (question === "") return { kind: "stdin", fullTools };
-  return { kind: "prompt", text: question, fullTools };
+  if (question === "") return { kind: "stdin", fullTools, resume };
+  return { kind: "prompt", text: question, fullTools, resume };
 }
