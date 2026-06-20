@@ -24,11 +24,11 @@ Keep code readable like prose:
 
 ## Reviews (mdtask)
 
-For the two review steps in the `mdtask-do` / `mdtask-next` skills — plan
-review and code review — use our own fusion demo script as the reviewer:
-`bun scripts/demo.ts "<review request>"`. Feed it the plan (or the diff) plus
-the task and the relevant files; the fused panel answer is the review. This
-runs fusion_agents in real use ("боевой режим").
+For the two review steps in the `mdtask-do` / `mdtask-next` skills, use our own
+fusion panel as the reviewer (no hardcoded command — the skill knows how to
+launch it): code review → the `fusion-review` skill; plan review → the `fusion`
+skill with a plan-review prompt. The fused panel answer is the review. This runs
+fusion_agents in real use ("боевой режим").
 
 ## Technical decisions
 

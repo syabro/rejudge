@@ -224,7 +224,7 @@ ln -s "$PWD/docs/skills/fusion-review" ~/.claude/skills/fusion-review
     path is covered by an automated test (pre-existing gap, unchanged here); the others were
     verified by hand against the built bin.
 
-- [ ] CLI-031 Remove scripts/demo.ts — superseded by the CLI
+- [x] CLI-031 Remove scripts/demo.ts — superseded by the CLI
   `scripts/demo.ts` is the old POC demo; the CLI (`bin/fusion.js` / `bun src/cli.ts`) does
   everything it does plus `-f`/stdin and config fallback. It lacks `-f`, which forced
   `$(cat …)` for fusion reviews.
@@ -234,3 +234,9 @@ ln -s "$PWD/docs/skills/fusion-review" ~/.claude/skills/fusion-review
   DoD:
   - `scripts/demo.ts` removed;
   - the review rule in AGENTS.md and the `panel.md` Demo mention use `bun src/cli.ts -f`, not `bun scripts/demo.ts`.
+
+  **Implemented:**
+  - Deleted `scripts/demo.ts` (the `scripts/` dir is now empty/gone); the CLI fully replaces it.
+  - `panel.md`'s Demo section now runs `bun src/cli.ts "<question>"`.
+  - The AGENTS.md review rule no longer hardcodes a command — to avoid the same staleness it now
+    delegates to the skills: code review → `fusion-review`, plan review → `fusion`.

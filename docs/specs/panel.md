@@ -57,17 +57,15 @@ and burning credits.
 
 ## Demo
 
-A reproducible end-to-end demo runs the real panel + synthesis on one research question
-about this project. The config lives in `.pi/fusion-agents.json` (panel:
-`deepseek-v4-pro`, `mimo-v2.5-pro`, `minimax-m3`; synth: `glm-5.1`, all on `opencode-go`).
-Run it from the repo root:
+A reproducible end-to-end run on a question about this project; the committed
+`.pi/fusion-agents.json` sets the panel (`deepseek-v4-pro`, `mimo-v2.5-pro`, `minimax-m3`) and
+synth (`glm-5.1`, all `opencode-go`). From the repo root:
 
-    bun scripts/demo.ts
+    bun src/cli.ts "explain what pi-fusion-agents does and how its all-or-nothing fusion works"
 
-The three panel agents read the repo (full local tools) to answer the question, synthesis
-fuses their answers, and the single final answer is printed to stdout (progress to stderr).
-A successful run needs all three panels and synthesis to complete; any technical failure
-prints a failure and exits non-zero — never a partial answer.
+The panel agents read the repo to answer, synthesis fuses them, and the single final answer
+goes to stdout (progress to stderr). All panels and synthesis must complete; any technical
+failure exits non-zero — never a partial answer.
 
 ## Activity log
 
