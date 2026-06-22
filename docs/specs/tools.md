@@ -35,9 +35,6 @@ For code review, every inner agent also gets a custom read-only `git_diff` tool.
   - Tool selection at runtime is the model's own choice; capability is what's wired and verified.
   - Test (test/runner.test.ts): a real `createAgentSession` built from `PANEL_TOOLS` (isolated temp dirs, no model call) asserts `getActiveToolNames()` contains all seven, proving the SDK activates grep/find/ls from the allow-list.
 
-- [ ] TLS-004 DeepSWE tool adapter		#deepswe @blocked_by:PNL-009
-  Adapt the working POC to run DeepSWE as a panel model; DeepSWE expects its own tool surface, not the standard local tools. Constraints: tool surface = file_editor / execute_bash / search / finish; adapter details decided here (deferred until the POC works). Acceptance: a panel agent backed by a DeepSWE model ID runs through the adapter and returns an output usable by synthesis.
-
 - [ ] TLS-019 Guard the outputInstructions trust boundary		!low
   outputInstructions is pasted into the panel/synth prompts verbatim, and candidate answers are "guarded" by a single English sentence — a caller can inject instructions. For the trusted POC, document the trust boundary; harden when wider.
 
