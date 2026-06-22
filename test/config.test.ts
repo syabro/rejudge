@@ -29,87 +29,70 @@ function withGlobalConfig(content: string | null, fn: () => void): void {
   }
 }
 
-const PROJECT_CFG = JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4" });
-const GLOBAL_CFG = JSON.stringify({ panel: ["g/1", "g/2", "g/3"], synth: "g/4" });
+const PROJECT_CFG = JSON.stringify({ panel: ["a/1@high", "b/2@high", "c/3@high"], synth: "d/4@medium" });
+const GLOBAL_CFG = JSON.stringify({ panel: ["g/1@high", "g/2@high", "g/3@high"], synth: "g/4@medium" });
 
-test("valid config returns the panel + synth IDs, defaulting thinking and debugLog", () => {
-  const cwd = projectWith(JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4" }));
+test("valid config parses each model's id and @level, defaulting debugLog", () => {
+  // Different levels per model prove the suffix is parsed independently, not stage-wide.
+  const cwd = projectWith(JSON.stringify({ panel: ["a/1@xhigh", "b/2@high", "c/3@low"], synth: "d/4@medium" }));
   expect(loadFusionConfig(cwd)).toEqual({
-    panel: ["a/1", "b/2", "c/3"],
-    synth: "d/4",
-    thinking: { panel: "xhigh", synth: "medium" },
+    panel: [
+      { id: "a/1", level: "xhigh" },
+      { id: "b/2", level: "high" },
+      { id: "c/3", level: "low" },
+    ],
+    synth: { id: "d/4", level: "medium" },
     debugLog: false,
   });
 });
 
 test("debugLog is read when set, and rejected when not a boolean", () => {
   const on = projectWith(
-    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", debugLog: true }),
+    JSON.stringify({ panel: ["a/1@high", "b/2@high"], synth: "d/4@medium", debugLog: true }),
   );
   expect(loadFusionConfig(on).debugLog).toBe(true);
   const bad = projectWith(
-    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", debugLog: "yes" }),
+    JSON.stringify({ panel: ["a/1@high", "b/2@high"], synth: "d/4@medium", debugLog: "yes" }),
   );
   expect(() => loadFusionConfig(bad)).toThrow(/debugLog/);
 });
 
-test("thinking is read per stage when set", () => {
+test("a model id without an @level suffix is rejected (panel and synth)", () => {
+  const noPanel = projectWith(JSON.stringify({ panel: ["a/1", "b/2@high"], synth: "d/4@medium" }));
+  expect(() => loadFusionConfig(noPanel)).toThrow(/panel\[0\].*reasoning level/i);
+  const noSynth = projectWith(JSON.stringify({ panel: ["a/1@high", "b/2@high"], synth: "d/4" }));
+  expect(() => loadFusionConfig(noSynth)).toThrow(/synth.*reasoning level/i);
+});
+
+test("an invalid reasoning level is rejected (unknown, wrong case, and 'off')", () => {
+  const ultra = projectWith(JSON.stringify({ panel: ["a/1@ultra", "b/2@high"], synth: "d/4@medium" }));
+  expect(() => loadFusionConfig(ultra)).toThrow(/invalid reasoning level/i);
+  // Case-sensitive and "off" is not a ThinkingLevel.
+  const upper = projectWith(JSON.stringify({ panel: ["a/1@high", "b/2@high"], synth: "d/4@MEDIUM" }));
+  expect(() => loadFusionConfig(upper)).toThrow(/invalid reasoning level/i);
+  const off = projectWith(JSON.stringify({ panel: ["a/1@off", "b/2@high"], synth: "d/4@medium" }));
+  expect(() => loadFusionConfig(off)).toThrow(/invalid reasoning level/i);
+});
+
+test("an empty model id before the @level suffix is rejected", () => {
+  const cwd = projectWith(JSON.stringify({ panel: ["@high", "b/2@high"], synth: "d/4@medium" }));
+  expect(() => loadFusionConfig(cwd)).toThrow(/empty model id/i);
+});
+
+test("a malformed provider/model is rejected at config load (cheap fail-fast)", () => {
+  const cwd = projectWith(JSON.stringify({ panel: ["noslash@high", "b/2@high"], synth: "d/4@medium" }));
+  expect(() => loadFusionConfig(cwd)).toThrow(/malformed model id/i);
+});
+
+test("a leftover 'thinking' block is rejected with a migration hint", () => {
   const cwd = projectWith(
     JSON.stringify({
-      panel: ["a/1", "b/2", "c/3"],
-      synth: "d/4",
-      thinking: { panel: "high", synth: "low" },
+      panel: ["a/1@high", "b/2@high"],
+      synth: "d/4@medium",
+      thinking: { panel: "xhigh", synth: "medium" },
     }),
   );
-  expect(loadFusionConfig(cwd).thinking).toEqual({ panel: "high", synth: "low" });
-});
-
-test("a partial thinking block fills the missing stage from defaults", () => {
-  const cwd = projectWith(
-    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", thinking: { synth: "low" } }),
-  );
-  expect(loadFusionConfig(cwd).thinking).toEqual({ panel: "xhigh", synth: "low" });
-});
-
-test("thinking: null falls back to defaults", () => {
-  const cwd = projectWith(
-    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", thinking: null }),
-  );
-  expect(loadFusionConfig(cwd).thinking).toEqual({ panel: "xhigh", synth: "medium" });
-});
-
-test("an invalid thinking level is rejected", () => {
-  const ultra = projectWith(
-    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", thinking: { panel: "ultra" } }),
-  );
-  expect(() => loadFusionConfig(ultra)).toThrow(/thinking\.panel/);
-  // Case-sensitive and "off" is not a ThinkingLevel.
-  const upper = projectWith(
-    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", thinking: { synth: "XHIGH" } }),
-  );
-  expect(() => loadFusionConfig(upper)).toThrow(/thinking\.synth/);
-  const off = projectWith(
-    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", thinking: { panel: "off" } }),
-  );
-  expect(() => loadFusionConfig(off)).toThrow(/thinking\.panel/);
-});
-
-test("a present-but-non-string thinking level is rejected", () => {
-  const nul = projectWith(
-    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", thinking: { panel: null } }),
-  );
-  expect(() => loadFusionConfig(nul)).toThrow(/thinking\.panel/);
-  const num = projectWith(
-    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", thinking: { synth: 42 } }),
-  );
-  expect(() => loadFusionConfig(num)).toThrow(/thinking\.synth/);
-});
-
-test("a non-object thinking block is rejected", () => {
-  const cwd = projectWith(
-    JSON.stringify({ panel: ["a/1", "b/2", "c/3"], synth: "d/4", thinking: "xhigh" }),
-  );
-  expect(() => loadFusionConfig(cwd)).toThrow(/thinking/);
+  expect(() => loadFusionConfig(cwd)).toThrow(/thinking.*no longer supported/i);
 });
 
 test("missing config file is rejected", () => {
@@ -117,21 +100,26 @@ test("missing config file is rejected", () => {
 });
 
 test("a panel smaller than 2 is rejected", () => {
-  const one = projectWith(JSON.stringify({ panel: ["a/1"], synth: "d/4" }));
+  const one = projectWith(JSON.stringify({ panel: ["a/1@high"], synth: "d/4@medium" }));
   expect(() => loadFusionConfig(one)).toThrow(/panel/);
-  const none = projectWith(JSON.stringify({ panel: [], synth: "d/4" }));
+  const none = projectWith(JSON.stringify({ panel: [], synth: "d/4@medium" }));
   expect(() => loadFusionConfig(none)).toThrow(/panel/);
 });
 
 test("a panel of 2 or more is accepted", () => {
-  const two = projectWith(JSON.stringify({ panel: ["a/1", "b/2"], synth: "d/4" }));
-  expect(loadFusionConfig(two).panel).toEqual(["a/1", "b/2"]);
-  const four = projectWith(JSON.stringify({ panel: ["a/1", "b/2", "c/3", "e/5"], synth: "d/4" }));
-  expect(loadFusionConfig(four).panel).toEqual(["a/1", "b/2", "c/3", "e/5"]);
+  const two = projectWith(JSON.stringify({ panel: ["a/1@high", "b/2@high"], synth: "d/4@medium" }));
+  expect(loadFusionConfig(two).panel).toEqual([
+    { id: "a/1", level: "high" },
+    { id: "b/2", level: "high" },
+  ]);
+  const four = projectWith(
+    JSON.stringify({ panel: ["a/1@high", "b/2@high", "c/3@high", "e/5@high"], synth: "d/4@medium" }),
+  );
+  expect(loadFusionConfig(four).panel.map((m) => m.id)).toEqual(["a/1", "b/2", "c/3", "e/5"]);
 });
 
 test("missing synth is rejected", () => {
-  const cwd = projectWith(JSON.stringify({ panel: ["a/1", "b/2", "c/3"] }));
+  const cwd = projectWith(JSON.stringify({ panel: ["a/1@high", "b/2@high", "c/3@high"] }));
   expect(() => loadFusionConfig(cwd)).toThrow(/synth/);
 });
 
@@ -144,7 +132,7 @@ test("resolveFusionConfig: project .pi/ wins over the global config", () => {
   withGlobalConfig(GLOBAL_CFG, () => {
     const r = resolveFusionConfig(cwd);
     expect(r.path).toBe(join(cwd, ".pi", "fusion-agents.json"));
-    expect(r.config.synth).toBe("d/4");
+    expect(r.config.synth.id).toBe("d/4");
   });
 });
 
@@ -153,7 +141,7 @@ test("resolveFusionConfig: falls back to the global config when the project has 
   withGlobalConfig(GLOBAL_CFG, () => {
     const r = resolveFusionConfig(cwd);
     expect(r.path).toBe(join(process.env.XDG_CONFIG_HOME as string, "fusion-agents.json"));
-    expect(r.config.synth).toBe("g/4");
+    expect(r.config.synth.id).toBe("g/4");
   });
 });
 
@@ -172,6 +160,8 @@ test("the committed .pi/fusion-agents.json loads and has the expected shape", ()
   const path = fileURLToPath(new URL("../.pi/fusion-agents.json", import.meta.url));
   const config = loadFusionConfigFromPath(path);
   expect(config.panel).toHaveLength(3);
-  expect(config.synth.length).toBeGreaterThan(0);
+  expect(config.panel.every((m) => m.id.includes("/") && typeof m.level === "string")).toBe(true);
+  expect(config.synth.id.length).toBeGreaterThan(0);
+  expect(config.synth.level).toBe("medium");
   expect(config.debugLog).toBe(true);
 });

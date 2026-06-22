@@ -21,10 +21,10 @@ test("truncate keeps short content, collapses the middle of long content, caps h
 // Real run, no mocks: enable debugLog, run a fusion in a temp cwd, then read the file it
 // produced and assert it's valid JSONL carrying the expected fields.
 const STUB = "opencode-go/kimi-k2.6";
+const SPEC = { id: STUB, level: "minimal" } as const;
 const CONFIG: FusionConfig = {
-  panel: [STUB, STUB, STUB],
-  synth: STUB,
-  thinking: { panel: "minimal", synth: "minimal" },
+  panel: [SPEC, SPEC, SPEC],
+  synth: SPEC,
   debugLog: true,
 };
 

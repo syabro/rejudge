@@ -7,18 +7,19 @@ import { integrationTest } from "./integration.ts";
 // distinct sessions) without the latency of the real panel models — those run
 // in the PNL-009 end-to-end demo.
 const STUB = "opencode-go/kimi-k2.6";
+const SPEC = { id: STUB, level: "minimal" } as const;
 
 // Real run, no mocks: one invocation dispatches all three agents and collects
 // three independent finished outputs, one per model id, in input order.
 integrationTest("runPanel fans the same prompt out to three agents and collects three outputs", async () => {
-  const models = [STUB, STUB, STUB];
+  const models = [SPEC, SPEC, SPEC];
   const result = await runPanel(models, "Reply with exactly the word: PONG. Nothing else.");
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     const outputs = result.value;
     try {
       expect(outputs).toHaveLength(3);
-      expect(outputs.map((r) => r.modelId)).toEqual(models);
+      expect(outputs.map((r) => r.modelId)).toEqual(models.map((m) => m.id));
       for (const r of outputs) {
         expect(r.text.trim().length).toBeGreaterThan(0);
       }
@@ -33,7 +34,7 @@ integrationTest("runPanel fans the same prompt out to three agents and collects 
 // A failure in any single agent surfaces as err naming that model — no partial panel.
 integrationTest("runPanel surfaces a failure instead of returning a partial panel", async () => {
   const result = await runPanel(
-    [STUB, "opencode-go/not-a-real-model", STUB],
+    [SPEC, { id: "opencode-go/not-a-real-model", level: "minimal" }, SPEC],
     "Reply with exactly the word: PONG.",
   );
   expect(result.isErr()).toBe(true);

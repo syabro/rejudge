@@ -3,8 +3,8 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-ai";
 
-/** The thinking levels Pi accepts (lowercase only; "off" is not one of them). */
-const VALID_THINKING_LEVELS: readonly ThinkingLevel[] = [
+/** The reasoning levels Pi accepts (lowercase only; "off" is not one of them). */
+export const VALID_THINKING_LEVELS: readonly ThinkingLevel[] = [
   "minimal",
   "low",
   "medium",
@@ -13,24 +13,22 @@ const VALID_THINKING_LEVELS: readonly ThinkingLevel[] = [
 ];
 
 /**
- * Default thinking level per stage when the config omits it. Panel agents do the
- * real work and stay at max; synthesis only fuses, so it defaults lower to save
- * cost/time.
+ * One model to run plus the reasoning level to run it at. In the config file the two are written
+ * as a single string, `provider/model@level` (CFG-030, e.g. `opencode-go/glm-5.1@high`);
+ * {@link parseModelSpec} splits them. The level is REQUIRED — there is no default, because a
+ * forgotten level would quietly run a model with reasoning off.
  */
-const DEFAULT_THINKING: ThinkingConfig = { panel: "xhigh", synth: "medium" };
-
-/** Thinking level per fusion stage. */
-export interface ThinkingConfig {
-  panel: ThinkingLevel;
-  synth: ThinkingLevel;
+export interface ModelSpec {
+  /** The bare `provider/model` id (no `@level` suffix). */
+  id: string;
+  /** Reasoning level to run this model at, parsed from the `@level` suffix. */
+  level: ThinkingLevel;
 }
 
-/** A panel of >= 2 model IDs + 1 synthesis model ID. */
+/** A panel of >= 2 models + 1 synthesis model, each carrying its own reasoning level. */
 export interface FusionConfig {
-  panel: string[];
-  synth: string;
-  /** Thinking level per stage; always populated (defaults applied at load). */
-  thinking: ThinkingConfig;
+  panel: ModelSpec[];
+  synth: ModelSpec;
   /** When true, write a per-run JSONL debug log of inner-agent activity. Default false. */
   debugLog: boolean;
 }
@@ -100,6 +98,16 @@ export function loadFusionConfigFromPath(path: string): FusionConfig {
   const panel = cfg.panel;
   const synth = cfg.synth;
 
+  // The old per-stage `thinking` block is gone (CFG-030) — reasoning level now lives in each model
+  // id as a `@level` suffix. A leftover `thinking` key is a half-migrated config: hard-error with a
+  // migration hint rather than silently ignore it (the same "silent reasoning off" footgun the
+  // suffix exists to prevent).
+  if ("thinking" in cfg) {
+    throw new Error(
+      `config "thinking" is no longer supported — set the reasoning level per model with a "@level" suffix (e.g. "opencode-go/glm-5.1@high")`,
+    );
+  }
+
   if (!Array.isArray(panel) || panel.length < 2 || !panel.every((m) => typeof m === "string" && m.trim() !== "")) {
     throw new Error(`config "panel" must be at least 2 non-empty model IDs`);
   }
@@ -108,9 +116,8 @@ export function loadFusionConfigFromPath(path: string): FusionConfig {
   }
 
   return {
-    panel: panel as string[],
-    synth,
-    thinking: parseThinking(cfg.thinking),
+    panel: (panel as string[]).map((m, i) => parseModelSpec(m, `panel[${i}]`)),
+    synth: parseModelSpec(synth, "synth"),
     debugLog: parseDebugLog(cfg.debugLog),
   };
 }
@@ -127,33 +134,38 @@ function parseDebugLog(value: unknown): boolean {
 }
 
 /**
- * Resolve the optional `thinking` block to a fully-populated {@link ThinkingConfig}.
+ * Split a `provider/model@level` config string into a {@link ModelSpec}.
  *
- * The whole block may be omitted or `null` → both stages default. A present block must
- * be an object; each sub-field may be omitted (→ that stage defaults). But once a
- * sub-field is present it must be a valid lowercase {@link ThinkingLevel}: a non-object
- * block, or a sub-field that is `null`, a number, wrong-case, or `"off"`, is a config
- * error and throws (only an absent key falls back — `null` does not). Consistent with
- * the rest of config validation.
+ * The `@level` suffix is REQUIRED (CFG-030): a bare `provider/model` is a config error, not a
+ * silent default — forgetting it would quietly run the model with reasoning off. The level after
+ * the `@` must be a valid lowercase {@link ThinkingLevel} (`off` is not one). The `provider/model`
+ * shape is also checked here as a cheap fail-fast (a typo fails at config-load, not deep inside
+ * `resolveModel`, which stays as defense-in-depth). `field` names the offending entry in errors.
  */
-function parseThinking(value: unknown): ThinkingConfig {
-  if (value === undefined || value === null) return { ...DEFAULT_THINKING };
-  if (typeof value !== "object" || Array.isArray(value)) {
-    throw new Error(`config "thinking" must be an object with optional "panel"/"synth" levels`);
+function parseModelSpec(raw: string, field: string): ModelSpec {
+  const at = raw.lastIndexOf("@");
+  if (at === -1) {
+    throw new Error(
+      `config ${field} "${raw}" must include a reasoning level suffix, e.g. "${raw}@high" (one of: ${VALID_THINKING_LEVELS.join(", ")})`,
+    );
   }
-  const obj = value as Record<string, unknown>;
-  return {
-    panel: parseThinkingLevel(obj.panel, "panel", DEFAULT_THINKING.panel),
-    synth: parseThinkingLevel(obj.synth, "synth", DEFAULT_THINKING.synth),
-  };
-}
+  if (at === 0) {
+    throw new Error(`config ${field} "${raw}" has an empty model id before the "@level" suffix`);
+  }
 
-function parseThinkingLevel(value: unknown, field: string, fallback: ThinkingLevel): ThinkingLevel {
-  if (value === undefined) return fallback;
-  if (typeof value === "string" && (VALID_THINKING_LEVELS as readonly string[]).includes(value)) {
-    return value as ThinkingLevel;
+  const id = raw.slice(0, at);
+  const level = raw.slice(at + 1);
+  if (!(VALID_THINKING_LEVELS as readonly string[]).includes(level)) {
+    throw new Error(
+      `config ${field} "${raw}" has an invalid reasoning level "${level}" — must be one of: ${VALID_THINKING_LEVELS.join(", ")}`,
+    );
   }
-  throw new Error(
-    `config "thinking.${field}" must be one of: ${VALID_THINKING_LEVELS.join(", ")} (got: ${JSON.stringify(value)})`,
-  );
+
+  // Mirror resolveModel's shape check so a malformed id (missing/edge "/") fails at config-load.
+  const slash = id.indexOf("/");
+  if (slash < 1 || slash === id.length - 1) {
+    throw new Error(`config ${field} "${raw}" has a malformed model id "${id}" (expected "provider/model@level")`);
+  }
+
+  return { id, level: level as ThinkingLevel };
 }

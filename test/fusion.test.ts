@@ -7,9 +7,9 @@ import { integrationTest } from "./integration.ts";
 // Used for all 4 agents (3 panel + 1 synth) — this exercises the all-or-nothing
 // contract, not synthesis quality; the real 3+1 models run in the PNL-009 demo.
 const STUB = "opencode-go/kimi-k2.6";
-// Thinking level is irrelevant to the stub smoke; keep it minimal so the runs are fast.
-const THINKING = { panel: "minimal", synth: "minimal" } as const;
-const GOOD: FusionConfig = { panel: [STUB, STUB, STUB], synth: STUB, thinking: THINKING, debugLog: false };
+// Reasoning level is irrelevant to the stub smoke; keep it minimal so the runs are fast.
+const SPEC = { id: STUB, level: "minimal" } as const;
+const GOOD: FusionConfig = { panel: [SPEC, SPEC, SPEC], synth: SPEC, debugLog: false };
 const PROMPT = "Reply with exactly the word: PONG. Nothing else.";
 
 // Real run, no mocks: all three panels AND synthesis complete → one final answer.
@@ -26,7 +26,11 @@ integrationTest("fuse returns one final answer when all panels and synthesis suc
 // the panel stage and the offending model (PNL-017), not an abort.
 integrationTest("fuse fails with no answer when a panel agent fails", async () => {
   const result = await fuse(
-    { panel: [STUB, "opencode-go/not-a-real-model", STUB], synth: STUB, thinking: THINKING, debugLog: false },
+    {
+      panel: [SPEC, { id: "opencode-go/not-a-real-model", level: "minimal" }, SPEC],
+      synth: SPEC,
+      debugLog: false,
+    },
     PROMPT,
   );
   expect(result.isErr()).toBe(true);
@@ -41,7 +45,11 @@ integrationTest("fuse fails with no answer when a panel agent fails", async () =
 // the synth stage and the offending model (PNL-017).
 integrationTest("fuse fails with no answer when synthesis fails", async () => {
   const result = await fuse(
-    { panel: [STUB, STUB, STUB], synth: "opencode-go/not-a-real-model", thinking: THINKING, debugLog: false },
+    {
+      panel: [SPEC, SPEC, SPEC],
+      synth: { id: "opencode-go/not-a-real-model", level: "minimal" },
+      debugLog: false,
+    },
     PROMPT,
   );
   expect(result.isErr()).toBe(true);

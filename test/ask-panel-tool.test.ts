@@ -73,7 +73,7 @@ test("a session with ask_panel in customTools + allow-list activates it", async 
 // session via ask_panel and assert it did NEW work: the message log grew by a fresh assistant
 // turn that completed cleanly, and the tool returned its text.
 integrationTest("ask_panel re-queries a live panel session for a second round", async () => {
-  const panelResult = await runPanel([STUB], "Reply with exactly the word: PONG. Nothing else.");
+  const panelResult = await runPanel([{ id: STUB, level: "minimal" }], "Reply with exactly the word: PONG. Nothing else.");
   expect(panelResult.isOk()).toBe(true);
   if (!panelResult.isOk()) return;
 

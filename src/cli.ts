@@ -93,7 +93,8 @@ async function main(): Promise<number> {
   }
 
   console.error(`config: ${path}`);
-  console.error(`panel: ${config.panel.join(", ")} | synth: ${config.synth}`);
+  const showSpec = (m: { id: string; level: string }): string => `${m.id}@${m.level}`;
+  console.error(`panel: ${config.panel.map(showSpec).join(", ")} | synth: ${showSpec(config.synth)}`);
   if (args.resume) {
     // On resume the tool policy comes from the saved run's manifest, not these flags — so don't
     // print the read-only/unsafe label (it would misreport).

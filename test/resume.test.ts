@@ -6,8 +6,8 @@ import { newRunId, runDir, writeManifest } from "../src/run-store.ts";
 import { integrationTest } from "./integration.ts";
 
 const STUB = "opencode-go/kimi-k2.6";
-const THINKING = { panel: "minimal", synth: "minimal" } as const;
-const GOOD: FusionConfig = { panel: [STUB, STUB], synth: STUB, thinking: THINKING, debugLog: false };
+const SPEC = { id: STUB, level: "minimal" } as const;
+const GOOD: FusionConfig = { panel: [SPEC, SPEC], synth: SPEC, debugLog: false };
 
 // Deterministic — these fail at the resume guards before any model call, so no key needed.
 
@@ -23,14 +23,13 @@ test("resuming an unknown run fails with a resume error", async () => {
 test("resuming a run from a different cwd is refused", async () => {
   const runId = newRunId();
   writeManifest({
-    version: 1,
+    version: 2,
     runId,
     cwd: "/totally/different/project",
     createdAt: new Date(0).toISOString(),
     fullTools: false,
-    thinking: { panel: "minimal", synth: "minimal" },
-    panel: [{ modelId: STUB, file: "/nope.jsonl" }],
-    synth: { modelId: STUB, file: "/nope.jsonl" },
+    panel: [{ modelId: STUB, level: "minimal", file: "/nope.jsonl" }],
+    synth: { modelId: STUB, level: "minimal", file: "/nope.jsonl" },
   });
   try {
     const result = await fuse(GOOD, "follow up", { resumeRunId: runId, cwd: process.cwd() });
@@ -47,14 +46,13 @@ test("resuming a run from a different cwd is refused", async () => {
 test("resuming a run whose session files are gone fails with a resume error", async () => {
   const runId = newRunId();
   writeManifest({
-    version: 1,
+    version: 2,
     runId,
     cwd: process.cwd(),
     createdAt: new Date(0).toISOString(),
     fullTools: false,
-    thinking: { panel: "minimal", synth: "minimal" },
-    panel: [{ modelId: STUB, file: `${runDir(runId)}/gone-a.jsonl` }],
-    synth: { modelId: STUB, file: `${runDir(runId)}/gone-synth.jsonl` },
+    panel: [{ modelId: STUB, level: "minimal", file: `${runDir(runId)}/gone-a.jsonl` }],
+    synth: { modelId: STUB, level: "minimal", file: `${runDir(runId)}/gone-synth.jsonl` },
   });
   try {
     const result = await fuse(GOOD, "follow up", { resumeRunId: runId, cwd: process.cwd() });

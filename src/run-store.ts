@@ -1,6 +1,8 @@
 import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ThinkingLevel } from "@earendil-works/pi-ai";
+import { VALID_THINKING_LEVELS } from "./config.ts";
 
 /**
  * SYN-029 run store. A persisted fusion run lives in the OS temp dir so a LATER, separate
@@ -25,21 +27,26 @@ const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-[a-z0-9]{1,8}$/;
 const MANIFEST = "manifest.json";
 
 export interface RunSessionRef {
+  /** The bare `provider/model` id this session ran on. */
   modelId: string;
+  /** Reasoning level the session ran at — re-applied on resume (CFG-030). */
+  level: ThinkingLevel;
   /** Absolute path to the session JSONL the SDK wrote. */
   file: string;
 }
 
+/** Current manifest format version. Bumped to 2 by CFG-030 (per-ref `level`, no `thinking` block). */
+const MANIFEST_VERSION = 2;
+
 export interface RunManifest {
-  /** Format version, so a future change stays backward-readable. */
-  version: 1;
+  /** Format version, so a future change stays backward-readable. CFG-030 made this 2. */
+  version: typeof MANIFEST_VERSION;
   runId: string;
   /** Resolved cwd the run operated in — the resume guard (must match the resuming cwd). */
   cwd: string;
   createdAt: string;
   /** Whether the run used the full (write) tool set — re-applied on resume, never widened. */
   fullTools: boolean;
-  thinking: { panel: string; synth: string };
   panel: RunSessionRef[];
   synth: RunSessionRef;
 }
@@ -78,32 +85,34 @@ export function writeManifest(manifest: RunManifest): void {
   }
 }
 
-/** True if x has the shape of a {@link RunSessionRef}. */
+/** True if x has the shape of a {@link RunSessionRef}, including a valid reasoning level. */
 function isSessionRef(x: unknown): x is RunSessionRef {
+  const ref = x as RunSessionRef;
   return (
     typeof x === "object" &&
     x !== null &&
-    typeof (x as RunSessionRef).modelId === "string" &&
-    typeof (x as RunSessionRef).file === "string"
+    typeof ref.modelId === "string" &&
+    typeof ref.file === "string" &&
+    typeof ref.level === "string" &&
+    (VALID_THINKING_LEVELS as readonly string[]).includes(ref.level)
   );
 }
 
 /**
  * Read a run's manifest, or undefined if missing / unreadable / malformed. Validates EVERY field
- * the resume path then uses unguarded (cwd, thinking, fullTools, panel/synth refs) — a malformed
- * manifest must read as "no such run", never let `resolve(undefined)` throw out of resume.
+ * the resume path then uses unguarded (version, cwd, fullTools, panel/synth refs incl. their level)
+ * — a malformed manifest must read as "no such run", never let resume run on bad data. A pre-CFG-030
+ * manifest (version 1, no per-ref `level`) fails this and reads as expired; runs are ephemeral (24h).
  */
 export function readManifest(runId: string): RunManifest | undefined {
   try {
     const m = JSON.parse(readFileSync(join(runDir(runId), MANIFEST), "utf8")) as RunManifest;
     const valid =
       m &&
-      m.version === 1 &&
+      m.version === MANIFEST_VERSION &&
       typeof m.runId === "string" &&
       typeof m.cwd === "string" &&
       typeof m.fullTools === "boolean" &&
-      typeof m.thinking?.panel === "string" &&
-      typeof m.thinking?.synth === "string" &&
       Array.isArray(m.panel) &&
       m.panel.every(isSessionRef) &&
       isSessionRef(m.synth);

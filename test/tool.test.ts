@@ -50,7 +50,7 @@ integrationTest("fusion_agents threads output instructions end-to-end to a forma
   mkdirSync(join(cwd, ".pi"), { recursive: true });
   writeFileSync(
     join(cwd, ".pi", "fusion-agents.json"),
-    JSON.stringify({ panel: [STUB, STUB, STUB], synth: STUB }),
+    JSON.stringify({ panel: [`${STUB}@minimal`, `${STUB}@minimal`, `${STUB}@minimal`], synth: `${STUB}@minimal` }),
   );
 
   const loaded = await discoverAndLoadExtensions([extPath], cwd, agentDir);

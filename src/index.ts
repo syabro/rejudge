@@ -95,7 +95,11 @@ export default function (pi: ExtensionAPI): void {
 
       // Live progress, scoped to this tool call (a second invocation starts clean). The tree
       // is seeded with every panel + judge row up front, "waiting…" until each model starts.
-      const state = createProgressState(config.panel, config.synth, progressTitle(params.question, params.title));
+      const state = createProgressState(
+        config.panel.map((m) => m.id),
+        config.synth.id,
+        progressTitle(params.question, params.title),
+      );
 
       // Each update carries an immutable clone in `details` (a late render must never see
       // mutated state); `content` stays empty until the final answer (progress is for the UI,

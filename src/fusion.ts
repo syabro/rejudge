@@ -2,7 +2,6 @@ import { err, ok, type Result } from "neverthrow";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { SessionManager, type AgentSession } from "@earendil-works/pi-coding-agent";
-import type { ThinkingLevel } from "@earendil-works/pi-ai";
 import type { FusionConfig } from "./config.ts";
 import { runPanel } from "./panel.ts";
 import { synthesize } from "./synth.ts";
@@ -148,7 +147,6 @@ async function freshRun(
     cwd,
     debugLog,
     role: "panel",
-    thinkingLevel: config.thinking.panel,
     sessionManagers: panelManagers,
   });
   if (panel.isErr()) {
@@ -162,12 +160,12 @@ async function freshRun(
 
   const synthStart = Date.now();
   try {
-    const synth = await synthesize(config.synth, prompt, panel.value, {
+    const synth = await synthesize(config.synth.id, prompt, panel.value, {
       ...options,
       cwd,
       debugLog,
       role: "synth",
-      thinkingLevel: config.thinking.synth,
+      thinkingLevel: config.synth.level,
       extraTools: [askPanel],
       sessionManager: synthManager,
     });
@@ -179,14 +177,17 @@ async function freshRun(
 
     // Run complete → write the manifest (the commit marker) so this run is resumable.
     writeManifest({
-      version: 1,
+      version: 2,
       runId,
       cwd,
       createdAt: new Date().toISOString(),
       fullTools: Boolean(options.fullTools),
-      thinking: { panel: config.thinking.panel, synth: config.thinking.synth },
-      panel: config.panel.map((modelId, i) => ({ modelId, file: panelManagers[i].getSessionFile() ?? "" })),
-      synth: { modelId: config.synth, file: synthManager.getSessionFile() ?? "" },
+      panel: config.panel.map((m, i) => ({
+        modelId: m.id,
+        level: m.level,
+        file: panelManagers[i].getSessionFile() ?? "",
+      })),
+      synth: { modelId: config.synth.id, level: config.synth.level, file: synthManager.getSessionFile() ?? "" },
     });
     return ok({ answer: synth.value, runId });
   } finally {
@@ -237,7 +238,7 @@ async function resumeRun(
       const session = await createInnerSession(ref.modelId, {
         cwd,
         fullTools: manifest.fullTools,
-        thinkingLevel: manifest.thinking.panel as ThinkingLevel,
+        thinkingLevel: ref.level,
         sessionManager: SessionManager.open(ref.file),
       });
       // SessionManager.open on an empty/corrupt file silently starts a fresh, contextless session
@@ -262,7 +263,7 @@ async function resumeRun(
       synthSession = await createInnerSession(manifest.synth.modelId, {
         cwd,
         fullTools: manifest.fullTools,
-        thinkingLevel: manifest.thinking.synth as ThinkingLevel,
+        thinkingLevel: manifest.synth.level,
         extraTools: [askPanel],
         sessionManager: SessionManager.open(manifest.synth.file),
       });
@@ -281,7 +282,7 @@ async function resumeRun(
       cwd,
       debugLog,
       role: "synth",
-      thinkingLevel: manifest.thinking.synth as ThinkingLevel,
+      thinkingLevel: manifest.synth.level,
       existingSession: synthSession,
     });
     if (synth.isErr()) {

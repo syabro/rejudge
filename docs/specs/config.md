@@ -6,18 +6,17 @@
 
 ```json
 {
-  "panel": ["provider/model-a", "provider/model-b", "provider/model-c"],
-  "synth": "provider/model-d",
-  "thinking": { "panel": "xhigh", "synth": "medium" },
+  "panel": ["provider/model-a@xhigh", "provider/model-b@xhigh", "provider/model-c@xhigh"],
+  "synth": "provider/model-d@medium",
   "debugLog": false
 }
 ```
 
-At least 2 `panel` model IDs + 1 `synth` model ID, full provider/model form (the example above uses 3 — the project default — but any panel of 2 or more is accepted). A missing file, malformed JSON, fewer than 2 panel models, or missing `synth` makes the tool error out with a clear message.
+At least 2 `panel` model IDs + 1 `synth` model ID, full `provider/model@level` form (the example above uses 3 — the project default — but any panel of 2 or more is accepted). A missing file, malformed JSON, fewer than 2 panel models, or missing `synth` makes the tool error out with a clear message.
 
 Config resolves from the project's `.pi/fusion-agents.json`, else the user-global `~/.config/fusion-agents.json` (honoring `XDG_CONFIG_HOME`); the project file, when present, wins. (The tool that consumes this config is described in `extension.md`; the CLI in `cli.md`.)
 
-`thinking` is optional and sets the reasoning level per stage. Valid levels: `minimal`, `low`, `medium`, `high`, `xhigh`. Each sub-field may be omitted; the whole block may be omitted. Defaults when unset: panel `xhigh`, synth `medium` — panel agents do the real work and stay at max, synthesis only fuses so it runs lower to save cost/time. (The values shown above match those defaults.) Note: omitting `thinking` lowers synth from the old hardcoded `xhigh` — a deliberate behavior change. A present-but-invalid value (a non-object block, or a level outside the list — levels are lowercase and `off` is not one) is a config error and makes the tool refuse to start.
+Every model ID carries its reasoning level as a required `@level` suffix — `provider/model@level`, for both panel models and `synth`. Valid levels: `minimal`, `low`, `medium`, `high`, `xhigh` (lowercase; `off` is not one). The suffix is required: a model ID with no `@level`, or an invalid level, is a config error and the tool refuses to start — so a forgotten level never silently runs a model with reasoning off. Each model can carry a different level (e.g. panel at `xhigh`, synth at `medium`). The old separate `thinking` block is gone; a config still carrying a `thinking` key is rejected with a migration hint.
 
 `debugLog` is optional (default `false`) and must be a boolean. When `true`, each run writes a per-run JSONL debug log of inner-agent activity to `.pi/fusion-logs/<timestamp>.jsonl` (gitignored) for after-the-fact analysis of what bloats the context or slows the run — see the Debug log section in `panel.md`. A non-boolean value is a config error.
 
@@ -50,7 +49,7 @@ Config resolves from the project's `.pi/fusion-agents.json`, else the user-globa
   - The whole pipeline (`runPanel` → `synthesize` → `fuse`) was already array-generic over the panel, so no runtime code changed — only the validator and count-bearing comments (`config.ts`, `cli.ts`, `fusion.ts`) and the normative panel-size wording in the docs.
   - Tests: a panel of 1 or 0 is rejected; a panel of 2 and of 4 loads and returns the given IDs.
 
-- [ ] CFG-030 Encode reasoning level per model in the model ID (`provider/model@level`)
+- [x] CFG-030 Encode reasoning level per model in the model ID (`provider/model@level`)
   Reasoning level is set today in a separate `thinking: { panel, synth }` block. Move it onto the model: each ID carries its level as an `@` suffix, e.g. `opencode-go/glm-5.1@high` — for both panel models and the synth (judge). This replaces the `thinking` block entirely.
 
   A missing `@level` is a config error, not a silent default — someone will forget it, silently get reasoning off, and not understand why fusion underperforms.
@@ -64,3 +63,10 @@ Config resolves from the project's `.pi/fusion-agents.json`, else the user-globa
   - `opencode-go/glm-5.1@high` runs that model at `high`, for a panel model and synth;
   - a model ID without `@level` fails config validation with a clear message;
   - the `thinking` block no longer exists in the config format.
+
+  **Implemented:**
+  - `loadFusionConfigFromPath` parses each `provider/model@level` string into a `ModelSpec { id, level }` (`config.ts`); `FusionConfig.panel: ModelSpec[]`, `synth: ModelSpec`, and the `thinking` block is gone. The `@level` suffix is required and the level validated; a missing/invalid suffix, a malformed `provider/model`, or a leftover `thinking` key each fail config-load with a clear, distinct message.
+  - Each model runs at its own level: `runPanel` takes `ModelSpec[]` and threads each panel model's `level`; `fuse` runs synth at `config.synth.level`. A panel need not be uniform.
+  - Resume (SYN-029) carries the level per session in the manifest (`RunSessionRef.level`), manifest bumped to version 2; a pre-CFG-030 manifest now reads as expired (runs are ephemeral, so no migration). The CLI prints `id@level`.
+  - `.pi/fusion-agents.json`, the README config example, and the user-global config were migrated to the `@level` form.
+  - Verified on real models: `@level` config file loads and runs (panel + synth at different levels), and a resume round-trip restores each session's level; deterministic config tests cover the required-suffix, invalid-level, empty-id, malformed-id, and leftover-`thinking` errors.

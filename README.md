@@ -34,16 +34,16 @@ The prompt comes from one source — a positional, else `-f`, else stdin (read o
 
 ## Configuration & keys
 
-Models are set in `.pi/fusion-agents.json` (project) or `~/.config/fusion-agents.json` (user-global) — 3 panel model IDs + 1 synth:
+Models are set in `.pi/fusion-agents.json` (project) or `~/.config/fusion-agents.json` (user-global) — a panel of ≥2 model IDs + 1 synth. Each ID carries its reasoning level as a required `@level` suffix (`minimal`/`low`/`medium`/`high`/`xhigh`); a model ID without one is a config error:
 
 ```json
 {
   "panel": [
-    "opencode-go/deepseek-v4-pro",
-    "opencode-go/mimo-v2.5-pro",
-    "opencode-go/minimax-m3"
+    "opencode-go/deepseek-v4-pro@xhigh",
+    "opencode-go/mimo-v2.5-pro@xhigh",
+    "opencode-go/minimax-m3@xhigh"
   ],
-  "synth": "opencode-go/glm-5.1"
+  "synth": "opencode-go/glm-5.1@medium"
 }
 ```
 
