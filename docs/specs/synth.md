@@ -68,3 +68,14 @@ Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), neve
   - CLI `--resume <id>`: a fresh run prints its id; a resume extends the same run. The runner gained `createInnerSession` + `sessionManager`/`existingSession` options; the engine is otherwise unchanged.
   - Scope: resume is CLI-only in v1; the `fusion_agents` tool's `resumeRunId` is a planned follow-up.
   - Smoke tests (real models, no mocks): a fresh run plants a fact, a separate `--resume` follow-up recalls it, a no-resume control can't; deterministic tests cover the run-store (id/manifest/GC) and the resume guards (unknown run, cwd mismatch, missing files).
+
+- [ ] SYN-039 Give the synth/judge only the `ask_panel` tool
+  The synth/"judge" agent currently gets the same tools as a panel agent — `read`/`grep`/`find`/`ls`, `git_diff`, `web_search`, and (under `fullTools`) `edit`/`write`/`bash` — plus `ask_panel`. With those tools it stops delegating: instead of re-querying the panel authors through `ask_panel`, it re-fetches the diff and reads the source itself to check their claims. That duplicates the panel's work, slows synthesis, and lets instructions inside the task text (e.g. "fetch the diff yourself") pull the judge into investigating instead of fusing.
+
+  The judge should run with `ask_panel` as its only tool. It fuses the panel's analyses and routes any verification back to the authors, who still have file access and their round-1 context; if none can confirm something, it reports the uncertainty instead of checking it itself. The synthesis prompt should also tell the judge it has no direct file or diff access.
+
+  DoD:
+  - the judge runs with `ask_panel` as its only tool — no `read`/`grep`/`find`/`ls`, `git_diff`, `web_search`, or `edit`/`write`/`bash` — on the fresh-run, resume, and one-shot synthesis paths (the one-shot path wires no `ask_panel`, so the judge has no tools there)
+  - `fullTools` widens only the panel agents; the judge never gets `edit`/`write`/`bash`
+  - panel agents' tool set is unchanged
+  - the judge's tool set is asserted deterministically, not left to model behavior
