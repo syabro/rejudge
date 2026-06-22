@@ -35,7 +35,7 @@ test("ask_panel returns an error listing valid models for an unknown model", asy
 
   const result = await tool.execute(
     "call-1",
-    { model: "provider/nope", question: "anything" },
+    { queries: [{ model: "provider/nope", question: "anything" }] },
     undefined,
     undefined,
     { cwd: process.cwd() } as never,
@@ -87,7 +87,7 @@ integrationTest("ask_panel re-queries a live panel session for a second round", 
   try {
     const result = await tool.execute(
       "call-1",
-      { model: STUB, question: "Now reply with exactly the word: PING. Nothing else." },
+      { queries: [{ model: STUB, question: "Now reply with exactly the word: PING. Nothing else." }] },
       new AbortController().signal,
       undefined,
       { cwd: process.cwd() } as never,

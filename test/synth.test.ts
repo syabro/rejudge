@@ -21,10 +21,12 @@ test("buildSynthesisPrompt threads the task and all panel outputs", () => {
   for (const p of panel) {
     expect(built).toContain(p.text);
   }
-  // Tells the synthesizer to obey the task's format and surface only the answer.
-  const lower = built.toLowerCase();
-  expect(lower).toContain("only");
-  expect(lower).toContain("final answer");
+  // Authorship framing: inputs are "## Analyses" (no "candidate" leak vocab), and the judge is told
+  // to write in its own voice and obey the task's format.
+  expect(built).toContain("## Analyses");
+  expect(built).not.toContain("Candidate");
+  expect(built.toLowerCase()).toContain("as if you wrote");
+  expect(built).toContain("Obey them");
 });
 
 // Real run, no mocks: one real synth call fuses three (static) panel outputs into
