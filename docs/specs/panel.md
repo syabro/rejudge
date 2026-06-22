@@ -30,7 +30,7 @@ The reusable unit behind the panel: `runPanelAgent(modelId, prompt, { cwd?, sign
 
 ## Demo
 
-A reproducible end-to-end run on a question about this project; the committed `.pi/fusion-agents.json` sets the panel (`deepseek-v4-pro`, `mimo-v2.5-pro`, `minimax-m3`) and synth (`glm-5.1`, all `opencode-go`). From the repo root:
+A reproducible end-to-end run on a question about this project; configure a `.pi/fusion-agents.json` (panel `deepseek-v4-pro`, `mimo-v2.5-pro`, `minimax-m3` + synth `glm-5.1`, all `opencode-go`; see `config.md`). From the repo root:
 
     bun src/cli.ts "explain what pi-fusion-agents does and how its all-or-nothing fusion works"
 

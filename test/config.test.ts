@@ -2,8 +2,7 @@ import { test, expect } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
-import { loadFusionConfig, loadFusionConfigFromPath, resolveFusionConfig } from "../src/config.ts";
+import { loadFusionConfig, resolveFusionConfig } from "../src/config.ts";
 
 // Real-input tests: write an actual .pi/fusion-agents.json and load it. No mocks.
 function projectWith(content: string | null): string {
@@ -150,18 +149,4 @@ test("resolveFusionConfig: throws naming both paths when neither exists", () => 
   withGlobalConfig(null, () => {
     expect(() => resolveFusionConfig(cwd)).toThrow(/no config found/);
   });
-});
-
-// The committed .pi/fusion-agents.json must stay loadable. Deterministic (no model), so
-// it runs without a key; it guards the real config's SHAPE from drift — model-ID validity
-// is an integration concern, not checked here. Path resolves from this test file (ESM), not
-// the cwd, so it works regardless of where vitest is invoked.
-test("the committed .pi/fusion-agents.json loads and has the expected shape", () => {
-  const path = fileURLToPath(new URL("../.pi/fusion-agents.json", import.meta.url));
-  const config = loadFusionConfigFromPath(path);
-  expect(config.panel).toHaveLength(3);
-  expect(config.panel.every((m) => m.id.includes("/") && typeof m.level === "string")).toBe(true);
-  expect(config.synth.id.length).toBeGreaterThan(0);
-  expect(config.synth.level).toBe("medium");
-  expect(config.debugLog).toBe(true);
 });

@@ -17,6 +17,9 @@ _.log
 report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .pi/fusion-logs/
 
+# local fusion config — environment-specific (which models / provider), never committed
+.pi/fusion-agents.json
+
 # dotenv environment variable files
 .env
 .env.development.local
