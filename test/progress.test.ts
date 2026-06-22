@@ -65,3 +65,58 @@ test("renderProgress leaves lines untouched at unbounded width", () => {
   const lines = renderProgress(s, THEME, 1000);
   expect(lines.some((l) => l.includes("Fusion"))).toBe(true);
 });
+
+// EXT-034: Ctrl+O (expanded) shows the full request, labeled, above the tree and the answer; the
+// collapsed view shows only the clipped title + the expand hint, never the full request.
+test("expanded view shows the full request first; collapsed keeps it behind the title", () => {
+  const s = createProgressState(
+    ["prov/panel-a", "prov/panel-b"],
+    "prov/judge",
+    "short title",
+    "REQ-LINE-1\nREQ-LINE-2",
+  );
+  applyEvent(s, { kind: "model_start", t: 0, model: "prov/judge", role: "synth" });
+  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-a", role: "panel" });
+  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-b", role: "panel" });
+
+  // Collapsed: the clipped title + the expand hint; the full request stays hidden.
+  const collapsed = renderProgress(s, THEME, 0, 80, false).join("\n");
+  expect(collapsed).toContain("short title");
+  expect(collapsed).toContain("ctrl+o to expand");
+  expect(collapsed).not.toContain("REQ-LINE-1");
+
+  // Expanded: both request lines show under a "Request:" label; the title and expand hint are gone.
+  const lines = progressComponent(s, THEME, true, "THE-ANSWER").render(80);
+  const joined = lines.join("\n");
+  expect(joined).toContain("Request:");
+  expect(joined).toContain("REQ-LINE-1");
+  expect(joined).toContain("REQ-LINE-2");
+  expect(joined).not.toContain("ctrl+o to expand");
+  expect(joined).not.toContain("short title");
+
+  // Ordering: the label, then the request, sit above the judge tree row, above the appended answer.
+  const idx = (needle: string) => lines.findIndex((l) => l.includes(needle));
+  expect(idx("Request:")).toBeGreaterThanOrEqual(0);
+  expect(idx("Request:")).toBeLessThan(idx("REQ-LINE-1"));
+  expect(idx("REQ-LINE-1")).toBeLessThan(idx("judge"));
+  expect(idx("judge")).toBeLessThan(idx("THE-ANSWER"));
+});
+
+// Blank/undefined request must fall back to the title (no empty header line, no "Request:" label).
+test("expanded view falls back to the title when the request is missing or blank", () => {
+  for (const request of [undefined, "   "]) {
+    const s = createProgressState(["prov/panel-a"], "prov/judge", "fallback title", request);
+    const joined = renderProgress(s, THEME, 0, 80, true).join("\n");
+    expect(joined).toContain("fallback title");
+    expect(joined).not.toContain("Request:");
+  }
+});
+
+// A long unbreakable request must stay within width when expanded (the crash contract).
+test("a long unbreakable request stays within width when expanded", () => {
+  const s = createProgressState(["prov/panel-a"], "prov/judge", "t", "ask " + "y".repeat(300));
+  const width = 40;
+  for (const line of progressComponent(s, THEME, true, "ans").render(width)) {
+    expect(visibleWidth(line)).toBeLessThanOrEqual(width);
+  }
+});

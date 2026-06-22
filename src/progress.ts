@@ -44,6 +44,9 @@ export interface ProgressSnapshot {
   status: ModelStatus;
   /** Short title shown in the header (`Fusion <title>`); what this run is about. */
   title?: string;
+  /** Full request sent to the panel (`buildInvocationPrompt(question, outputInstructions)`),
+   *  shown in the header when expanded (Ctrl+O); falls back to {@link title} when blank. */
+  request?: string;
   /** Full panel model ids, in config order. */
   panelModels: string[];
   /** Full synth ("judge") model id. */
@@ -54,11 +57,17 @@ export interface ProgressSnapshot {
 }
 
 /** A fresh snapshot with the full tree seeded — every row present, none started yet. */
-export function createProgressState(panelModels: string[], synthModel: string, title?: string): ProgressSnapshot {
+export function createProgressState(
+  panelModels: string[],
+  synthModel: string,
+  title?: string,
+  request?: string,
+): ProgressSnapshot {
   return {
     startedAt: Date.now(),
     status: "running",
     title,
+    request,
     panelModels: [...panelModels],
     synthModel,
     models: [],
@@ -234,18 +243,20 @@ interface Row {
 /**
  * Draw the live 3-level progress tree as lines, fit to `width` columns:
  *
- *     Fusion review the runner change
+ *     Fusion
+ *     review the runner change (ctrl+o to expand)
  *       glm-5.1 (judge)        0. thinking   12s  …keep it concise
  *         ⎿ deepseek-v4-pro    2. read       03s  src/runner.ts
  *         ⎿ minimax-m3        ✓ done (35s | 6 tools)
  *     Total 41s
  *
- * Header is `Fusion <title>`, colored by status (green done, red fail, dim cancel, neutral
- * running). The tree is root → judge → panel models, the status cell aligned to one shared
- * column across the judge (level 2) and the panels (level 3). A running row's dimmed detail is
- * trimmed to whatever width is left on the line, so it never wraps. The overall time lives on a
- * dimmed `Total <time>` line at the bottom. `now`/`width` are injected for deterministic tests;
- * `width` defaults to unbounded (no trimming).
+ * Line 1 is bold `Fusion`, colored by status (green done, red fail, dim cancel, neutral running).
+ * Line 2 is the query: collapsed → a clipped title + the dimmed ctrl+o hint (shown above); expanded
+ * (Ctrl+O) → the full request under a dim `Request:` label, falling back to the title when blank. The
+ * tree is root → judge → panel models, the status cell aligned to one shared column across the judge
+ * (level 2) and the panels (level 3). A running row's dimmed detail is trimmed to whatever width is
+ * left on the line, so it never wraps. The overall time lives on a dimmed `Total <time>` line at the
+ * bottom. `now`/`width` are injected for deterministic tests; `width` defaults to unbounded (no trimming).
  */
 export function renderProgress(
   s: ProgressSnapshot,
@@ -259,12 +270,19 @@ export function renderProgress(
   // Header line 1: bold "Fusion", colored by status (the time lives on the Total line).
   const lines = [tintRow(theme, s.status, theme.bold("Fusion"))];
 
-  // Header line 2: the query. Collapsed → one clipped line + a dimmed expand hint; expanded
-  // (Ctrl+O) → the full query, wrapped. Clip/wrap the plain text so a long query never wraps
-  // by accident and the ANSI stays well-formed.
+  // Header line 2: the query. Collapsed → one clipped title line + a dimmed expand hint; expanded
+  // (Ctrl+O) → the full request (what was sent to the panel), wrapped, under a dim "Request:" label,
+  // falling back to the title when there's no request. Clip/wrap the plain text so a long query
+  // never wraps by accident; the trailing clampLines still guards an unbreakable long token.
   const title = s.title?.trim();
-  if (title && expanded) {
-    lines.push(...wrapTextWithAnsi(title, width));
+  const request = s.request?.trim();
+  if (expanded) {
+    if (request) {
+      lines.push(theme.fg("dim", "Request:"));
+      lines.push(...wrapTextWithAnsi(request, width));
+    } else if (title) {
+      lines.push(...wrapTextWithAnsi(title, width));
+    }
   } else if (title) {
     const hint = " (ctrl+o to expand)";
     lines.push(`${truncateToWidth(title, width - hint.length, "…")}${theme.fg("dim", hint)}`);

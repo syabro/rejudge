@@ -32,7 +32,7 @@ While `fusion_agents` runs inside Pi it shows a live block, refreshed every seco
 - **A running model** reads `nn. tool  time  detail`: a dimmed step number (tools so far), the step (`thinking`/`writing`/the tool name), the step's duration (live while it runs, frozen between steps so the gap shows the previous step, not a blank), then a dimmed detail — the tool's params (a read's path, `git_diff`'s mode, a `web_search` query) or the live tail of the streamed thinking/writing text. The detail trims to the terminal width (keeping its end), so the block fits the window and never wraps, and it reflows on resize. Before the first step the cell is empty.
 - **A finished model** reads `✓ done (time | N tools)` in green; a broken one `✗ <reason> (…)` in red; one cancelled by an abort `⊘ cancelled (…)` in dim.
 - Durations are `NNs` under a minute, `NmNNs` at or past one. The **Total** line (dimmed) at the bottom is the whole run's time. With `debugLog` on, a dimmed line shows the log path.
-- Expand the result to see the fused answer below the tree. On a failure the block stays (its red/cancelled rows and Total remain) — the tool reports the failure as its result rather than throwing, which would wipe the block.
+- Expand the result (Ctrl+O) to see, at the top under a dim `Request:` label, the full request that was sent to the panel (the question plus any output instructions) — wrapped, however long — and the fused answer below the tree. Collapsed, the header shows only the clipped title + the expand hint. On a failure the block stays (its red/cancelled rows and Total remain) — the tool reports the failure as its result rather than throwing, which would wipe the block.
 - The engine never writes to the host's output — progress is this block only (the CLI renders the same events to stderr instead; see `panel.md`).
 
 # Tasks
@@ -74,7 +74,14 @@ While `fusion_agents` runs inside Pi it shows a live block, refreshed every seco
   - `tools.md` lost its external-contract paragraphs; its `## fusion_agents` heading became `## Inner-agent tools` and now opens with a cross-reference here, keeping only its own scope (the read-only/`fullTools` tool set and `git_diff`).
   - `config.md` and `cli.md` keep only their own scope and gained short cross-references back here; `panel.md`/`synth.md` already cross-referenced this spec. Verified no other spec restates the tool surface.
 
-- [ ] EXT-034 Show the request in the fusion_agents expanded view (Ctrl+O)
+- [x] EXT-034 Show the request in the fusion_agents expanded view (Ctrl+O)
   Ctrl+O currently shows only the fused answer; the request itself isn't visible (the header has just the truncated title).
   The expanded view should show the full request, first — above the answer.
   Wrap a long or multi-line request to width; never overflow the TUI.
+
+  **Implemented:**
+  - `ProgressSnapshot` gained an optional `request`; `createProgressState` takes it as a 4th arg, and `index.ts` passes the composed invocation prompt (`buildInvocationPrompt(question, outputInstructions)`) — what the panel actually receives.
+  - Expanded (Ctrl+O), `renderProgress` shows the full request wrapped under a dim `Request:` label at the top, above the tree and the appended answer; it falls back to the title when the request is blank. Collapsed is unchanged (clipped title + the expand hint).
+  - Overflow stays safe via the existing `wrapTextWithAnsi` + trailing `clampLines`; the CLI path is untouched (it renders to stderr, not through `progress.ts`).
+  - Out of scope (a deeper, separate gap): surfacing the judge's synthesis prompt (task + all panel outputs).
+  - Deterministic `progress.test.ts` covers the expanded request (label, ordering above tree/answer, title gone), the collapsed title-only view, blank/undefined fallback, and the unbreakable-token width clamp.

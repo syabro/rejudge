@@ -99,6 +99,7 @@ export default function (pi: ExtensionAPI): void {
         config.panel.map((m) => m.id),
         config.synth.id,
         progressTitle(params.question, params.title),
+        prompt,
       );
 
       // Each update carries an immutable clone in `details` (a late render must never see
