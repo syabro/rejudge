@@ -73,3 +73,8 @@ While `fusion_agents` runs inside Pi it shows a live block, refreshed every seco
   - The external tool surface now lives in a single `## The tool` section here: how it registers (the `pi.extensions` manifest), that it's invoked explicitly, its params (`question`/`outputInstructions`/`title`), that it returns one final answer text only, end-to-end output instructions, and the precise failure modes (bad config throws → tool error; a panel/synth failure returns a non-fabricated result naming stage/model/error).
   - `tools.md` lost its external-contract paragraphs; its `## fusion_agents` heading became `## Inner-agent tools` and now opens with a cross-reference here, keeping only its own scope (the read-only/`fullTools` tool set and `git_diff`).
   - `config.md` and `cli.md` keep only their own scope and gained short cross-references back here; `panel.md`/`synth.md` already cross-referenced this spec. Verified no other spec restates the tool surface.
+
+- [ ] EXT-034 Show the request in the fusion_agents expanded view (Ctrl+O)
+  Ctrl+O currently shows only the fused answer; the request itself isn't visible (the header has just the truncated title).
+  The expanded view should show the full request, first — above the answer.
+  Wrap a long or multi-line request to width; never overflow the TUI.
