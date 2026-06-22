@@ -33,6 +33,18 @@ Key: the model API key lives in the `OPENCODE_API_KEY` environment variable (or 
 
 Note: the built bin resolves its dependencies from this repo's `node_modules`, so it's for local use from within the repo tree — not a portable/published artifact.
 
+### Testing knob: `--prompt-add-N` (force panel divergence)
+
+A testing-only flag, **not a product feature** and never exposed by the `fusion_agents` tool. The panel normally gets the byte-identical prompt; `--prompt-add-N "<text>"` appends `<text>` to the prompt of panel member `N` only (1-based, matching config order), to deliberately steer that one model so the panel diverges. It exists to reproduce scenarios — e.g. forcing a disagreement to watch the judge cross-examine via `ask_panel`.
+
+```
+bin/fusion.js --prompt-add-1 "argue strongly for option A" \
+              --prompt-add-2 "argue strongly for option B" "which option is better?"
+bin/fusion.js --prompt-add-3=… <<'EOF' … EOF      # = form; rides on any prompt source
+```
+
+It combines with any prompt source and with `--unsafe`. `N` must be 1-based and within the panel size; a 0 index, a missing value, a duplicate `N`, or an out-of-range `N` is an error. It can't be combined with `--resume` (a resume doesn't re-run the panel). Synthesis is untouched — only the panel inputs change. Not shown in `--help`.
+
 ## `/fusion` skill
 
 A Claude Code skill that lives in this repo at `docs/skills/fusion/SKILL.md` and is exposed to Claude Code by a **directory** symlink into `~/.claude/skills/fusion` (the mdtask pattern, so the repo can hold more than one skill). It runs the fusion bin: one invocation = one run of `bin/fusion.js` = one fused panel answer (3-model panel + synth). Read-only by default; foreground/blocking; the prompt is fed on stdin via a quoted heredoc (no temp file); the fused answer is the result. Use it for a multi-model panel review or a fused multi-model answer.

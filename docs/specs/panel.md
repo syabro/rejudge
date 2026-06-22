@@ -13,7 +13,7 @@ The reusable unit behind the panel: `runPanelAgent(modelId, prompt, { cwd?, sign
 
 `runPanel(models, prompt, { cwd?, signal? })` runs the whole panel: it dispatches the byte-identical prompt to every model concurrently — each as its own independent agent (own session, own tool-use path) — and collects one finished result per model.
 
-- Every agent receives the exact same `prompt`; diversity comes only from the model and the path it takes, never from the input.
+- Every agent receives the exact same `prompt`; diversity comes only from the model and the path it takes, never from the input. (The one sanctioned exception is the testing-only CLI flag `--prompt-add-N`, which appends a per-panel suffix to deliberately force divergence — see `cli.md`. It is never used in the product / the `fusion_agents` tool.)
 - Returns one result per model in input order, each with its session left alive for a later synthesis/judge step (the caller disposes them).
 - Failure is loud, never a silent partial panel: if any agent fails, the agents that did finish are disposed and the error is surfaced (no partial-panel result).
 

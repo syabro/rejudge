@@ -95,6 +95,22 @@ async function main(): Promise<number> {
   console.error(`config: ${path}`);
   const showSpec = (m: { id: string; level: string }): string => `${m.id}@${m.level}`;
   console.error(`panel: ${config.panel.map(showSpec).join(", ")} | synth: ${showSpec(config.synth)}`);
+
+  // Testing-only --prompt-add-N validation needs the resolved panel size. A resume doesn't re-run
+  // the panel, so a per-panel add would be silently ignored — reject the combination loudly.
+  const promptAdds = args.promptAdds;
+  if (promptAdds) {
+    if (args.resume) {
+      console.error("fusion: --prompt-add-N can't be combined with --resume (a resume doesn't re-run the panel)");
+      return 1;
+    }
+    for (let i = 0; i < promptAdds.length; i++) {
+      if (promptAdds[i] !== undefined && i >= config.panel.length) {
+        console.error(`fusion: --prompt-add-${i + 1} is out of range — the panel has ${config.panel.length} members`);
+        return 1;
+      }
+    }
+  }
   if (args.resume) {
     // On resume the tool policy comes from the saved run's manifest, not these flags — so don't
     // print the read-only/unsafe label (it would misreport).
@@ -113,6 +129,7 @@ async function main(): Promise<number> {
     cwd,
     fullTools: args.fullTools,
     resumeRunId: args.resume,
+    promptAdds,
     activitySink: createStderrSink(),
   });
   if (result.isErr()) {

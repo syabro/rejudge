@@ -69,6 +69,51 @@ test("an unknown flag is an error, not a throw", () => {
   expect(parseCliArgs(["--nope"]).kind).toBe("error");
 });
 
+// Testing-only --prompt-add-N: a per-panel prompt suffix, index-aligned with the panel (0-based,
+// undefined in unset slots). It parses on any prompt source and alongside the other flags.
+test("--prompt-add-N attaches a per-panel suffix, both forms, with gaps", () => {
+  // Separate-token and = forms are equivalent.
+  expect(parseCliArgs(["--prompt-add-1", "be terse", "hello"])).toEqual({
+    kind: "prompt",
+    text: "hello",
+    fullTools: false,
+    promptAdds: ["be terse"],
+  });
+  expect(parseCliArgs(["--prompt-add-1=be terse", "hello"])).toEqual({
+    kind: "prompt",
+    text: "hello",
+    fullTools: false,
+    promptAdds: ["be terse"],
+  });
+
+  // Gaps are undefined slots: only panels 1 and 3 steered.
+  expect(parseCliArgs(["--prompt-add-1", "a", "--prompt-add-3", "c", "hello"])).toEqual({
+    kind: "prompt",
+    text: "hello",
+    fullTools: false,
+    promptAdds: ["a", undefined, "c"],
+  });
+
+  // Rides on stdin and -f too, and combines with --unsafe.
+  expect(parseCliArgs(["--prompt-add-2", "x", "--unsafe"])).toEqual({
+    kind: "stdin",
+    fullTools: true,
+    promptAdds: [undefined, "x"],
+  });
+  expect(parseCliArgs(["-f", "p.txt", "--prompt-add-1", "x"])).toEqual({
+    kind: "file",
+    path: "p.txt",
+    fullTools: false,
+    promptAdds: ["x"],
+  });
+});
+
+test("--prompt-add-N rejects a 0 index, a missing value, and a duplicate", () => {
+  expect(parseCliArgs(["--prompt-add-0", "x", "hello"]).kind).toBe("error");
+  expect(parseCliArgs(["--prompt-add-1"]).kind).toBe("error");
+  expect(parseCliArgs(["--prompt-add-1", "a", "--prompt-add-1", "b", "hello"]).kind).toBe("error");
+});
+
 test("-f without a value is an error, not a throw", () => {
   expect(parseCliArgs(["-f"]).kind).toBe("error");
 });

@@ -35,10 +35,17 @@ export async function runPanel(
   // each agent its own by index (absent → each agent defaults to an in-memory session). The
   // per-model reasoning level rides in each spec and overrides any options.thinkingLevel.
   const managers = options.sessionManagers;
+
+  // Testing-only (CLI `--prompt-add-N`): a per-panel suffix appended to that one agent's prompt to
+  // force divergence. Unset/empty → the byte-identical prompt, so a normal run is unaffected.
+  const adds = options.promptAdds;
+
   const results = await Promise.all(
-    models.map((m, i) =>
-      runPanelAgent(m.id, prompt, { ...options, thinkingLevel: m.level, sessionManager: managers?.[i] }),
-    ),
+    models.map((m, i) => {
+      const add = adds?.[i];
+      const agentPrompt = add ? `${prompt}\n\n${add}` : prompt;
+      return runPanelAgent(m.id, agentPrompt, { ...options, thinkingLevel: m.level, sessionManager: managers?.[i] });
+    }),
   );
 
   // combine → ok([all results]) when every agent succeeded, else the first err.

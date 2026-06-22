@@ -115,6 +115,14 @@ export interface RunPanelAgentOptions {
    */
   sessionManagers?: SessionManager[];
   /**
+   * TESTING-ONLY ({@link runPanel} only; never set by the `fusion_agents` tool). A per-panel prompt
+   * suffix, index-aligned with `models` (`undefined` = no suffix for that slot). When set, runPanel
+   * appends `promptAdds[i]` to agent `i`'s prompt — deliberately breaking the "every agent gets the
+   * byte-identical prompt" invariant to force panel divergence and reproduce cross-examination
+   * scenarios. Driven by the CLI's `--prompt-add-N` flag; ignored by every other caller.
+   */
+  promptAdds?: (string | undefined)[];
+  /**
    * A pre-built, possibly already-populated session to prompt instead of constructing a new one.
    * `fuse` uses this to resume a synth/"judge" session opened from disk (SYN-029): the run skips
    * {@link createInnerSession} and prompts the supplied session, which already carries round-1
