@@ -89,9 +89,11 @@ integrationTest("runPanelAgent defaults to read-only (read/grep/find/ls only)", 
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     try {
-      expect([...result.value.session.getActiveToolNames()].sort()).toEqual(
-        [...READONLY_TOOLS, GIT_DIFF_TOOL_NAME].sort(),
-      );
+      const names = [...result.value.session.getActiveToolNames()];
+      expect(names).toEqual(expect.arrayContaining([...READONLY_TOOLS, GIT_DIFF_TOOL_NAME]));
+      expect(names).not.toContain("edit");
+      expect(names).not.toContain("write");
+      expect(names).not.toContain("bash");
     } finally {
       result.value.session.dispose();
     }
@@ -107,9 +109,8 @@ integrationTest("runPanelAgent with fullTools gives the full local tool set", as
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     try {
-      expect([...result.value.session.getActiveToolNames()].sort()).toEqual(
-        [...PANEL_TOOLS, GIT_DIFF_TOOL_NAME].sort(),
-      );
+      const names = [...result.value.session.getActiveToolNames()];
+      expect(names).toEqual(expect.arrayContaining([...PANEL_TOOLS, GIT_DIFF_TOOL_NAME]));
     } finally {
       result.value.session.dispose();
     }

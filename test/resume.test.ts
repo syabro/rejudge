@@ -66,12 +66,14 @@ test("resuming a run whose session files are gone fails with a resume error", as
   }
 });
 
-// Real run, no mocks: the heart of SYN-029. A fresh run plants a fact only the run's sessions
-// know; a SECOND, separate fuse({resumeRunId}) follow-up recalls it — proving the panel+synth
-// sessions were persisted and restored WITH context. A control run (no resume) can't recall it.
+// Real run, no mocks: the heart of SYN-029. A fresh run puts a unique token into visible
+// run history; a SECOND, separate fuse({resumeRunId}) follow-up recalls it — proving the
+// panel+synth sessions were persisted and restored WITH context. A control run (no resume)
+// can't recall it.
 integrationTest("a follow-up resumes a prior run and answers with its context", async () => {
-  // Round 1: plant the secret in the run's sessions.
-  const first = await fuse(GOOD, "Remember this exactly: the secret word is BANANA. Reply with just: OK", {
+  const token = "X9Q7-KELP-418";
+
+  const first = await fuse(GOOD, `Repeat this token exactly: ${token}`, {
     cwd: process.cwd(),
   });
   expect(first.isOk()).toBe(true);
@@ -79,25 +81,25 @@ integrationTest("a follow-up resumes a prior run and answers with its context", 
   const runId = first.value.runId;
 
   try {
-    // Follow-up in a fresh fuse call, resuming the run: it must recall BANANA from context.
-    const followUp = await fuse(GOOD, "What was the secret word I told you? Reply with just the word.", {
+    // Follow-up in a fresh fuse call, resuming the run: it must recall the token from context.
+    const followUp = await fuse(GOOD, "What was the token? Reply with just the token.", {
       cwd: process.cwd(),
       resumeRunId: runId,
     });
     expect(followUp.isOk()).toBe(true);
     if (followUp.isOk()) {
-      expect(followUp.value.answer).toMatch(/banana/i);
+      expect(followUp.value.answer).toContain(token);
       expect(followUp.value.runId).toBe(runId);
     }
 
-    // Control: the SAME question as a fresh run (no resume) can't know the secret — proving the
+    // Control: the SAME question as a fresh run (no resume) can't know the token — proving the
     // follow-up's recall came from restored context, not the model guessing.
-    const control = await fuse(GOOD, "What was the secret word I told you? Reply with just the word.", {
+    const control = await fuse(GOOD, "What was the token? Reply with just the token.", {
       cwd: process.cwd(),
     });
     expect(control.isOk()).toBe(true);
     if (control.isOk()) {
-      expect(control.value.answer).not.toMatch(/banana/i);
+      expect(control.value.answer).not.toContain(token);
       rmSync(runDir(control.value.runId), { recursive: true, force: true });
     }
   } finally {
