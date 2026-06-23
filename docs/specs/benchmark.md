@@ -23,6 +23,12 @@ Pi is a thin pier agent, no fork: pier loads a custom agent by import path (`cre
 - Provider key: set `OPENCODE_API_KEY` in the process env in `run()` (not on argv), or pre-bake `~/.pi/agent/auth.json` in `install_spec`.
 - Timeout: a per-task wall-clock cap so one stuck task can't eat the sample or the budget.
 
+### Spike: offline Pi edits in a Docker container (BENCH-035, proven)
+
+`spikes/bench-035/run.sh` runs one throwaway `node:20-bookworm` container and proves the run mechanics end-to-end: Pi installs (`npm install -g --ignore-scripts @earendil-works/pi-coding-agent`), starts with the offline flags (`--offline` plus `-ne -ns -np --no-themes -nc`), reads an instruction piped on stdin, edits a file with the default edit tool, and the commit wrapper yields a non-empty `git diff base..HEAD`. Confirmed for BENCH-036: `OPENCODE_API_KEY` in the env authenticates the opencode-go provider (no `auth.json` needed), `pi -p` takes the prompt from stdin, and edit/write/bash are on by default in `-p` mode.
+
+Not proven here: the container-level egress firewall (`allow_internet=false`) and provider allowlist. The spike runs with normal container internet and relies on `--offline` to suppress every non-provider startup call; enforcing a real allowlist is BENCH-036's job.
+
 ### Open decisions (resolve before the comparison run)
 
 - Model: pin the SAME model for both sides, or accept a harness+model comparison (Pi+its model vs codex+its model). Baseline default: plain Pi (fusion off).
@@ -30,8 +36,13 @@ Pi is a thin pier agent, no fork: pier loads a custom agent by import path (`cre
 
 # Tasks
 
-- [ ] BENCH-035 Spike: Pi runs in a pier-style Docker sandbox, offline
+- [x] BENCH-035 Spike: Pi runs in a pier-style Docker sandbox, offline
   De-risk before any pier code. Prove, in a throwaway Docker container like a task environment (no internet), that Pi installs, starts with the offline flags + `PI_OFFLINE=1`, reaches the provider through an allowlist, edits a file from a piped instruction, exits, and a commit yields a non-empty `git diff base..HEAD`. Acceptance: a documented one-container run where `pi -p` makes a real edit offline and the resulting diff is non-empty.
+
+  **Implemented:**
+  - `spikes/bench-035/run.sh` + `in-container.sh`: one throwaway `node:20-bookworm` container installs Pi, runs it offline (`--offline` + `-ne -ns -np --no-themes -nc`) on an instruction piped via stdin, and the commit wrapper produces a non-empty `git diff base..HEAD`. Ran twice, PASS both times (edit `"1.0.0"` → `"1.0.1"`, `pi exit=0`, model `opencode-go/kimi-k2.6`).
+  - De-risked for BENCH-036: env auth via `OPENCODE_API_KEY` works for opencode-go without `auth.json`; `pi -p` reads the prompt from stdin; edit/write/bash are default-on in `-p` mode; the commit wrapper survives a non-zero Pi exit and skips an empty commit.
+  - Left to BENCH-036 (documented, not proven here): the container egress firewall (`allow_internet=false`) + provider allowlist — the spike uses normal container internet and `--offline` to suppress non-provider startup calls; also provisioning Node on a task image that lacks it.
 
 - [ ] BENCH-036 Thin Pi agent adapter for pier		@blocked_by:BENCH-035
   A `BaseInstalledAgent` subclass registered via pier's import-path (no fork). Constraints: `install_spec` provides Node + installs Pi; `run` pipes `instruction.md` into `pi -p --model <id>` (CWD = repo root) with edit/write/bash and the offline flags (fusion off), sets the provider key in env, then runs the commit wrapper; `network_allowlist()` permits the provider base URL; a per-task timeout; `SUPPORTS_ATIF=false`. Acceptance: `pier run` on one task with our Pi agent produces a `model.patch` and a graded `reward.json`.
