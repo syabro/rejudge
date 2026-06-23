@@ -80,13 +80,25 @@ export function applyEvent(state: ProgressSnapshot, event: ProgressEvent): void 
   const find = (model: string): ModelProgress | undefined => state.models.find((m) => m.model === model);
   switch (event.kind) {
     case "model_start": {
-      state.models.push({
+      const existing = find(event.model);
+      const fresh: ModelProgress = {
         model: event.model,
         role: event.role,
         status: "running",
         startedAt: event.t,
         toolCount: 0,
-      });
+      };
+      if (existing) {
+        Object.assign(existing, fresh);
+        existing.activity = undefined;
+        existing.detail = undefined;
+        existing.activityStartedAt = undefined;
+        existing.activityEndedAt = undefined;
+        existing.endedAt = undefined;
+        existing.error = undefined;
+      } else {
+        state.models.push(fresh);
+      }
       return;
     }
 

@@ -156,7 +156,7 @@ async function freshRun(
   sink?.({ kind: "stage_end", t: panelEnd, stage: "panel", durationMs: panelEnd - runStart });
 
   // SYN-011: the judge can re-query a live panel via ask_panel before fusing.
-  const askPanel = makeAskPanelTool(panel.value);
+  const askPanel = makeAskPanelTool(panel.value, sink);
 
   const synthStart = Date.now();
   try {
@@ -253,7 +253,7 @@ async function resumeRun(
     return err(resumeFailure(runId, `could not reopen panel sessions: ${message(e)}`));
   }
 
-  const askPanel = makeAskPanelTool(panel);
+  const askPanel = makeAskPanelTool(panel, sink);
   const synthStart = Date.now();
   try {
     // Reopen the synth session as the judge (role "synth" → ask_panel is its only tool), then prompt

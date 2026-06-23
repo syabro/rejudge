@@ -14,7 +14,7 @@ The synth/"judge" model's only tool is `ask_panel`: it re-queries the panel mode
 
 Consulting the panel is the DEFAULT pre-answer step. The synth prompt names when the judge MUST call `ask_panel` — the analyses disagree on a point that changes the answer; a load-bearing claim rests on a single analysis or is unsupported; a critical, checkable claim could be wrong even though the analyses agree (consensus is not proof); or a task/output detail the analyses leave unclear — and it answers straight from the analyses only once they are complete, consistent, and well-supported. The judge still chooses whom to re-query and how; there is no fixed extra round or escalation protocol.
 
-`ask_panel` is always the judge's tool — there is no config/CLI/tool flag to turn it on or off. Limitation (v1): a re-queried panel's internal thinking/tool steps don't surface in the live progress block or the debug log — its activity log was detached when round 1 finished — though the judge's own `ask_panel` calls do show in the judge's row.
+`ask_panel` is always the judge's tool — there is no config/CLI/tool flag to turn it on or off. During a re-query, the targeted panel row reopens in the live progress block, shows its current step and elapsed time, then returns to its terminal state when the re-query finishes.
 
 ## Resumable runs: follow up on a prior run
 
@@ -86,12 +86,17 @@ Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), neve
   - `fullTools` widens only the panel; the judge's tool policy follows its `synth` role, set per stage by `fuse`, so it stays scoped to the synth stage. Panel agents' tool set is unchanged.
   - Deterministic smoke test: a `synth`-role session activates exactly `[ask_panel]`, and `fullTools` leaves that set unchanged.
 
-- [ ] SYN-040 Show live panel activity while the judge re-queries via ask_panel
+- [x] SYN-040 Show live panel activity while the judge re-queries via ask_panel
   When the judge re-queries the panel sessions through `ask_panel`, those sessions run again, but their rows in the live progress block stay at the round-1 "done" state and show no new activity. Only the judge's row updates. This is the v1 limitation noted in this spec's "Multi-round" section.
 
   A re-queried panel's row must show its activity during the re-query — its current step and elapsed time — and return to "done" when the re-query completes. The re-query stays read-only, the no-throw / all-or-nothing flow is unchanged, and this applies to both fresh and resumed runs.
 
   DoD: during an `ask_panel` re-query, the re-queried panel's row shows the running state with its steps and returns to "done" on completion.
+
+  **Implemented:**
+  - Panel re-queries now appear in the live progress tree instead of leaving panel rows frozen as done.
+  - A re-queried row shows the current step and elapsed time, then returns to done, cancelled, or error when the follow-up ends.
+  - Fresh and resumed runs use the same behavior; cancelled and error re-queries still return as tool text rather than breaking fusion.
 
 - [ ] SYN-042 Use stable role keys for judge ↔ panel communication
   Internal fusion communication currently identifies judge and panel sessions by model slug. That breaks when the same model is used in more than one role, for example `gpt-5.5` as both judge and a panel member. The UI and logs may show the right model names, but internal routing needs stable role identities.

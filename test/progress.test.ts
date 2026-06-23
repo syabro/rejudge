@@ -120,3 +120,27 @@ test("a long unbreakable request stays within width when expanded", () => {
     expect(visibleWidth(line)).toBeLessThanOrEqual(width);
   }
 });
+
+// During ask_panel, a panel model that already finished round 1 starts again on the same row.
+test("a completed panel row reopens during an ask_panel re-query", () => {
+  const s = createProgressState(["prov/panel-a"], "prov/judge", "a title");
+  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-a", role: "panel" });
+  applyEvent(s, { kind: "activity", t: 100, model: "prov/panel-a", activity: "read", phase: "start", detail: "src/file.ts" });
+  applyEvent(s, { kind: "model_end", t: 1000, model: "prov/panel-a", role: "panel", status: "done", durationMs: 1000 });
+
+  expect(renderProgress(s, THEME, 1500, 120).join("\n")).toContain("✓ done");
+
+  applyEvent(s, { kind: "model_start", t: 2000, model: "prov/panel-a", role: "panel" });
+  applyEvent(s, { kind: "activity", t: 2500, model: "prov/panel-a", activity: "writing", phase: "start", detail: "checking again" });
+
+  const running = renderProgress(s, THEME, 3000, 120).join("\n");
+  expect(s.models).toHaveLength(1);
+  expect(running).toContain("writing");
+  expect(running).toContain("checking again");
+  expect(running).not.toContain("✓ done");
+
+  applyEvent(s, { kind: "activity", t: 3200, model: "prov/panel-a", activity: "writing", phase: "end", durationMs: 700 });
+  applyEvent(s, { kind: "model_end", t: 4000, model: "prov/panel-a", role: "panel", status: "done", durationMs: 2000 });
+
+  expect(renderProgress(s, THEME, 4500, 120).join("\n")).toContain("✓ done");
+});

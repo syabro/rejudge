@@ -1,5 +1,7 @@
 import { Type } from "typebox";
 import { defineTool, type AgentSession } from "@earendil-works/pi-coding-agent";
+import { attachActivityLog } from "./activity.ts";
+import type { ActivitySink, RunStatus } from "./events.ts";
 import type { PanelAgentResult } from "./runner.ts";
 
 /**
@@ -33,7 +35,7 @@ function lastAssistant(session: AgentSession) {
     .find((m): m is Extract<typeof m, { role: "assistant" }> => m.role === "assistant");
 }
 
-export function makeAskPanelTool(panel: PanelAgentResult[]) {
+export function makeAskPanelTool(panel: PanelAgentResult[], activitySink?: ActivitySink) {
   const models = panel.map((p) => p.modelId);
 
   /**
@@ -52,39 +54,78 @@ export function makeAskPanelTool(panel: PanelAgentResult[]) {
 
     const session: AgentSession = target.session;
 
+    // A session that already ended in an abort is terminal — don't re-prompt it. This is a
+    // pre-flight refusal, not a re-query run, so it intentionally emits no lifecycle events.
+    if (lastAssistant(session)?.stopReason === "aborted") {
+      return label(`"${model}" was cancelled and can't be re-queried.`);
+    }
+
+    if (signal?.aborted) {
+      return label(`"${model}" was cancelled and can't be re-queried.`);
+    }
+
+    const startedAt = Date.now();
+    let detach: () => void = () => {};
+    let endStatus: RunStatus = "error";
+    let endError: string | undefined;
+
     // Bridge the tool-call signal (the synth turn's signal — fires when the whole fusion is
     // cancelled) to this session; session.prompt() takes no signal of its own.
     const onAbort = () => void session.abort();
     signal?.addEventListener("abort", onAbort, { once: true });
+    activitySink?.({ kind: "model_start", t: startedAt, model, role: "panel" });
 
     try {
-      // A session that already ended in an abort is terminal — don't re-prompt it.
-      if (lastAssistant(session)?.stopReason === "aborted") {
-        return label(`"${model}" was cancelled and can't be re-queried.`);
+      if (activitySink) {
+        detach = attachActivityLog(session, model, activitySink);
       }
-
+      if (signal?.aborted) {
+        endStatus = "cancelled";
+        endError = `"${model}" was cancelled and can't be re-queried.`;
+        return label(endError);
+      }
       await session.prompt(question);
 
       const last = lastAssistant(session);
       if (!last) {
-        return label(`"${model}" produced no response.`);
+        endError = `"${model}" produced no response.`;
+        return label(endError);
       }
       if (last.stopReason !== CLEAN_STOP) {
         const detail = last.errorMessage ? `: ${last.errorMessage}` : "";
-        return label(`"${model}" did not answer cleanly (stopReason: ${last.stopReason})${detail}.`);
+        endStatus = signal?.aborted ? "cancelled" : "error";
+        endError = `"${model}" did not answer cleanly (stopReason: ${last.stopReason})${detail}.`;
+        return label(endError);
       }
 
       const answer = session.getLastAssistantText();
       if (!answer || answer.trim() === "") {
-        return label(`"${model}" returned empty text.`);
+        endError = `"${model}" returned empty text.`;
+        return label(endError);
       }
 
+      endStatus = "done";
       return label(answer);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      return label(`Re-querying "${model}" failed: ${msg}`);
+      endStatus = signal?.aborted ? "cancelled" : "error";
+      endError = `Re-querying "${model}" failed: ${msg}`;
+      return label(endError);
     } finally {
       signal?.removeEventListener("abort", onAbort);
+      detach();
+      if (activitySink) {
+        const t = Date.now();
+        activitySink({
+          kind: "model_end",
+          t,
+          model,
+          role: "panel",
+          status: endStatus,
+          durationMs: t - startedAt,
+          ...(endError ? { error: endError } : {}),
+        });
+      }
     }
   }
 
