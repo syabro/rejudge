@@ -140,3 +140,16 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   - Hardened: a logging failure (mkdir, write, circular stringify) never breaks a run — it warns to stderr and the run continues.
   - Config: `debugLog: boolean` (default false), validated; documented in `config.md`.
   - Tests: pure truncation test; config parse test; a real run with `debugLog:true` that reads back the produced JSONL and checks it's valid and populated.
+
+- [ ] PNL-041 Stop the panel on the first model failure
+  A fusion run can keep sibling panel agents waiting or running after one panel model has already failed. In the observed run, `opencode-go/kimi-k2.7` failed as an unknown model while the other panel models continued showing as in progress until the run was cancelled several seconds later.
+
+  The panel should be failure-driven: when any panel agent fails during start or execution, that failure ends the whole panel run and aborts the other panel agents. Do not add a separate preflight that resolves or checks all models before normal launch; the important behavior is that the first real failure stops the remaining work.
+
+  User decision: if one panel model fails, stop the panel run and cancel the remaining panel agents instead of letting them continue.
+
+  DoD:
+  - the first panel-agent failure returns a clear panel failure with the offending model ID;
+  - already-started sibling panel agents are aborted/disposed, and not-yet-started siblings are not allowed to keep running;
+  - CLI and `fusion_agents` stop showing unrelated panel models as still in progress after the failure;
+  - tests cover the generic behavior by making one panel agent fail while at least one sibling is in progress, not by fitting only the exact `kimi-k2.7` unknown-model case.
