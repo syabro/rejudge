@@ -85,3 +85,10 @@ Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), neve
   - User decision: `ask_panel` is always the judge's tool, and the judge's prompt carries only the panel's analyses — it reaches the task, the files, the diff, and any check through the panel via `ask_panel`. The requested output format reaches the answer through the analyses (the panel applied it; the judge mirrors it).
   - `fullTools` widens only the panel; the judge's tool policy follows its `synth` role, set per stage by `fuse`, so it stays scoped to the synth stage. Panel agents' tool set is unchanged.
   - Deterministic smoke test: a `synth`-role session activates exactly `[ask_panel]`, and `fullTools` leaves that set unchanged.
+
+- [ ] SYN-040 Show live panel activity while the judge re-queries via ask_panel
+  When the judge re-queries the panel sessions through `ask_panel`, those sessions run again, but their rows in the live progress block stay at the round-1 "done" state and show no new activity. Only the judge's row updates. This is the v1 limitation noted in this spec's "Multi-round" section.
+
+  A re-queried panel's row must show its activity during the re-query — its current step and elapsed time — and return to "done" when the re-query completes. The re-query stays read-only, the no-throw / all-or-nothing flow is unchanged, and this applies to both fresh and resumed runs.
+
+  DoD: during an `ask_panel` re-query, the re-queried panel's row shows the running state with its steps and returns to "done" on completion.
