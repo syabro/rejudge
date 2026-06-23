@@ -29,6 +29,15 @@ Pi is a thin pier agent, no fork: pier loads a custom agent by import path (`cre
 
 Not proven here: the container-level egress firewall (`allow_internet=false`) and provider allowlist. The spike runs with normal container internet and relies on `--offline` to suppress every non-provider startup call; enforcing a real allowlist is BENCH-036's job.
 
+### Running the Pi agent (bench/)
+
+The Pi pier agent lives in this repo at `bench/pi_agent.py` (a `BaseInstalledAgent` loaded by import path — no pier fork). `bench/run.sh` is self-contained: it clones pier + deep-swe into `bench/vendor/` (gitignored), runs pier on the host via `uv`, and loads our agent with `PYTHONPATH=bench` so nothing is written into the pier checkout. Output lands in `bench/jobs/` (gitignored).
+
+    OPENCODE_API_KEY=… bench/run.sh <task-name> <provider/model>
+    # e.g. bench/run.sh abs-module-cache-flags opencode-go/deepseek-v4-flash
+
+The model is an explicit argument — pick it per run, no default.
+
 ### Open decisions (resolve before the comparison run)
 
 - Model: pin the SAME model for both sides, or accept a harness+model comparison (Pi+its model vs codex+its model). Baseline default: plain Pi (fusion off).
@@ -44,8 +53,14 @@ Not proven here: the container-level egress firewall (`allow_internet=false`) an
   - De-risked for BENCH-036: env auth via `OPENCODE_API_KEY` works for opencode-go without `auth.json`; `pi -p` reads the prompt from stdin; edit/write/bash are default-on in `-p` mode; the commit wrapper survives a non-zero Pi exit and skips an empty commit.
   - Left to BENCH-036 (documented, not proven here): the container egress firewall (`allow_internet=false`) + provider allowlist — the spike uses normal container internet and `--offline` to suppress non-provider startup calls; also provisioning Node on a task image that lacks it.
 
-- [ ] BENCH-036 Thin Pi agent adapter for pier		@blocked_by:BENCH-035
+- [x] BENCH-036 Thin Pi agent adapter for pier		@blocked_by:BENCH-035
   A `BaseInstalledAgent` subclass registered via pier's import-path (no fork). Constraints: `install_spec` provides Node + installs Pi; `run` pipes `instruction.md` into `pi -p --model <id>` (CWD = repo root) with edit/write/bash and the offline flags (fusion off), sets the provider key in env, then runs the commit wrapper; `network_allowlist()` permits the provider base URL; a per-task timeout; `SUPPORTS_ATIF=false`. Acceptance: `pier run` on one task with our Pi agent produces a `model.patch` and a graded `reward.json`.
+
+  **Implemented:**
+  - `bench/pi_agent.py` — a `BaseInstalledAgent` subclass loaded by pier's import path (`pi_agent:PiAgent`, no fork). `install_spec` installs Node 24 (NVM) + Pi; `run` pipes the instruction into `pi -p` with the offline flags (fusion off), edit/write/bash tools, the provider key in env, then the commit wrapper so `pre_artifacts.sh` captures `base..HEAD`; `network_allowlist()` permits `opencode.ai`; `SUPPORTS_ATIF=false`.
+  - Sandbox network solved: the pier egress proxy is authenticated; Node 24 + `NODE_USE_ENV_PROXY=1` routes Pi's model call through it (confirmed via squid `TCP_TUNNEL/200`).
+  - `bench/run.sh` runs it end-to-end and self-contained (pier/deep-swe cloned into gitignored `bench/vendor/`, host `uv`, output in `bench/jobs/`).
+  - Acceptance met: `pier run` on `abs-module-cache-flags` produced a `model.patch` and a graded `reward.json` — `reward 1` (20/20 fail-to-pass, 3/3 pass-to-pass) with `opencode-go/deepseek-v4-flash`.
 
 - [ ] BENCH-037 Sample run + Pi-vs-codex comparison		@blocked_by:BENCH-036
   Run the Pi agent and built-in codex over the same deterministic sample. Constraints: pinned-model decision applied; same tasks, sandbox, and `--sample-seed`; fusion off; a 5-task cost probe, then n=10 to validate the pipeline and n≥30 for a defensible number; a total budget cap; collect Pass@1 (and cost when available). Acceptance: a documented table of Pass@1 (+ cost) for Pi and codex on the same sample, with the model and n stated.

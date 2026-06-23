@@ -32,6 +32,14 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .cache
 *.tsbuildinfo
 
+# bench (BENCH-036): external tool clones + run output — re-fetchable, never committed
+bench/vendor/
+bench/jobs/
+
+# Python bytecode cache
+__pycache__/
+*.pyc
+
 # IntelliJ based IDEs
 .idea
 
