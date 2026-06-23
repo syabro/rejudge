@@ -92,3 +92,12 @@ Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), neve
   A re-queried panel's row must show its activity during the re-query — its current step and elapsed time — and return to "done" when the re-query completes. The re-query stays read-only, the no-throw / all-or-nothing flow is unchanged, and this applies to both fresh and resumed runs.
 
   DoD: during an `ask_panel` re-query, the re-queried panel's row shows the running state with its steps and returns to "done" on completion.
+
+- [ ] SYN-042 Use stable role keys for judge ↔ panel communication
+  Internal fusion communication currently identifies judge and panel sessions by model slug. That breaks when the same model is used in more than one role, for example `gpt-5.5` as both judge and a panel member. The UI and logs may show the right model names, but internal routing needs stable role identities.
+
+  Use role keys for internal addressing: `judge`, `panel-1`, `panel-2`, `panel-3`, and so on. Model IDs stay as provider/model configuration and display metadata, not as communication keys.
+
+  User decision: internal judge/panel communication must not be keyed by model slugs; use stable role keys instead.
+
+  DoD: judge re-queries and progress/debug routing address sessions by role key, so duplicate model IDs across judge and panel slots do not collide or misroute.
