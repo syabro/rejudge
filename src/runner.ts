@@ -93,15 +93,14 @@ export interface RunPanelAgentOptions {
    * forwards it (and tags each stage's {@link role}) to every panel and synth agent.
    */
   activitySink?: ActivitySink;
-  /** This agent's role, stamped on its progress events. Default: "panel". */
-  role?: ModelRole;
   /**
-   * Extra custom tools to expose to THIS agent on top of the built-in `git_diff` — their names
-   * are added to the allow-list and the tools to `customTools`. `fuse` uses this to give the
-   * synth/"judge" agent the `ask_panel` tool (SYN-011), so it can re-query a panel for a second
-   * round; panel agents pass none. Default: none.
+   * This agent's role. Stamped on progress events; for `"synth"` it also scopes the agent's tools to
+   * {@link askPanel}. Default: "panel".
    */
-  extraTools?: ToolDefinition[];
+  role?: ModelRole;
+  /** The synth/"judge" agent's only tool: `ask_panel`, required for the synth stage; panel agents
+   *  run their standard tool set. */
+  askPanel?: ToolDefinition;
   /**
    * Where this agent's session is persisted. Default: {@link SessionManager.inMemory} — nothing
    * on disk, so the host's `/resume` list stays clean. `fuse` passes a disk-backed manager
@@ -166,11 +165,10 @@ export interface AgentFailure {
  * notifier, a session indicator, even `fusion_agents` itself) never fire for a panel/synth agent —
  * then creates the session with the right tool set.
  *
- * Read-only is the default (CLI-023): read/grep/find/ls plus the custom `git_diff` (TLS-026),
- * unless `fullTools` opts into edit/write/bash. `extraTools` (e.g. `ask_panel`, SYN-011) are added
- * to both the allow-list and `customTools`. The session is in-memory unless a `sessionManager` is
- * given (SYN-029 persists/resumes via a disk-backed one). Shared by {@link runPanelAgent} (which
- * then prompts) and the resume path (which opens panel sessions without prompting).
+ * A panel agent gets the local tool set: read/grep/find/ls + `git_diff` (TLS-026), `fullTools` adds
+ * edit/write/bash, plus `web_search` when the host has it. The synth/"judge" (role "synth") gets only
+ * `askPanel`. In-memory unless a `sessionManager` is given (SYN-029). Shared by {@link runPanelAgent}
+ * and the resume path.
  */
 export async function createInnerSession(
   modelId: string,
@@ -179,9 +177,14 @@ export async function createInnerSession(
   const model = resolveModel(modelId);
   const cwd = options.cwd ?? process.cwd();
 
-  const builtins = options.fullTools ? PANEL_TOOLS : READONLY_TOOLS;
-  const extra = options.extraTools ?? [];
-  const tools = [...builtins, GIT_DIFF_TOOL_NAME, ...extra.map((t) => t.name)];
+  // The synth/"judge" gets only ask_panel; a panel agent gets the local tool set
+  // (read-only or, on opt-in, full) plus git_diff.
+  const judge = options.role === "synth";
+  const askPanel = options.askPanel;
+  const tools = judge
+    ? askPanel ? [askPanel.name] : []
+    : [...(options.fullTools ? PANEL_TOOLS : READONLY_TOOLS), GIT_DIFF_TOOL_NAME];
+  const customTools = judge ? (askPanel ? [askPanel] : []) : [gitDiffTool];
 
   // Build and reload the loader ourselves so we can read the surviving host tools, then hand the
   // same instance to createAgentSession.
@@ -199,18 +202,23 @@ export async function createInnerSession(
     }),
   });
   await resourceLoader.reload();
-  const hostTools = new Set(
-    resourceLoader.getExtensions().extensions.flatMap((e) => [...e.tools.keys()]),
-  );
-  if (hostTools.has(WEB_SEARCH_TOOL)) {
-    tools.push(WEB_SEARCH_TOOL);
+
+  // A panel agent opts into the host's web_search when present; the judge delegates host-tool work
+  // to the panel, so this block runs for panel agents.
+  if (!judge) {
+    const hostTools = new Set(
+      resourceLoader.getExtensions().extensions.flatMap((e) => [...e.tools.keys()]),
+    );
+    if (hostTools.has(WEB_SEARCH_TOOL)) {
+      tools.push(WEB_SEARCH_TOOL);
+    }
   }
 
   const { session } = await createAgentSession({
     model,
     cwd,
     tools,
-    customTools: [gitDiffTool, ...extra],
+    customTools,
     resourceLoader,
     settingsManager,
     // Reasoning level comes from the caller (fuse threads it per stage); default "xhigh" for

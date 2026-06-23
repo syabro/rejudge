@@ -1,54 +1,54 @@
 import { test, expect } from "vitest";
 import { buildSynthesisPrompt, synthesize, type PanelOutput } from "../src/synth.ts";
+import { makeAskPanelTool } from "../src/ask-panel-tool.ts";
 import { integrationTest } from "./integration.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
 const STUB = "opencode-go/kimi-k2.6";
 
-// Deterministic (no model): the synthesis prompt threads the original task AND
-// every panel output, and instructs the model to emit only the single final
-// answer. This is the contract "consumes all three outputs + original task".
-test("buildSynthesisPrompt threads the task and all panel outputs", () => {
+// Deterministic (no model): the judge's prompt carries only the analyses plus the ask_panel guidance.
+// It must contain every panel output and the panel model ids (so the judge knows whom to re-query),
+// make consulting the default, and omit the "## Task" section.
+test("buildSynthesisPrompt gives the judge the analyses + ask_panel, not the task", () => {
   const panel: PanelOutput[] = [
     { modelId: "m1", text: "alpha-distinct-answer" },
     { modelId: "m2", text: "beta-distinct-answer" },
     { modelId: "m3", text: "gamma-distinct-answer" },
   ];
-  const prompt = "ORIGINAL-TASK-MARKER: answer the question";
-  const built = buildSynthesisPrompt(prompt, panel);
+  const built = buildSynthesisPrompt(panel);
 
-  expect(built).toContain(prompt);
   for (const p of panel) {
     expect(built).toContain(p.text);
   }
-  // Authorship framing: inputs are "## Analyses" (no "candidate" leak vocab), and the judge is told
-  // to write in its own voice and obey the task's format.
   expect(built).toContain("## Analyses");
   expect(built).not.toContain("Candidate");
-  expect(built.toLowerCase()).toContain("as if you wrote");
-  expect(built).toContain("Obey them");
+  // The judge's prompt omits the task section entirely.
+  expect(built).not.toContain("## Task");
+  // ask_panel is the always-present, consult-by-default channel, with the panel ids listed.
+  expect(built).toContain("ask_panel");
+  expect(built).toContain("Before you answer, make one batched");
+  expect(built).toContain("checkable");
+  expect(built).toContain("(m1, m2, m3)");
 });
 
-// Real run, no mocks: one real synth call fuses three (static) panel outputs into
-// a single answer that respects the task's requested format. Only the synth model
-// runs here — the full three-panel fan-out is covered by fusion.test.ts.
-integrationTest("synthesize fuses panel outputs into one answer respecting the format", async () => {
+// Real run, no mocks: one real synth call fuses three (static) analyses into a single answer. The
+// judge receives only the analyses, so the requested format propagates through them (each already
+// begins with RESULT:); a pass proves the judge fused and preserved that form. ask_panel is wired
+// (empty here) to mirror production. The full three-panel fan-out is covered by fusion.test.ts.
+integrationTest("synthesize fuses the analyses into one answer, preserving their form", async () => {
   const panel: PanelOutput[] = [
-    { modelId: "m1", text: "The capital of France is Paris." },
-    { modelId: "m2", text: "Paris is the capital of France." },
-    { modelId: "m3", text: "It's Paris." },
+    { modelId: "m1", text: "RESULT: The capital of France is Paris." },
+    { modelId: "m2", text: "RESULT: Paris is the capital of France." },
+    { modelId: "m3", text: "RESULT: It's Paris." },
   ];
-  // The candidates do NOT carry the format — only the task does, so a pass proves
-  // synthesis applied the original task's output instruction.
-  const prompt = "What is the capital of France? Begin your reply with the token RESULT:";
 
-  const result = await synthesize(STUB, prompt, panel);
+  const result = await synthesize(STUB, panel, makeAskPanelTool([]));
 
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     const answer = result.value;
     expect(answer.trim().length).toBeGreaterThan(0);
-    // Format applied (the task's instruction), AND fused content preserved.
+    // Form preserved from the analyses, AND fused content correct.
     expect(answer.trim()).toMatch(/^RESULT\s*:/i);
     expect(answer).toMatch(/Paris/i);
   }

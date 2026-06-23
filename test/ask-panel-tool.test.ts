@@ -47,9 +47,9 @@ test("ask_panel returns an error listing valid models for an unknown model", asy
   expect(text).toContain("provider/beta");
 });
 
-// Real SDK, no model call: the ask_panel custom tool, wired the way runPanelAgent wires it
+// Real SDK, no model call: the ask_panel custom tool, wired the way the judge wires it
 // (customTools + its name in the allow-list), actually activates in a session. This proves the
-// extraTools threading shape the synth/"judge" agent relies on.
+// askPanel threading shape the synth/"judge" agent relies on.
 test("a session with ask_panel in customTools + allow-list activates it", async () => {
   const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
   const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));

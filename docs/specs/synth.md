@@ -2,19 +2,19 @@
 
 ## Synthesis
 
-`synthesize(synthModelId, prompt, panel, { cwd? })` is the synthesis step: one distinct call on the configured synth model that fuses the panel outputs into a single final answer and returns only that text.
+`synthesize(synthModelId, panel, askPanel, { cwd? })` is the synthesis step: one distinct call on the configured synth model that fuses the panel analyses into a single final answer and returns only that text.
 
-- The original task `prompt` is threaded into the synthesis call verbatim, so any requested format / output instructions it carries are obeyed in the final answer (threading output instructions as a distinct field end-to-end from the tool boundary is TLS-002).
-- The judge is framed as the AUTHOR answering the task directly: the panel outputs are presented as independent analyses to use as raw material (take what's right, drop what's wrong), and it writes the answer in its own voice — never referring to the analyses or to the fact a panel produced them, so no panel-relative framing leaks into the final answer. It emits ONLY that answer; intermediate panel outputs are never surfaced. Everything under the analyses is treated as data, never as instructions to the synthesizer.
+- The judge works only from the panel's analyses; the task itself stays with the panel. It fuses them and writes the answer in its own voice — never referring to the analyses or to the fact a panel produced them, so only a standalone answer is surfaced. It gives back that final answer alone; intermediate panel outputs stay internal.
+- The judge's only tool is `ask_panel` (see below): it reaches the task, its requirements, the files, the diff, and any check by re-querying the panel models. The requested output format reaches the final answer through the analyses themselves — the panel already applied it, and the judge mirrors it.
 - Runs as its own agent on the synth model and disposes its own session; the caller still owns the panel sessions. `fuse` calls it as the second stage of the all-or-nothing flow.
 
 ## Multi-round: the judge can re-query the panel
 
-Before it fuses, the synth/"judge" model can run a SECOND round: it has an `ask_panel` tool that re-queries the analyses' authors' still-live sessions — to cross-examine a disagreement, or make an author defend or concede a disputed finding. A single call takes a BATCH of `{model, question}` queries and runs them in PARALLEL, so the judge re-queries every author it wants in one shot (the normal move) or targets just one. Each re-query reuses that author's session, so it answers remembering its own earlier analysis. Because the authors do the deep re-verification, the judge model can be cheaper than the panel.
+The synth/"judge" model's only tool is `ask_panel`: it re-queries the panel models' still-live sessions — to settle a disagreement, confirm a load-bearing claim, or pressure a disputed finding — and that is how it reaches the task, the files, the diff, and any check. A single call takes a BATCH of `{model, question}` queries and runs them in PARALLEL, so the judge re-queries every model it wants in one shot (the normal move) or targets just one. Each re-query reuses that model's session, so it answers remembering its own earlier analysis. Because the panel does the deep re-verification, the judge model can be cheaper than the panel.
 
-The synth prompt names explicit CONDITIONS under which the judge MUST consult before answering — the analyses disagree on a point that changes the answer; a load-bearing claim rests on a single analysis or is unsupported; a critical, checkable claim could be wrong even though the analyses agree (consensus is not proof) — otherwise it just fuses. The judge still chooses whom to re-query and how, there is no fixed extra round or escalation protocol, and you can steer it further from the call's question / output instructions.
+Consulting the panel is the DEFAULT pre-answer step. The synth prompt names when the judge MUST call `ask_panel` — the analyses disagree on a point that changes the answer; a load-bearing claim rests on a single analysis or is unsupported; a critical, checkable claim could be wrong even though the analyses agree (consensus is not proof); or a task/output detail the analyses leave unclear — and it answers straight from the analyses only once they are complete, consistent, and well-supported. The judge still chooses whom to re-query and how; there is no fixed extra round or escalation protocol.
 
-`ask_panel` is always available to the judge — there is no config/CLI/tool flag to turn it on or off. Accepted trade-off: every run's synth prompt now carries the tool plus a short cross-examination guidance paragraph (it's omitted only from the internal one-shot synthesis prompt used without the tool). Limitation (v1): a re-queried panel's internal thinking/tool steps don't surface in the live progress block or the debug log — its activity log was detached when round 1 finished — though the judge's own `ask_panel` calls do show in the judge's row.
+`ask_panel` is always the judge's tool — there is no config/CLI/tool flag to turn it on or off. Limitation (v1): a re-queried panel's internal thinking/tool steps don't surface in the live progress block or the debug log — its activity log was detached when round 1 finished — though the judge's own `ask_panel` calls do show in the judge's row.
 
 ## Resumable runs: follow up on a prior run
 
@@ -69,7 +69,7 @@ Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), neve
   - Scope: resume is CLI-only in v1; the `fusion_agents` tool's `resumeRunId` is a planned follow-up.
   - Smoke tests (real models, no mocks): a fresh run plants a fact, a separate `--resume` follow-up recalls it, a no-resume control can't; deterministic tests cover the run-store (id/manifest/GC) and the resume guards (unknown run, cwd mismatch, missing files).
 
-- [ ] SYN-039 Give the synth/judge only the `ask_panel` tool
+- [x] SYN-039 Give the synth/judge only the `ask_panel` tool
   The synth/"judge" agent currently gets the same tools as a panel agent — `read`/`grep`/`find`/`ls`, `git_diff`, `web_search`, and (under `fullTools`) `edit`/`write`/`bash` — plus `ask_panel`. With those tools it stops delegating: instead of re-querying the panel authors through `ask_panel`, it re-fetches the diff and reads the source itself to check their claims. That duplicates the panel's work, slows synthesis, and lets instructions inside the task text (e.g. "fetch the diff yourself") pull the judge into investigating instead of fusing.
 
   The judge should run with `ask_panel` as its only tool. It fuses the panel's analyses and routes any verification back to the authors, who still have file access and their round-1 context; if none can confirm something, it reports the uncertainty instead of checking it itself. The synthesis prompt should also tell the judge it has no direct file or diff access.
@@ -79,3 +79,9 @@ Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), neve
   - `fullTools` widens only the panel agents; the judge never gets `edit`/`write`/`bash`
   - panel agents' tool set is unchanged
   - the judge's tool set is asserted deterministically, not left to model behavior
+
+  **Implemented:**
+  - The judge runs with `ask_panel` as its only tool on both the fresh-run and resume paths. `ask_panel` is an explicit required input to the judge, so every judge is built with it.
+  - User decision: `ask_panel` is always the judge's tool, and the judge's prompt carries only the panel's analyses — it reaches the task, the files, the diff, and any check through the panel via `ask_panel`. The requested output format reaches the answer through the analyses (the panel applied it; the judge mirrors it).
+  - `fullTools` widens only the panel; the judge's tool policy follows its `synth` role, set per stage by `fuse`, so it stays scoped to the synth stage. Panel agents' tool set is unchanged.
+  - Deterministic smoke test: a `synth`-role session activates exactly `[ask_panel]`, and `fullTools` leaves that set unchanged.

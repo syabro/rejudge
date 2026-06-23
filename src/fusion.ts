@@ -160,13 +160,12 @@ async function freshRun(
 
   const synthStart = Date.now();
   try {
-    const synth = await synthesize(config.synth.id, prompt, panel.value, {
+    const synth = await synthesize(config.synth.id, panel.value, askPanel, {
       ...options,
       cwd,
       debugLog,
       role: "synth",
       thinkingLevel: config.synth.level,
-      extraTools: [askPanel],
       sessionManager: synthManager,
     });
     if (synth.isErr()) {
@@ -257,14 +256,15 @@ async function resumeRun(
   const askPanel = makeAskPanelTool(panel);
   const synthStart = Date.now();
   try {
-    // Reopen the synth session WITH ask_panel wired in, then prompt it with the raw follow-up.
+    // Reopen the synth session as the judge (role "synth" → ask_panel is its only tool), then prompt
+    // it with the raw follow-up.
     let synthSession: AgentSession;
     try {
       synthSession = await createInnerSession(manifest.synth.modelId, {
         cwd,
-        fullTools: manifest.fullTools,
+        role: "synth",
         thinkingLevel: manifest.synth.level,
-        extraTools: [askPanel],
+        askPanel,
         sessionManager: SessionManager.open(manifest.synth.file),
       });
     } catch (e) {

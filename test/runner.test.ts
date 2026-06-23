@@ -3,8 +3,9 @@ import { createAgentSession } from "@earendil-works/pi-coding-agent";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PANEL_TOOLS, READONLY_TOOLS, resolveModel, runPanelAgent } from "../src/runner.ts";
+import { PANEL_TOOLS, READONLY_TOOLS, createInnerSession, resolveModel, runPanelAgent } from "../src/runner.ts";
 import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "../src/git-diff-tool.ts";
+import { ASK_PANEL_TOOL_NAME, makeAskPanelTool } from "../src/ask-panel-tool.ts";
 import { integrationTest } from "./integration.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
@@ -49,6 +50,24 @@ test("a session with git_diff in customTools + allow-list activates it", async (
   });
   try {
     expect(session.getActiveToolNames()).toContain(GIT_DIFF_TOOL_NAME);
+  } finally {
+    session.dispose();
+  }
+}, 30_000);
+
+// Real SDK, no model call: a synth/"judge" session (role "synth") activates exactly [ask_panel] —
+// its sole tool — and fullTools leaves that set unchanged. Asserted directly, independent of model
+// behavior.
+test("a synth/judge session exposes ask_panel and nothing else", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));
+  const session = await createInnerSession(STUB, {
+    cwd,
+    role: "synth",
+    fullTools: true, // proves the judge stays at [ask_panel] regardless
+    askPanel: makeAskPanelTool([]),
+  });
+  try {
+    expect(session.getActiveToolNames()).toEqual([ASK_PANEL_TOOL_NAME]);
   } finally {
     session.dispose();
   }
