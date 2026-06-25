@@ -4,7 +4,7 @@ The `fusion_agents` Pi extension tool: how it registers and behaves inside a hos
 
 ## The tool
 
-The package loads as a Pi extension via the `pi.extensions` manifest (entry `src/index.ts`) and registers one external tool, `fusion_agents`. It is invoked explicitly — never auto-invoked — with:
+The package loads as a Pi extension via the `pi.extensions` manifest (entry `dist/extension.js` — a bundled build of `src/index.ts` with third-party deps like `neverthrow` inlined; the pi SDK and typebox stay external, host-provided). Build it with `bun run build:ext` (or `bun run build`); `bun install` rebuilds it via `prepare`. It registers one external tool, `fusion_agents`. It is invoked explicitly — never auto-invoked — with:
 
 - `question` (required) — the question or instruction to run across the panel.
 - `outputInstructions` (optional) — the desired output format (e.g. a requested structure, or P0/P1/P2/P3 buckets).
@@ -91,3 +91,14 @@ While `fusion_agents` runs inside Pi it shows a live block, refreshed every seco
   - Overflow stays safe via the existing `wrapTextWithAnsi` + trailing `clampLines`; the CLI path is untouched (it renders to stderr, not through `progress.ts`).
   - Out of scope (a deeper, separate gap): surfacing the judge's synthesis prompt (task + all panel outputs).
   - Deterministic `progress.test.ts` covers the expanded request (label, ordering above tree/answer, title gone), the collapsed title-only view, blank/undefined fallback, and the unbreakable-token width clamp.
+
+- [x] EXT-045 Bundle the extension to a self-contained JS file
+  Pi 0.80's extension loader (jiti, node mode) resolves only aliased deps — the pi SDK and typebox — from the global Pi install; it does NOT resolve a project's other `node_modules`. Loading `src/index.ts` directly then fails on our `neverthrow` import with "Cannot find module 'neverthrow'". It also makes the extension fragile to the `node_modules` layout / a clean `bun install`.
+  Outcome: the extension ships as one built JS file with its third-party deps (neverthrow) bundled in, and `package.json` `pi.extensions` points at the built file instead of `src/index.ts` — so nothing outside the pi SDK is left for Pi's loader to resolve, and it loads regardless of repo/node_modules state.
+  Constraints: keep `@earendil-works/*` and `typebox` external (Pi provides/aliases them — never bundle the SDK); bundle `neverthrow` and any other third-party dep; add a build step alongside `build:cli` and rebuild after `src/` changes; the built file is a gitignored artifact like `bin/fusion.js`; update the tech.md / CLAUDE.md note that said the extension loads `src/index.ts` directly with no build.
+  Acceptance: after a clean `bun install`, running `pi` in the project loads the fusion extension with no "Cannot find module" error and the `fusion_agents` tool works; the CLI still works; unit tests pass.
+
+  **Implemented:**
+  - `build:ext` bundles `src/index.ts` → `dist/extension.js` (bun build), inlining `neverthrow` and keeping `@earendil-works/pi-coding-agent`/`pi-ai`/`pi-tui` + `typebox` external (host-provided). `build` runs cli+ext; `prepare` runs `build` so `bun install` always materializes the artifacts. `pi.extensions` now points at `./dist/extension.js` (gitignored, like `bin/`).
+  - Verified on Pi 0.80.2: `pi -p` loads the extension with no "Cannot find module 'neverthrow'" error (exit 0); the bundle has zero external `neverthrow` imports; typecheck + unit pass; CLI unchanged.
+  - Root cause was the 0.80 loader, not our code — pinning the SDK to match the host (0.80.2) plus bundling makes the extension independent of how Pi resolves third-party deps.

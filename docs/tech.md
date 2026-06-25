@@ -15,7 +15,7 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 ## Runtime & layout
 - bun = dev only (deps + tests). No Bun APIs (`bun:*`, `Bun.*`) in code; runs on npm + plain Node.
 - Tests: Vitest.
-- Package: source in `src/`, entry `src/index.ts` in package.json `pi.extensions`.
+- Package: source in `src/`; `pi.extensions` points at the built bundle `dist/extension.js` (a `bun build` of `src/index.ts` with `neverthrow` inlined; pi SDK + typebox external/host-provided). Rebuild with `bun run build` (CLI + extension); `prepare` rebuilds on `bun install`. The extension is NOT loaded from `src/` directly — Pi 0.80's loader only resolves the pi SDK + typebox, not other `node_modules`, so a third-party import like `neverthrow` must be bundled in.
 - Provider: `OPENCODE_GO` (not `opencode`).
 
 ## Error handling
