@@ -134,8 +134,13 @@ comparable today; per-token cost is codex-only.
   - `bench/compare.py` — latest graded result per (model, task) → tasks×models table + Pass@1; infra errors shown as ERR and excluded from the denominator; head-to-head on common graded tasks.
   - `bench/results.jsonl` committed (data); `bench/jobs/` stays gitignored (raw output).
 
-- [ ] BENCH-037 Pi baseline run + Pi-vs-codex head-to-head		@blocked_by:BENCH-036
+- [x] BENCH-037 Pi baseline run + Pi-vs-codex head-to-head		@blocked_by:BENCH-036
   Run the Pi agent (fusion off) on the same first-10 deep-swe sample the codex baseline used, then produce the head-to-head. Constraints: same tasks, sandbox, and grading; pinned-model decision applied; collect Pass@1 (+ tokens/time). Acceptance: `bench/compare.py` shows a Pi-vs-codex table over the common graded tasks, with each side's model and n stated; decide whether to extend to n≥30.
+
+  **Implemented:**
+  - Ran Pi on the first 10 tasks with `openai-codex/gpt-5.5:xhigh` (ChatGPT login), 0 errors: **Pass@1 8/10** vs the codex baseline's 5/10 over the same 10. Pi cleared four codex near-misses (44/44, 53/53, 2/2, 9/9); codex won one Pi missed (arktype 25/25 vs Pi 23/25). Recorded in `bench/results.jsonl`; `bench/compare.py` prints the table.
+  - **Fairness caveat (not yet a pure harness comparison):** Pi ran `@xhigh`, codex `@high` — a bigger reasoning budget, so the 8-vs-5 gap conflates harness with reasoning effort. Match the effort (Pi `@high`, or re-run codex `@xhigh`) before claiming a harness win. The model labels carry the effort so the asymmetry is explicit.
+  - Per-token cost is codex-only for now (Pi is `SUPPORTS_ATIF=False` → only `secs`); BENCH-038 fills the Pi cost half. n≥30 not run yet — the n=10 pipeline is proven and is the decision point for scaling.
 
 - [ ] BENCH-038 ATIF v1.7 trajectory for the Pi agent  !low @blocked_by:BENCH-036
   Convert Pi's `--mode json` output to ATIF v1.7 (like the opencode agent) so cost/step/token metrics populate — this fills the cost half of the comparison and would also enable a leaderboard submission. Constraints: map Pi's events to ATIF Steps/ToolCalls/Metrics; `SUPPORTS_ATIF=true`. Acceptance: a run writes a valid `trajectory.json` with per-step metrics; Pass@1 unchanged.
