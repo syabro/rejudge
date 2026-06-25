@@ -50,6 +50,27 @@ Concurrency is gentle by default (`PIER_CONCURRENCY=2`) to stay under ChatGPT ra
     bench/run-codex.sh            # first 10, gpt-5.5
     bench/run-codex.sh 10 gpt-5.5
 
+### Running Pi on a ChatGPT-login model (bench/)
+
+`bench/run-pi.sh [N] <provider/model[:thinking]>` runs the Pi agent over the first N tasks
+(default N=10) — the multi-task Pi runner (`run.sh` stays the single-task form). One harness
+(Pi), swappable model:
+
+- `openai-codex/*` → Pi uses the host's ChatGPT login. `pi_agent.py` uploads
+  `~/.pi/agent/auth.json` into each sandbox (pointed at by `PI_CODING_AGENT_DIR`) and adds
+  `chatgpt.com` + `auth.openai.com` to the egress allowlist — the same gpt-5.5 the codex
+  baseline uses. The thinking level rides on the model id (`:xhigh` → `--thinking xhigh`).
+- `opencode-go/*` → still authenticates with `OPENCODE_API_KEY`.
+
+      bench/run-pi.sh 10 openai-codex/gpt-5.5:xhigh     # Pi harness, codex's model
+      bench/run-pi.sh 10 opencode-go/deepseek-v4-flash  # Pi harness, an API model
+
+Fairness caveat: a Pi-vs-codex head-to-head isolates the harness only if both sides use the
+SAME reasoning effort. The first codex baseline ran `@high`; running Pi `@xhigh` also changes
+the reasoning budget, so match them (Pi `@high`, or re-run codex `@xhigh`) before calling it a
+pure harness comparison. The model labels in `results.jsonl` keep the effort, so the asymmetry
+is visible in `compare.py`.
+
 ### Comparing models (bench/)
 
 Each run auto-appends its per-task results to `bench/results.jsonl` (the runners call
@@ -67,6 +88,11 @@ and reports infra errors separately. Run a model once (results persist); compare
 
 Scope kept deliberately simple: one attempt per task (k=1), no confidence intervals, no
 rerun-aggregation machinery — a presentable head-to-head, not a leaderboard submission.
+
+Token/cost coverage is asymmetric for now: codex emits an ATIF `trajectory.json`, so its
+rows carry tokens + notional cost; the Pi agent is `SUPPORTS_ATIF=False`, so Pi rows have only
+`secs` (no tokens/cost) until BENCH-038 wires Pi's `--mode json` into ATIF. Pass@1 and time are
+comparable today; per-token cost is codex-only.
 
 ### Open decisions (resolve before the comparison run)
 

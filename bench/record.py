@@ -36,7 +36,9 @@ def model_label(cfg):
         effort = "high"  # codex agent's CLI default when none is passed
 
     label = f"{agent}:{model}" + (f"@{effort}" if effort else "")
-    pricing = "subscription" if agent == "codex" else "api"
+    # ChatGPT-login models (codex agent, or Pi's openai-codex provider) bill by
+    # subscription, not per-token API — flag it so cost columns aren't compared blindly.
+    pricing = "subscription" if (agent == "codex" or "openai-codex" in model) else "api"
     return agent, label, pricing
 
 
