@@ -38,6 +38,36 @@ The Pi pier agent lives in this repo at `bench/pi_agent.py` (a `BaseInstalledAge
 
 The model is an explicit argument — pick it per run, no default.
 
+### Running the codex baseline (bench/)
+
+`bench/run-codex.sh [N] [model]` runs the built-in codex agent over the first N deep-swe
+tasks (alphabetical, deterministic), default `N=10 model=gpt-5.5`. "Plain codex" means the
+host's ChatGPT login: the agent (`bench/codex_agent.py`, a thin `Codex` subclass) uploads
+`~/.codex/auth.json` into each sandbox (`CODEX_FORCE_AUTH_JSON=1`) and only widens the egress
+allowlist so `chatgpt.com` is reachable through the locked proxy — no OpenAI API key needed.
+Concurrency is gentle by default (`PIER_CONCURRENCY=2`) to stay under ChatGPT rate limits.
+
+    bench/run-codex.sh            # first 10, gpt-5.5
+    bench/run-codex.sh 10 gpt-5.5
+
+### Comparing models (bench/)
+
+Each run auto-appends its per-task results to `bench/results.jsonl` (the runners call
+`bench/record.py` at the end; run it by hand on any old job dir to backfill). The file is
+the durable, committed data store — one immutable line per (run, task) with: model
+(`agent:model@effort`), task, `status` (`graded`/`errored` — an infra crash is never counted
+as a model failure), `reward`, new tests passed (`new_pass/new_need`), old tests broken
+(`old_broke/old_total`), tokens, `secs`, `steps`, notional cost, and the task's `base_commit`.
+
+`bench/compare.py` reads it and prints a tasks×models table + Pass@1 per model. It takes the
+latest graded result per (model, task), compares two models only on their COMMON graded tasks,
+and reports infra errors separately. Run a model once (results persist); compare any time.
+
+    bench/compare.py
+
+Scope kept deliberately simple: one attempt per task (k=1), no confidence intervals, no
+rerun-aggregation machinery — a presentable head-to-head, not a leaderboard submission.
+
 ### Open decisions (resolve before the comparison run)
 
 - Model: pin the SAME model for both sides, or accept a harness+model comparison (Pi+its model vs codex+its model). Baseline default: plain Pi (fusion off).
@@ -62,8 +92,24 @@ The model is an explicit argument — pick it per run, no default.
   - `bench/run.sh` runs it end-to-end and self-contained (pier/deep-swe cloned into gitignored `bench/vendor/`, host `uv`, output in `bench/jobs/`).
   - Acceptance met: `pier run` on `abs-module-cache-flags` produced a `model.patch` and a graded `reward.json` — `reward 1` (20/20 fail-to-pass, 3/3 pass-to-pass) with `opencode-go/deepseek-v4-flash`.
 
-- [ ] BENCH-037 Sample run + Pi-vs-codex comparison		@blocked_by:BENCH-036
-  Run the Pi agent and built-in codex over the same deterministic sample. Constraints: pinned-model decision applied; same tasks, sandbox, and `--sample-seed`; fusion off; a 5-task cost probe, then n=10 to validate the pipeline and n≥30 for a defensible number; a total budget cap; collect Pass@1 (and cost when available). Acceptance: a documented table of Pass@1 (+ cost) for Pi and codex on the same sample, with the model and n stated.
+- [x] BENCH-043 codex baseline on deep-swe (ChatGPT login, first N)		@blocked_by:BENCH-036
+  Run plain codex over the first N deep-swe tasks (alphabetical, deterministic) through the locked sandbox, fusion-equivalent baseline. Constraints: the host's ChatGPT login, no OpenAI API key; chatgpt.com reachable through the egress allowlist; gentle concurrency for ChatGPT rate limits. Acceptance: a graded run over the first 10, Pass@1 recorded.
+
+  **Implemented:**
+  - `bench/codex_agent.py` — thin `Codex` subclass; only widens the egress allowlist to `chatgpt.com` so a ChatGPT-login codex (`CODEX_FORCE_AUTH_JSON=1`, host `~/.codex/auth.json`) reaches the model through the locked proxy. No API key.
+  - `bench/run-codex.sh [N] [model]` — codex over the first N tasks (default 10, gpt-5.5), `PIER_CONCURRENCY` default 2.
+  - Ran first 10 with `gpt-5.5`: **Pass@1 5/10**, 0 regressions (old tests never broken), the 5 misses all 1–2 fail-to-pass tests short; ~47.6M tokens, ~$38.6 notional, ~1h19m wall-clock at `-n 2`. Proven first on one task before the batch.
+
+- [x] BENCH-044 Benchmark reporter: results.jsonl data store + compare tool		@blocked_by:BENCH-036
+  A model-agnostic way to store and compare benchmark runs without hand-editing files. Constraints: durable committed data, one immutable record per run×task; infra crashes must never count as a model failure; compare two models only on their common graded tasks; deliberately simple (k=1, no confidence intervals, no rerun-aggregation). Acceptance: a run auto-writes its results and `compare.py` prints a tasks×models table + Pass@1.
+
+  **Implemented:**
+  - `bench/record.py` — distills a pier job dir into `bench/results.jsonl` (append-only, idempotent per model+task+job); `status` separates `graded` from `errored`; row carries reward, new/old test counts, tokens, secs, steps, notional cost, base_commit. Auto-called at the end of both runners.
+  - `bench/compare.py` — latest graded result per (model, task) → tasks×models table + Pass@1; infra errors shown as ERR and excluded from the denominator; head-to-head on common graded tasks.
+  - `bench/results.jsonl` committed (data); `bench/jobs/` stays gitignored (raw output).
+
+- [ ] BENCH-037 Pi baseline run + Pi-vs-codex head-to-head		@blocked_by:BENCH-036
+  Run the Pi agent (fusion off) on the same first-10 deep-swe sample the codex baseline used, then produce the head-to-head. Constraints: same tasks, sandbox, and grading; pinned-model decision applied; collect Pass@1 (+ tokens/time). Acceptance: `bench/compare.py` shows a Pi-vs-codex table over the common graded tasks, with each side's model and n stated; decide whether to extend to n≥30.
 
 - [ ] BENCH-038 ATIF v1.7 trajectory for the Pi agent  !low @blocked_by:BENCH-036
   Convert Pi's `--mode json` output to ATIF v1.7 (like the opencode agent) so cost/step/token metrics populate — this fills the cost half of the comparison and would also enable a leaderboard submission. Constraints: map Pi's events to ATIF Steps/ToolCalls/Metrics; `SUPPORTS_ATIF=true`. Acceptance: a run writes a valid `trajectory.json` with per-step metrics; Pass@1 unchanged.

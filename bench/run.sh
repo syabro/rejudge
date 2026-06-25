@@ -44,3 +44,6 @@ PYTHONPATH="$BENCH_DIR" uv run --directory "$PIER" pier run \
   --model "$MODEL" \
   -e docker \
   -o "$JOBS"
+
+# Distill this run into bench/results.jsonl (newest job dir). Compare: bench/compare.py
+python3 "$BENCH_DIR/record.py"
