@@ -1,0 +1,23 @@
+# DeepSWE medium band (Set A): both gpt-5.5@xhigh and glm-5-2@max solve 1..n-1 of n.
+# Source: DeepSWE published trials (mini-swe-agent harness) — SHORTLIST signal, calibrate in Pi.
+# cols: task  lang  gpt(solve/f2p/n)  glm(solve/f2p/n)  reg_gap(f2p-solve; high=regression-heavy)
+ipython-session-bundle-replay	python	gpt 2/2/4	glm 2/2/4	reg_gap +0.00
+koota-pair-relation-tracking	typescript	gpt 2/2/4	glm 2/2/4	reg_gap +0.00
+meriyah-explicit-resource-declarations	typescript	gpt 2/2/4	glm 2/2/4	reg_gap +0.00
+python-statemachine-state-data-scoping	python	gpt 2/3/4	glm 2/2/4	reg_gap +0.12
+cliffy-config-file-parsing	typescript	gpt 1/1/4	glm 2/2/4	reg_gap +0.00
+dasel-html-document-format	go	gpt 3/3/4	glm 2/2/4	reg_gap +0.00
+dynamodb-toolbox-lazy-recursive-schemas	typescript	gpt 2/2/4	glm 3/3/4	reg_gap +0.00
+httpx-streaming-json-iteration	python	gpt 3/3/4	glm 2/2/4	reg_gap +0.00
+katex-multicolumn-array-spans	javascript	gpt 1/1/4	glm 2/2/4	reg_gap +0.00
+obsidian-linter-scoped-ignore-markers	typescript	gpt 3/3/4	glm 2/2/4	reg_gap +0.00
+sqlfmt-create-table-ddl-formatting	python	gpt 3/3/4	glm 2/2/4	reg_gap +0.00
+wazero-multi-module-snapshots	go	gpt 3/3/4	glm 2/2/4	reg_gap +0.00
+awilix-async-container-initialization	typescript	gpt 3/3/4	glm 3/3/4	reg_gap +0.00
+expr-try-catch-errors	go	gpt 1/1/4	glm 1/1/4	reg_gap +0.00
+onedump-dump-encryption-pipeline	go	gpt 1/1/4	glm 1/1/4	reg_gap +0.00
+scc-bounded-memory-spilling	go	gpt 3/3/4	glm 3/3/4	reg_gap +0.00
+scriggo-method-declarations	go	gpt 3/3/4	glm 3/3/4	reg_gap +0.00
+sqlite-utils-safe-import-checkpoints	python	gpt 3/3/4	glm 1/1/4	reg_gap +0.00
+anko-default-function-arguments	go	gpt 3/4/4	glm 3/3/4	reg_gap +0.12
+mashumaro-flattened-dataclass-fields	python	gpt 3/4/4	glm 1/1/4	reg_gap +0.12
