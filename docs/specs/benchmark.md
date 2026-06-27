@@ -99,6 +99,35 @@ comparable today; per-token cost is codex-only.
 - Model: pin the SAME model for both sides, or accept a harness+model comparison (Pi+its model vs codex+its model). Baseline default: plain Pi (fusion off).
 - Sample size: n=10 validates the pipeline; a defensible Pi-vs-codex number needs n≥30 per agent. Set a total budget cap for both runs.
 
+### Picking "medium" tasks (DeepSWE difficulty signal) — bench/
+
+To choose tasks where a fusion panel can plausibly beat a single model (not trivial, not impossible) we mine DeepSWE's OWN published trials instead of running our own multi-attempt sweeps.
+
+**Data source (read-only, public):**
+- Trials index: `https://deepswe.datacurve.ai/artifacts/v1/trials.json` — MUST send `Accept: application/json` (the same path returns the SPA's HTML to a browser request). 14728 rows; fields incl. `trial_name, task_name, model, reasoning_effort, source, eval_scope, included_in_score, passed`. Per-test fraction fields (`f2p_total` etc.) are **null** here.
+- Raw per-trial test output: `https://d3ujjcmjq6o8v6.cloudfront.net/trial-artifacts/<trial_name>/verifier/test-stdout.txt`. Present for BOTH models even though the index's `verifier_files` is `None` for gpt-5-5 (don't trust that field). `reward.json`/`ctrf.json` → 403; `reward.txt` → 200 only for glm. So the binary verdict comes from the index `passed`, and per-test detail from `test-stdout.txt`.
+- We used 4 runs/task for `gpt-5-5@xhigh` (67% overall) and `glm-5-2@max` (44%), filter `source=deep-swe, eval_scope=full, included_in_score`. 892 trials, full coverage.
+
+**Metric decisions (the non-obvious ones — these bit us):**
+- `f2p_total` (new-test count) comes from the BENCHMARK whitelist: `bench/vendor/deep-swe/tasks/<task>/tests/config.json` → `len(f2p_node_ids)`. NOT from the runner's stdout count (on a failed run the runner collects fewer tests, so its total lies).
+- The verifier's line `[verifier] New tests exit code: N` is the clean per-run f2p gate (`N==0` ⇒ all f2p passed), uniform across languages — more reliable than parsing.
+- **reward ≠ f2p:** `reward = (f2p pass) AND (p2p not broken)`. A run can have all f2p passing yet `passed=False` (broke an old test) → `p2p_regression` flag. Do NOT cross-check progress against reward.
+- **"Number of failed tests" is NOT recoverable** — pytest runs **failfast** (`-x`, stops at the first failure; confirmed by `!!! stopping after N failures !!!`). So the signal is `progress = f2p_passed / f2p_total` ("how far it got"), not a failure count.
+- `progress_quality`: `clean` (exit 0 → all passed), `exact` (go/rust/mocha run all tests, real counts), `lowerbound` (pytest failfast — passed-before-stop), `build_failed` (patch didn't compile/collect → progress 0).
+- Per-language numerator on a miss: pytest `N passed`; mocha `passing/(passing+failing)` (mocha runs the whole file, so its count ≠ the whitelist — use its own denominator); go `f2p_total − count(^--- FAIL:)` (runs all, top-level FAIL per failed func); rust sum of `test result: … N passed; M failed`.
+- Diagnostic: `regression_gap = f2p-rate − solve-rate` — small ⇒ clean medium; large ⇒ regression-heavy trap. Do NOT select FOR a large gap (that picks traps).
+- solve-rate is the PRIMARY signal; progress is a weak secondary; 4 runs is coarse — don't read a 0.25 difference as real.
+
+**Pipeline (two stages, separate scripts):**
+- `bench/deepswe_fetch.py` (Stage 1, network): download `test-stdout.txt`, idempotent → `bench/deepswe-artifacts/` (gitignored) + `fetch-manifest.jsonl`.
+- `bench/deepswe_f2p.py` (Stage 2, offline): parse → `bench/deepswe-f2p.jsonl` (per run: reward, exit_code, f2p_total/passed/failed, progress, progress_quality, p2p_regression, build_failed).
+- `bench/deepswe_f2p_report.py`: aggregate per (task, model) → `bench/deepswe-difficulty.csv` (all 113 tasks, sortable) + the medium band.
+
+**Selection decision (fusion-panel-vetted):**
+- **Headline = Set A: all 20 tasks where BOTH models solve 1..n-1 of n** (both coin-flip). Frozen in `bench/medium-tasks.txt`. Don't filter down — 4-run data makes any extra filter noisy / cherry-picking; if forced, shrink by language/repo diversity, not by progress/gap. Set A is clean (`regression_gap ≈ 0` → failures are genuine feature misses, not regressions).
+- **Set B (near-miss: low solve, progress ≈ 0.9–1.0)** = SEPARATE secondary slice, NOT in the headline. Many are p2p-regression traps (feature implemented but breaks an old test every time) — a different claim, not "fusion can finish the job".
+- **Validity risk (moderate, not fatal):** difficulty was measured on the `mini-swe-agent` harness; we run Pi+gpt-5.5 (different harness). Treat DeepSWE as a SHORTLIST signal, not proof. Hedge: run a small non-scored Pi calibration on 3–5 of the 20 first; if they're trivial/impossible in Pi, recalibrate; report both the DeepSWE selection rule and the observed Pi solo baseline.
+
 # Tasks
 
 - [x] BENCH-035 Spike: Pi runs in a pier-style Docker sandbox, offline
