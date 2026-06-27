@@ -12,6 +12,7 @@
 #
 # Usage:  bench/run-pi.sh [N] <provider/model[:thinking]>
 #   e.g.  bench/run-pi.sh 10 openai-codex/gpt-5.5:xhigh
+#   Explicit task list (overrides N):  TASKS_FILE=bench/medium-tasks.txt bench/run-pi.sh 0 <model>
 #   Concurrency: PIER_CONCURRENCY=2 (default) — gentle on ChatGPT rate limits.
 set -euo pipefail
 
@@ -39,9 +40,18 @@ mkdir -p "$VENDOR" "$JOBS"
 uv sync --directory "$PIER" -q
 
 NAMES=()
-while IFS= read -r t; do NAMES+=("$t"); done < <(
-  for d in "$TASKS"/tasks/*/; do basename "$d"; done | sort | head -n "$N"
-)
+if [ -n "${TASKS_FILE:-}" ]; then
+  # explicit task list: first whitespace-delimited token per non-comment line
+  [ -f "$TASKS_FILE" ] || { echo "TASKS_FILE not found: $TASKS_FILE"; exit 2; }
+  while IFS= read -r line; do
+    case "$line" in ''|'#'*) continue ;; esac
+    NAMES+=("${line%%[$' \t']*}")
+  done < "$TASKS_FILE"
+else
+  while IFS= read -r t; do NAMES+=("$t"); done < <(
+    for d in "$TASKS"/tasks/*/; do basename "$d"; done | sort | head -n "$N"
+  )
+fi
 INC=()
 for t in "${NAMES[@]}"; do INC+=(-i "$t"); done
 
