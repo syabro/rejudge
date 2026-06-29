@@ -106,3 +106,19 @@ Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), neve
   User decision: internal judge/panel communication must not be keyed by model slugs; use stable role keys instead.
 
   DoD: judge re-queries and progress/debug routing address sessions by role key, so duplicate model IDs across judge and panel slots do not collide or misroute.
+
+- [ ] SYN-050 Support optional Fusion review follow-ups through one shared launch path
+  Fusion can resume a prior run, but review launch flows do not expose one shared way to choose between a fresh panel and a follow-up to an existing run. Add a shared review launch path that current and future review entry points can use instead of reimplementing run selection.
+
+  The launch path should support both modes: start a fresh full review, or resume a selected prior run for a follow-up review.
+
+  User decisions:
+  - Support both Pi tool and CLI-driven review launches.
+  - Follow-up/resume is optional, not mandatory.
+  - Do not hardcode today’s entry points; future review launchers should reuse the same mechanism.
+
+  DoD:
+  - Fusion review launch has one shared path for choosing fresh vs follow-up.
+  - Existing review entry points can use that shared path.
+  - A new review entry point can use the same path without reimplementing run selection.
+  - User-visible output includes enough run id/context to make a later follow-up possible.
