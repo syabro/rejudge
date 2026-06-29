@@ -1,4 +1,4 @@
-import { Result } from "neverthrow";
+import { err, Result } from "neverthrow";
 import type { ModelSpec } from "./config.ts";
 import {
   runPanelAgent,
@@ -29,35 +29,59 @@ export async function runPanel(
   prompt: string,
   options: RunPanelAgentOptions = {},
 ): Promise<Result<PanelAgentResult[], AgentFailure>> {
-  // runPanelAgent never throws (it returns a Result), so plain Promise.all is safe:
-  // every agent runs to completion and we get one Result each. When the caller persists the run
-  // (SYN-029) it passes one disk-backed session manager per model in `sessionManagers`; we hand
-  // each agent its own by index (absent → each agent defaults to an in-memory session). The
-  // per-model reasoning level rides in each spec and overrides any options.thinkingLevel.
+  // runPanelAgent never throws (it returns a Result), so Promise.all is safe. The panel still
+  // owns its own abort controller: the caller's signal cancels the whole panel, and the first
+  // agent failure also cancels every sibling through the same signal.
   const managers = options.sessionManagers;
 
   // Testing-only (CLI `--prompt-add-N`): a per-panel suffix appended to that one agent's prompt to
   // force divergence. Unset/empty → the byte-identical prompt, so a normal run is unaffected.
   const adds = options.promptAdds;
 
-  const results = await Promise.all(
-    models.map((m, i) => {
-      const add = adds?.[i];
-      const agentPrompt = add ? `${prompt}\n\n${add}` : prompt;
-      return runPanelAgent(m.id, agentPrompt, { ...options, thinkingLevel: m.level, sessionManager: managers?.[i] });
-    }),
-  );
-
-  // combine → ok([all results]) when every agent succeeded, else the first err.
-  const combined = Result.combine(results);
-
-  // On any failure, dispose the sessions that DID succeed so nothing leaks.
-  if (combined.isErr()) {
-    for (const r of results) {
-      if (r.isErr()) continue;
-      r.value.session.dispose();
-    }
+  const controller = new AbortController();
+  const callerSignal = options.signal;
+  const abortFromCaller = (): void => {
+    controller.abort(callerSignal?.reason);
+  };
+  if (callerSignal?.aborted) {
+    controller.abort(callerSignal.reason);
+  } else {
+    callerSignal?.addEventListener("abort", abortFromCaller, { once: true });
   }
 
-  return combined;
+  let firstFailure: AgentFailure | undefined;
+  try {
+    const results = await Promise.all(
+      models.map(async (m, i) => {
+        const add = adds?.[i];
+        const agentPrompt = add ? `${prompt}\n\n${add}` : prompt;
+        const result = await runPanelAgent(m.id, agentPrompt, {
+          ...options,
+          signal: controller.signal,
+          thinkingLevel: m.level,
+          sessionManager: managers?.[i],
+        });
+
+        if (result.isErr() && !firstFailure) {
+          firstFailure = result.error;
+          controller.abort();
+        }
+        return result;
+      }),
+    );
+
+    // On any failure, dispose the sessions that DID succeed so nothing leaks. Failed/aborted
+    // agents dispose themselves in runPanelAgent.
+    if (firstFailure) {
+      for (const r of results) {
+        if (r.isErr()) continue;
+        r.value.session.dispose();
+      }
+      return err(firstFailure);
+    }
+
+    return Result.combine(results);
+  } finally {
+    callerSignal?.removeEventListener("abort", abortFromCaller);
+  }
 }

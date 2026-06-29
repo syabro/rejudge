@@ -1,0 +1,80 @@
+import { beforeEach, expect, test, vi } from "vitest";
+import { err, ok, type Result } from "neverthrow";
+import type { ModelSpec } from "../src/config.ts";
+import type { AgentFailure, PanelAgentResult } from "../src/runner.ts";
+
+vi.mock("../src/runner.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/runner.ts")>();
+  return { ...actual, runPanelAgent: vi.fn() };
+});
+
+const { runPanelAgent } = await import("../src/runner.ts");
+const { runPanel } = await import("../src/panel.ts");
+
+const mockedRunPanelAgent = vi.mocked(runPanelAgent);
+const SLOW: ModelSpec = { id: "provider/slow", level: "minimal" };
+const FAILS: ModelSpec = { id: "provider/fails", level: "minimal" };
+
+function fakeResult(modelId: string): PanelAgentResult {
+  return {
+    modelId,
+    text: "late success",
+    session: { dispose: vi.fn() } as unknown as PanelAgentResult["session"],
+  };
+}
+
+beforeEach(() => {
+  mockedRunPanelAgent.mockReset();
+});
+
+test("runPanel aborts in-flight siblings when the first agent fails", async () => {
+  let markSlowStarted!: () => void;
+  const slowStarted = new Promise<void>((resolve) => {
+    markSlowStarted = resolve;
+  });
+  let slowObservedAbort = false;
+  let slowCleanupDone = false;
+
+  mockedRunPanelAgent.mockImplementation(async (modelId, _prompt, options): Promise<Result<PanelAgentResult, AgentFailure>> => {
+    if (modelId === SLOW.id) {
+      markSlowStarted();
+      const signal = options?.signal;
+      return new Promise((resolve) => {
+        const fallback = setTimeout(() => {
+          resolve(ok(fakeResult(modelId)));
+        }, 50);
+
+        const onAbort = () => {
+          slowObservedAbort = Boolean(signal?.aborted);
+          clearTimeout(fallback);
+          setTimeout(() => {
+            slowCleanupDone = true;
+            resolve(err({ model: modelId, error: "cancelled" }));
+          }, 0);
+        };
+
+        if (signal?.aborted) {
+          onAbort();
+        } else {
+          signal?.addEventListener("abort", onAbort, { once: true });
+        }
+      });
+    }
+
+    if (modelId === FAILS.id) {
+      await slowStarted;
+      return err({ model: modelId, error: "boom" });
+    }
+
+    throw new Error(`unexpected model ${modelId}`);
+  });
+
+  const result = await runPanel([SLOW, FAILS], "same prompt");
+
+  expect(result.isErr()).toBe(true);
+  if (result.isErr()) {
+    expect(result.error).toEqual({ model: FAILS.id, error: "boom" });
+  }
+  expect(slowObservedAbort).toBe(true);
+  expect(slowCleanupDone).toBe(true);
+});

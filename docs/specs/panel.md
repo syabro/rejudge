@@ -15,7 +15,7 @@ The reusable unit behind the panel: `runPanelAgent(modelId, prompt, { cwd?, sign
 
 - Every agent receives the exact same `prompt`; diversity comes only from the model and the path it takes, never from the input. (The one sanctioned exception is the testing-only CLI flag `--prompt-add-N`, which appends a per-panel suffix to deliberately force divergence — see `cli.md`. It is never used in the product / the `fusion_agents` tool.)
 - Returns one result per model in input order, each with its session left alive for a later synthesis/judge step (the caller disposes them).
-- Failure is loud, never a silent partial panel: if any agent fails, the agents that did finish are disposed and the error is surfaced (no partial-panel result).
+- Failure is loud and failure-driven: the first panel-agent failure aborts the shared panel signal, cancelling siblings that are still running; successful sessions are disposed, and the first failing model/error is surfaced (no partial-panel result).
 
 ## Fusion (all-or-nothing)
 
@@ -141,7 +141,7 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   - Config: `debugLog: boolean` (default false), validated; documented in `config.md`.
   - Tests: pure truncation test; config parse test; a real run with `debugLog:true` that reads back the produced JSONL and checks it's valid and populated.
 
-- [ ] PNL-041 Stop the panel on the first model failure
+- [x] PNL-041 Stop the panel on the first model failure
   A fusion run can keep sibling panel agents waiting or running after one panel model has already failed. In the observed run, `opencode-go/kimi-k2.7` failed as an unknown model while the other panel models continued showing as in progress until the run was cancelled several seconds later.
 
   The panel should be failure-driven: when any panel agent fails during start or execution, that failure ends the whole panel run and aborts the other panel agents. Do not add a separate preflight that resolves or checks all models before normal launch; the important behavior is that the first real failure stops the remaining work.
@@ -153,6 +153,12 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   - already-started sibling panel agents are aborted/disposed, and not-yet-started siblings are not allowed to keep running;
   - CLI and `fusion_agents` stop showing unrelated panel models as still in progress after the failure;
   - tests cover the generic behavior by making one panel agent fail while at least one sibling is in progress, not by fitting only the exact `kimi-k2.7` unknown-model case.
+
+  **Implemented:**
+  - Panel fan-out now aborts the shared panel run as soon as one agent returns a failure.
+  - Sibling agents finish their cancellation cleanup, so progress rows end as cancelled instead of staying in progress.
+  - The returned panel failure keeps the original offending model ID and error.
+  - A deterministic regression test covers one failing panel agent while a sibling is already in progress.
 
 - [x] PNL-048 Retry empty visible model output once		#bug !high
   A `runPanelAgent` turn can finish with `stopReason: "stop"` but still have no visible assistant text. One observed case put the whole answer only into hidden thinking, so the run correctly failed instead of using that hidden content as the answer.
