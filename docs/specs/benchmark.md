@@ -187,3 +187,11 @@ To choose tasks where a fusion panel can plausibly beat a single model (not triv
   User decision: the model runs BENCH-046's mdtask flow alone; solving model `openai-codex/gpt-5.5:xhigh`.
 
   DoD: the run completes on all 20 tasks and results land in `bench/results.jsonl`.
+
+- [ ] BENCH-049 Smoke-test pc.local pipeline on one task
+  Before building the mdtask agent, verify that the existing pier pipeline works on pc.local
+  end-to-end: Docker sandbox, Pi install, model call, grading, and results recording.
+
+  User decision: run on pc.local with opencode-go/deepseek-v4-flash, any one DeepSWE task.
+
+  DoD: one graded row from pc.local in bench/results.jsonl.
