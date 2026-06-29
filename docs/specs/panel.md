@@ -153,3 +153,19 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   - already-started sibling panel agents are aborted/disposed, and not-yet-started siblings are not allowed to keep running;
   - CLI and `fusion_agents` stop showing unrelated panel models as still in progress after the failure;
   - tests cover the generic behavior by making one panel agent fail while at least one sibling is in progress, not by fitting only the exact `kimi-k2.7` unknown-model case.
+
+- [ ] PNL-048 Retry empty visible model output once		#bug !high
+  A `runPanelAgent` turn can finish with `stopReason: "stop"` but still have no visible assistant text. One observed case put the whole answer only into hidden thinking, so the run correctly failed instead of using that hidden content as the answer.
+
+  When `runPanelAgent` sees a clean stop but `getLastAssistantText()` is empty, retry once in that same session with a short prompt that asks for the final answer in visible text only. Never use hidden thinking as the answer. Do not retry non-clean stops, and do not add a second recovery attempt.
+
+  This task only changes the shared `runPanelAgent` path, so normal panel and synth runs get the recovery automatically. `ask_panel` re-queries are out of scope here.
+
+  User decision: hidden thinking must not be used as the answer; recovery is one visible-text-only retry in the same session.
+
+  DoD:
+  - `runPanelAgent` retries exactly once after a clean stop with empty visible text;
+  - a successful retry returns the visible answer and keeps the normal session lifecycle;
+  - if the retry still returns empty visible text, the run fails with an explicit empty-output-after-retry error;
+  - if the retry does not stop cleanly, the run fails loudly with that retry failure instead of masking it;
+  - tests deterministically cover the successful recovery path, the still-empty-after-retry path, and the non-clean retry path.
