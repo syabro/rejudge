@@ -6,7 +6,7 @@ The reusable unit behind the panel: `runPanelAgent(modelId, prompt, { cwd?, sign
 
 - Tools: read/grep/find/ls by default (edit/write/bash with `fullTools`), plus `git_diff` and `web_search` when the host offers it. No other host extensions load, so their handlers can't fire on inner agents (no host notifier flashing, no re-entering `fusion_agents`).
 - The session is in-memory — nothing is written to the host's resume list.
-- Failure is loud, never silent: a malformed/unknown model id, a model/tool/runtime error, an incomplete run (any stop reason other than a clean `stop`), or empty output all throw a clear error instead of returning a partial answer.
+- Failure is loud, never silent: a malformed/unknown model id, a model/tool/runtime error, or an incomplete run (any stop reason other than a clean `stop`) returns a clear error instead of a partial answer. If a clean run has no visible assistant text, the runner retries once in the same session and still never uses hidden thinking as the answer; an empty or failed retry is a clear error.
 - On success the agent's session is returned alive; the caller disposes it (kept open so a later synthesis/judge step can re-query the same agent).
 
 ## Panel fan-out
@@ -154,7 +154,7 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   - CLI and `fusion_agents` stop showing unrelated panel models as still in progress after the failure;
   - tests cover the generic behavior by making one panel agent fail while at least one sibling is in progress, not by fitting only the exact `kimi-k2.7` unknown-model case.
 
-- [ ] PNL-048 Retry empty visible model output once		#bug !high
+- [x] PNL-048 Retry empty visible model output once		#bug !high
   A `runPanelAgent` turn can finish with `stopReason: "stop"` but still have no visible assistant text. One observed case put the whole answer only into hidden thinking, so the run correctly failed instead of using that hidden content as the answer.
 
   When `runPanelAgent` sees a clean stop but `getLastAssistantText()` is empty, retry once in that same session with a short prompt that asks for the final answer in visible text only. Never use hidden thinking as the answer. Do not retry non-clean stops, and do not add a second recovery attempt.
@@ -169,3 +169,9 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   - if the retry still returns empty visible text, the run fails with an explicit empty-output-after-retry error;
   - if the retry does not stop cleanly, the run fails loudly with that retry failure instead of masking it;
   - tests deterministically cover the successful recovery path, the still-empty-after-retry path, and the non-clean retry path.
+
+  **Implemented:**
+  - Clean empty visible output now triggers one same-session retry with a visible-text-only prompt.
+  - Successful retry output is returned as the answer while keeping the session alive for normal caller disposal.
+  - Empty retry output fails with `empty-output-after-retry`; non-clean retry output reports the retry stop reason and error.
+  - Deterministic tests cover retry success, still-empty retry failure, non-clean retry failure, and no retry on an initially non-clean stop.

@@ -53,6 +53,9 @@ export const WEB_SEARCH_TOOL = "web_search";
  */
 const OPT_IN_HOST_TOOLS = new Set<string>([WEB_SEARCH_TOOL]);
 
+const EMPTY_VISIBLE_TEXT_RETRY_PROMPT =
+  "Your previous turn had no visible final answer. Please provide the final answer now in visible assistant text only. Do not use hidden thinking as the answer.";
+
 export interface PanelAgentResult {
   /** The "provider/model" id this agent ran on. */
   modelId: string;
@@ -307,27 +310,58 @@ export async function runPanelAgent(
       // If the signal fired during the async createAgentSession above, the listener's
       // session.abort() is a no-op (prompt() hasn't created an abortable run yet), so
       // throw here to cancel. Once prompt() is running, the listener does the work.
-      options.signal?.throwIfAborted();
-      await session.prompt(prompt);
+      type PromptTurnOutcome =
+        | { kind: "success"; text: string }
+        | { kind: "empty" }
+        | { kind: "failure"; error: string };
 
-      // Failures don't throw — the stream contract encodes them as the final assistant
-      // message with stopReason "error"/"aborted". Turn them into err().
-      const last = [...session.state.messages]
-        .reverse()
-        .find((m): m is Extract<typeof m, { role: "assistant" }> => m.role === "assistant");
+      const runPromptTurn = async (turnPrompt: string, retry: boolean): Promise<PromptTurnOutcome> => {
+        const messageCount = session.state.messages.length;
+        await session.prompt(turnPrompt);
 
-      // Only "stop" is a clean completion. "length" (truncated), "toolUse" (loop ended
-      // mid tool-cycle), "error" and "aborted" are all partial/failed runs.
-      let outcome: Result<PanelAgentResult, AgentFailure>;
-      if (!last) {
-        outcome = fail(`produced no response`);
-      } else if (last.stopReason !== "stop") {
-        const detail = last.errorMessage ? `: ${last.errorMessage}` : "";
-        outcome = fail(`did not complete cleanly (stopReason: ${last.stopReason})${detail}`);
-      } else {
+        // Failures don't throw — the stream contract encodes them as the final assistant
+        // message with stopReason "error"/"aborted". Turn them into err(). Only inspect
+        // messages added by this prompt, so an existing/resumed session can't hide a bad turn.
+        const last = [...session.state.messages.slice(messageCount)]
+          .reverse()
+          .find((m): m is Extract<typeof m, { role: "assistant" }> => m.role === "assistant");
+
+        // Only "stop" is a clean completion. "length" (truncated), "toolUse" (loop ended
+        // mid tool-cycle), "error" and "aborted" are all partial/failed runs.
+        if (!last) {
+          return { kind: "failure", error: retry ? "empty-output retry produced no response" : "produced no response" };
+        }
+        if (last.stopReason !== "stop") {
+          const detail = last.errorMessage ? `: ${last.errorMessage}` : "";
+          const prefix = retry ? "empty-output retry did not complete cleanly" : "did not complete cleanly";
+          return { kind: "failure", error: `${prefix} (stopReason: ${last.stopReason})${detail}` };
+        }
+
         const text = session.getLastAssistantText();
-        outcome =
-          !text || text.trim() === "" ? fail(`returned empty text`) : ok({ modelId, text, session });
+        if (!text || text.trim() === "") {
+          return { kind: "empty" };
+        }
+        return { kind: "success", text };
+      };
+
+      options.signal?.throwIfAborted();
+      const firstTurn = await runPromptTurn(prompt, false);
+
+      let outcome: Result<PanelAgentResult, AgentFailure>;
+      if (firstTurn.kind === "success") {
+        outcome = ok({ modelId, text: firstTurn.text, session });
+      } else if (firstTurn.kind === "failure") {
+        outcome = fail(firstTurn.error);
+      } else {
+        options.signal?.throwIfAborted();
+        const retryTurn = await runPromptTurn(EMPTY_VISIBLE_TEXT_RETRY_PROMPT, true);
+        if (retryTurn.kind === "success") {
+          outcome = ok({ modelId, text: retryTurn.text, session });
+        } else if (retryTurn.kind === "empty") {
+          outcome = fail("empty-output-after-retry: retry returned empty text");
+        } else {
+          outcome = fail(retryTurn.error);
+        }
       }
 
       // Keep the session alive only on success; the caller disposes it then.

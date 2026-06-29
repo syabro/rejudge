@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { createAgentSession } from "@earendil-works/pi-coding-agent";
+import { createAgentSession, type AgentSession } from "@earendil-works/pi-coding-agent";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -10,6 +10,53 @@ import { integrationTest } from "./integration.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
 const STUB = "opencode-go/kimi-k2.6";
+
+interface FakePromptTurn {
+  stopReason: string;
+  text?: string;
+  errorMessage?: string;
+}
+
+type FakeRunSession = AgentSession & {
+  prompts: string[];
+  disposed: boolean;
+  disposeCount: number;
+};
+
+function fakeRunSession(turns: FakePromptTurn[]): FakeRunSession {
+  const messages: Record<string, unknown>[] = [];
+  let latestText = "";
+  const pendingTurns = [...turns];
+
+  const session = {
+    state: { messages },
+    prompts: [] as string[],
+    disposed: false,
+    disposeCount: 0,
+    async prompt(prompt: string) {
+      session.prompts.push(prompt);
+      const turn = pendingTurns.shift();
+      if (!turn) throw new Error("unexpected prompt");
+
+      const message: Record<string, unknown> = { role: "assistant", stopReason: turn.stopReason };
+      if (turn.errorMessage) {
+        message.errorMessage = turn.errorMessage;
+      }
+      messages.push(message);
+      latestText = turn.text ?? "";
+    },
+    getLastAssistantText() {
+      return latestText;
+    },
+    abort() {},
+    dispose() {
+      session.disposed = true;
+      session.disposeCount += 1;
+    },
+  } as unknown as FakeRunSession;
+
+  return session;
+}
 
 // Real SDK, no model call: a session created with PANEL_TOOLS actually activates
 // the full local tool set — read, the dedicated grep/find/ls search/list tools,
@@ -77,6 +124,74 @@ test("resolveModel rejects malformed and unknown model ids", () => {
   expect(() => resolveModel("no-slash")).toThrow();
   expect(() => resolveModel("opencode-go/")).toThrow();
   expect(() => resolveModel("opencode-go/not-a-real-model")).toThrow();
+});
+
+test("runPanelAgent retries one clean empty response in the same session", async () => {
+  const session = fakeRunSession([
+    { stopReason: "stop", text: "  " },
+    { stopReason: "stop", text: "visible answer" },
+  ]);
+
+  const result = await runPanelAgent("provider/model", "original prompt", { existingSession: session });
+
+  expect(result.isOk()).toBe(true);
+  expect(session.prompts).toHaveLength(2);
+  expect(session.prompts[0]).toBe("original prompt");
+  expect(session.prompts[1]).toContain("visible");
+  expect(session.disposeCount).toBe(0);
+  if (result.isOk()) {
+    expect(result.value.text).toBe("visible answer");
+    expect(result.value.session).toBe(session);
+    result.value.session.dispose();
+  }
+});
+
+test("runPanelAgent fails explicitly when the retry is still empty", async () => {
+  const session = fakeRunSession([
+    { stopReason: "stop", text: "" },
+    { stopReason: "stop", text: "\t" },
+  ]);
+
+  const result = await runPanelAgent("provider/model", "original prompt", { existingSession: session });
+
+  expect(result.isErr()).toBe(true);
+  expect(session.prompts).toHaveLength(2);
+  expect(session.disposeCount).toBe(1);
+  if (result.isErr()) {
+    expect(result.error.error).toContain("empty-output-after-retry");
+  }
+});
+
+test("runPanelAgent reports a non-clean empty-output retry", async () => {
+  const session = fakeRunSession([
+    { stopReason: "stop", text: "" },
+    { stopReason: "length", errorMessage: "too long" },
+  ]);
+
+  const result = await runPanelAgent("provider/model", "original prompt", { existingSession: session });
+
+  expect(result.isErr()).toBe(true);
+  expect(session.prompts).toHaveLength(2);
+  expect(session.disposeCount).toBe(1);
+  if (result.isErr()) {
+    expect(result.error.error).toContain("empty-output retry did not complete cleanly");
+    expect(result.error.error).toContain("stopReason: length");
+    expect(result.error.error).toContain("too long");
+  }
+});
+
+test("runPanelAgent does not retry an initially non-clean response", async () => {
+  const session = fakeRunSession([{ stopReason: "length", errorMessage: "too long" }]);
+
+  const result = await runPanelAgent("provider/model", "original prompt", { existingSession: session });
+
+  expect(result.isErr()).toBe(true);
+  expect(session.prompts).toHaveLength(1);
+  expect(session.disposeCount).toBe(1);
+  if (result.isErr()) {
+    expect(result.error.error).toContain("did not complete cleanly");
+    expect(result.error.error).not.toContain("retry");
+  }
 });
 
 // Real run, no mocks: read-only is the DEFAULT (CLI-023). With no tool option the
