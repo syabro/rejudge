@@ -173,3 +173,17 @@ To choose tasks where a fusion panel can plausibly beat a single model (not triv
 
 - [ ] BENCH-038 ATIF v1.7 trajectory for the Pi agent  !low @blocked_by:BENCH-036
   Convert Pi's `--mode json` output to ATIF v1.7 (like the opencode agent) so cost/step/token metrics populate — this fills the cost half of the comparison and would also enable a leaderboard submission. Constraints: map Pi's events to ATIF Steps/ToolCalls/Metrics; `SUPPORTS_ATIF=true`. Acceptance: a run writes a valid `trajectory.json` with per-step metrics; Pass@1 unchanged.
+
+- [ ] BENCH-046 Run the fusion benchmark on the 20 medium tasks
+  Run the fusion flow over the 20 medium tasks (`bench/medium-tasks.txt`) and record the results.
+
+  User decision: fusion runs as review gates inside the mdtask flow; solving model `openai-codex/gpt-5.5:xhigh`.
+
+  DoD: the run completes on all 20 tasks and results land in `bench/results.jsonl`.
+
+- [ ] BENCH-047 Run the mdtask-flow control (model alone) on the 20 medium tasks
+  Run the mdtask flow over the 20 medium tasks (`bench/medium-tasks.txt`) and record the results. The flow itself changes outcomes, so this isolates the flow from fusion.
+
+  User decision: the model runs BENCH-046's mdtask flow alone; solving model `openai-codex/gpt-5.5:xhigh`.
+
+  DoD: the run completes on all 20 tasks and results land in `bench/results.jsonl`.
