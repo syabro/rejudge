@@ -122,3 +122,13 @@ While `fusion_agents` runs inside Pi it shows a live block, refreshed every seco
   - `fusion_agents` accepts optional `resumeRunId` and passes it to the existing `fuse` resume path.
   - Successful tool output includes a `Run ID` follow-up hint, with resumed calls keeping the same run id.
   - Deterministic tool tests cover the public parameter and resume forwarding without a model call; the live tool smoke asserts that a run id is returned.
+
+- [ ] EXT-052 Surface user cancellation separately from Fusion failures
+  Pi agents can tell when a `fusion_agents` run was cancelled by the user instead of treating it as a broken review.
+
+  Pressing Esc during a `fusion_agents` run cancels the tool, but the host agent currently sees that like a failed Fusion run. User cancellation should be surfaced as its own clear outcome in the tool result, distinct from panel, synth, config, or resume failures.
+
+  DoD:
+  - cancelling a `fusion_agents` run from Pi returns a model-visible user-cancelled result
+  - technical Fusion failures still return failure text with stage/model details
+  - the live progress block still shows cancelled rows and keeps the final snapshot visible
