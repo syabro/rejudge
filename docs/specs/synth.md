@@ -99,6 +99,8 @@ Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), neve
   - Fresh and resumed runs use the same behavior; cancelled and error re-queries still return as tool text rather than breaking fusion.
 
 - [ ] SYN-042 Use stable role keys for judge ↔ panel communication
+  Duplicate model choices should not make the judge talk to the wrong panel session.
+
   Internal fusion communication currently identifies judge and panel sessions by model slug. That breaks when the same model is used in more than one role, for example `gpt-5.5` as both judge and a panel member. The UI and logs may show the right model names, but internal routing needs stable role identities.
 
   Use role keys for internal addressing: `judge`, `panel-1`, `panel-2`, `panel-3`, and so on. Model IDs stay as provider/model configuration and display metadata, not as communication keys.
@@ -107,10 +109,10 @@ Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), neve
 
   DoD: judge re-queries and progress/debug routing address sessions by role key, so duplicate model IDs across judge and panel slots do not collide or misroute.
 
-- [ ] SYN-050 Support optional Fusion review follow-ups through one shared launch path
-  Fusion can resume a prior run, but review launch flows do not expose one shared way to choose between a fresh panel and a follow-up to an existing run. Add a shared review launch path that current and future review entry points can use instead of reimplementing run selection.
+- [ ] SYN-050 Expose explicit fresh/resume mode for Fusion reviews		@blocked_by:EXT-051
+  Review follow-ups should make the cost and context choice explicit instead of rerunning full panels by accident.
 
-  The launch path should support both modes: start a fresh full review, or resume a selected prior run for a follow-up review.
+  Fusion review launchers need the same mode contract: `fresh` starts a new full review, and `resume` continues a selected prior run by `runId`. Existing review launchers should use that contract before calling either the Pi tool or the CLI. Future review launchers should reuse the same contract instead of inventing command-specific behavior.
 
   User decisions:
   - Support both Pi tool and CLI-driven review launches.
@@ -118,7 +120,7 @@ Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), neve
   - Do not hardcode today’s entry points; future review launchers should reuse the same mechanism.
 
   DoD:
-  - Fusion review launch has one shared path for choosing fresh vs follow-up.
-  - Existing review entry points can use that shared path.
-  - A new review entry point can use the same path without reimplementing run selection.
+  - Review launch flow has an explicit `fresh` vs `resume` choice.
+  - `resume` requires a concrete prior run id.
+  - Existing review launchers pass the selected mode to the Pi tool or CLI without reimplementing resume behavior.
   - User-visible output includes enough run id/context to make a later follow-up possible.

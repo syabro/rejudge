@@ -102,3 +102,17 @@ While `fusion_agents` runs inside Pi it shows a live block, refreshed every seco
   - `build:ext` bundles `src/index.ts` → `dist/extension.js` (bun build), inlining `neverthrow` and keeping `@earendil-works/pi-coding-agent`/`pi-ai`/`pi-tui` + `typebox` external (host-provided). `build` runs cli+ext; `prepare` runs `build` so `bun install` always materializes the artifacts. `pi.extensions` now points at `./dist/extension.js` (gitignored, like `bin/`).
   - Verified on Pi 0.80.2: `pi -p` loads the extension with no "Cannot find module 'neverthrow'" error (exit 0); the bundle has zero external `neverthrow` imports; typecheck + unit pass; CLI unchanged.
   - Root cause was the 0.80 loader, not our code — pinning the SDK to match the host (0.80.2) plus bundling makes the extension independent of how Pi resolves third-party deps.
+
+- [ ] EXT-051 Add resume support to the `fusion_agents` tool
+  Pi reviews should be able to keep the same panel context without using the wrong launcher.
+
+  Fusion already has resumable runs, and the CLI exposes them through `--resume <runId>`. Inside Pi, the correct launch path is the `fusion_agents` tool, but the tool has no resume parameter yet. Add an optional `resumeRunId` parameter that sends the question to the existing resume path instead of starting a fresh panel.
+
+  User decision: split Pi tool resume support from the review workflow rules.
+
+  DoD:
+  - `fusion_agents` accepts an optional `resumeRunId` parameter.
+  - A call with `resumeRunId` resumes the selected run and does not re-run the panel fan-out.
+  - A call without `resumeRunId` still starts a fresh run.
+  - Missing, expired, or wrong-cwd run ids fail clearly, matching the existing CLI resume behavior.
+  - The tool result includes enough run id/context for another follow-up.

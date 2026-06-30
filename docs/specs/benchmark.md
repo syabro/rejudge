@@ -172,9 +172,15 @@ To choose tasks where a fusion panel can plausibly beat a single model (not triv
   - Per-token cost is codex-only for now (Pi is `SUPPORTS_ATIF=False` → only `secs`); BENCH-038 fills the Pi cost half. n≥30 not run yet — the n=10 pipeline is proven and is the decision point for scaling.
 
 - [ ] BENCH-038 ATIF v1.7 trajectory for the Pi agent  !low @blocked_by:BENCH-036
-  Convert Pi's `--mode json` output to ATIF v1.7 (like the opencode agent) so cost/step/token metrics populate — this fills the cost half of the comparison and would also enable a leaderboard submission. Constraints: map Pi's events to ATIF Steps/ToolCalls/Metrics; `SUPPORTS_ATIF=true`. Acceptance: a run writes a valid `trajectory.json` with per-step metrics; Pass@1 unchanged.
+  Pi benchmark rows should include token and cost data, not only pass rate and time.
+
+  Pi currently runs with `SUPPORTS_ATIF=false`, so its rows lack the per-step metrics that the codex baseline records. Convert Pi's `--mode json` output to ATIF v1.7, mapping Pi events to ATIF Steps, ToolCalls, and Metrics, then set `SUPPORTS_ATIF=true`.
+
+  DoD: a run writes a valid `trajectory.json` with per-step metrics, cost/token fields populate for Pi rows, and Pass@1 is unchanged.
 
 - [ ] BENCH-046 Run the fusion benchmark on the 20 medium tasks
+  Fusion needs a measured medium-task result before we can compare it with the control run.
+
   Run the fusion flow over the 20 medium tasks (`bench/medium-tasks.txt`) and record the results.
 
   User decision: fusion runs as review gates inside the mdtask flow; solving model `openai-codex/gpt-5.5:xhigh`.
@@ -182,6 +188,8 @@ To choose tasks where a fusion panel can plausibly beat a single model (not triv
   DoD: the run completes on all 20 tasks and results land in `bench/results.jsonl`.
 
 - [ ] BENCH-047 Run the mdtask-flow control (model alone) on the 20 medium tasks
+  The benchmark needs a model-alone control so fusion is compared against the same workflow without review gates.
+
   Run the mdtask flow over the 20 medium tasks (`bench/medium-tasks.txt`) and record the results. The flow itself changes outcomes, so this isolates the flow from fusion.
 
   User decision: the model runs BENCH-046's mdtask flow alone; solving model `openai-codex/gpt-5.5:xhigh`.
@@ -189,8 +197,9 @@ To choose tasks where a fusion panel can plausibly beat a single model (not triv
   DoD: the run completes on all 20 tasks and results land in `bench/results.jsonl`.
 
 - [ ] BENCH-049 Smoke-test pc.local pipeline on one task
-  Before building the mdtask agent, verify that the existing pier pipeline works on pc.local
-  end-to-end: Docker sandbox, Pi install, model call, grading, and results recording.
+  The pc.local benchmark path should be proven once before we rely on it for longer runs.
+
+  Before building the mdtask agent, verify that the existing pier pipeline works on pc.local end-to-end: Docker sandbox, Pi install, model call, grading, and results recording.
 
   User decision: run on pc.local with opencode-go/deepseek-v4-flash, any one DeepSWE task.
 
