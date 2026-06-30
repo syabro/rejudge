@@ -9,8 +9,9 @@ The package loads as a Pi extension via the `pi.extensions` manifest (entry `dis
 - `question` (required) — the question or instruction to run across the panel.
 - `outputInstructions` (optional) — the desired output format (e.g. a requested structure, or P0/P1/P2/P3 buckets).
 - `title` (optional) — a short phrase for what the run is about, shown in the live progress header (see below).
+- `resumeRunId` (optional) — the id from an earlier successful run; when set, the tool resumes that run instead of starting a fresh panel.
 
-It runs the question across the configured panel, fuses the answers via synthesis, and returns a single final answer, text only — intermediate panel outputs are never surfaced. The output instructions are carried end-to-end: they are composed into the prompt every panel agent receives, and synthesis is told to honor the task's format, so the returned answer respects the requested format.
+A call without `resumeRunId` runs the question across the configured panel, fuses the answers via synthesis, and returns the fused answer plus the run id needed for a later follow-up. A call with `resumeRunId` sends the question to the saved run's restored judge; the panel fan-out is not re-run, and the returned run id is the same resumed run. Intermediate panel outputs are never surfaced. The output instructions are carried end-to-end on a fresh run: they are composed into the prompt every panel agent receives, and synthesis is told to honor the task's format, so the returned answer respects the requested format.
 
 A missing or invalid config makes the tool fail — it throws, which the host reports as a tool error. A technical failure of the panel or synthesis instead returns a non-fabricated failure result naming the stage, model, and error; either way the tool never invents an answer.
 
@@ -103,7 +104,7 @@ While `fusion_agents` runs inside Pi it shows a live block, refreshed every seco
   - Verified on Pi 0.80.2: `pi -p` loads the extension with no "Cannot find module 'neverthrow'" error (exit 0); the bundle has zero external `neverthrow` imports; typecheck + unit pass; CLI unchanged.
   - Root cause was the 0.80 loader, not our code — pinning the SDK to match the host (0.80.2) plus bundling makes the extension independent of how Pi resolves third-party deps.
 
-- [ ] EXT-051 Add resume support to the `fusion_agents` tool
+- [x] EXT-051 Add resume support to the `fusion_agents` tool
   Pi reviews should be able to keep the same panel context without using the wrong launcher.
 
   Fusion already has resumable runs, and the CLI exposes them through `--resume <runId>`. Inside Pi, the correct launch path is the `fusion_agents` tool, but the tool has no resume parameter yet. Add an optional `resumeRunId` parameter that sends the question to the existing resume path instead of starting a fresh panel.
@@ -116,3 +117,8 @@ While `fusion_agents` runs inside Pi it shows a live block, refreshed every seco
   - A call without `resumeRunId` still starts a fresh run.
   - Missing, expired, or wrong-cwd run ids fail clearly, matching the existing CLI resume behavior.
   - The tool result includes enough run id/context for another follow-up.
+
+  **Implemented:**
+  - `fusion_agents` accepts optional `resumeRunId` and passes it to the existing `fuse` resume path.
+  - Successful tool output includes a `Run ID` follow-up hint, with resumed calls keeping the same run id.
+  - Deterministic tool tests cover the public parameter and resume forwarding without a model call; the live tool smoke asserts that a run id is returned.

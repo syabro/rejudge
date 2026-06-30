@@ -6,8 +6,9 @@ import {
 import { integrationTest } from "./integration.ts";
 import { buildInvocationPrompt } from "../src/index.ts";
 import { resolve, join } from "node:path";
-import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
+import { runDir } from "../src/run-store.ts";
 
 // Fastest reliable opencode-go model. The load/registration checks don't care
 // about its output; the end-to-end test below does assert on the formatted answer.
@@ -27,6 +28,23 @@ test("extension loads in Pi and registers the fusion_agents tool", async () => {
   expect(toolNames).toContain("fusion_agents");
 });
 
+test("fusion_agents exposes resumeRunId as an optional parameter", async () => {
+  const extPath = resolve("src/index.ts");
+  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
+
+  const loaded = await discoverAndLoadExtensions([extPath], process.cwd(), agentDir);
+
+  expect(loaded.errors).toEqual([]);
+  const tool = loaded.extensions
+    .flatMap((e) => [...e.tools.values()])
+    .find((t) => t.definition.name === "fusion_agents");
+  expect(tool).toBeDefined();
+
+  const schema = tool!.definition.parameters as { properties?: Record<string, unknown> };
+  expect(schema.properties).toHaveProperty("resumeRunId");
+  expect(JSON.stringify(schema.properties!.resumeRunId)).toContain("minLength");
+});
+
 // Deterministic: output instructions are composed into the prompt when present,
 // and the question is returned unchanged when they're absent/blank.
 test("buildInvocationPrompt composes the question with output instructions", () => {
@@ -38,6 +56,39 @@ test("buildInvocationPrompt composes the question with output instructions", () 
   expect(composed).toContain(q);
   expect(composed).toContain("Begin your reply with RESULT:");
   expect(composed).toContain("Output instructions");
+});
+
+test("fusion_agents forwards resumeRunId to the resume path", async () => {
+  const extPath = resolve("src/index.ts");
+  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
+  const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));
+  mkdirSync(join(cwd, ".pi"), { recursive: true });
+  writeFileSync(
+    join(cwd, ".pi", "fusion-agents.json"),
+    JSON.stringify({ panel: [`${STUB}@minimal`, `${STUB}@minimal`], synth: `${STUB}@minimal` }),
+  );
+
+  const loaded = await discoverAndLoadExtensions([extPath], cwd, agentDir);
+  expect(loaded.errors).toEqual([]);
+  const tool = loaded.extensions
+    .flatMap((e) => [...e.tools.values()])
+    .find((t) => t.definition.name === "fusion_agents");
+  expect(tool).toBeDefined();
+
+  const result = await tool!.definition.execute(
+    "test-call",
+    { question: "follow up", resumeRunId: "2020-01-01T00-00-00-000Z-gone12" },
+    undefined,
+    undefined,
+    { cwd } as unknown as ExtensionContext,
+  );
+
+  const text = result.content
+    .map((c) => (c.type === "text" ? c.text : ""))
+    .join("");
+  expect(text).toMatch(/fusion_agents failed/i);
+  expect(text).toMatch(/resume/i);
+  expect(text).toMatch(/not found|expired/i);
 });
 
 // Real end-to-end through Pi's loader and the real tool handler (no mocks): the tool
@@ -76,4 +127,9 @@ integrationTest("fusion_agents runs end-to-end and returns a fused answer", asyn
     .map((c) => (c.type === "text" ? c.text : ""))
     .join("");
   expect(text).toMatch(/Paris/i);
+  const runId = text.match(/Run ID: ([^\s.]+)/)?.[1];
+  expect(runId).toBeDefined();
+  if (runId) {
+    rmSync(runDir(runId), { recursive: true, force: true });
+  }
 }, 180_000);

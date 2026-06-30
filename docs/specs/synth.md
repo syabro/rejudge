@@ -25,7 +25,7 @@ Every run is persisted so a LATER, separate invocation can follow up on it — r
 
 The follow-up goes to the run's restored judge — it already holds round 1 and can re-query the restored panels via `ask_panel`; the panel fan-out is not re-run. Resuming is opt-in at use: a run with no `--resume` always starts clean.
 
-Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), never in the project tree and never in Pi's own `/resume` list. They're pruned after ~24h and guarded by the run's working directory — resuming from a different project is refused. Resume is best-effort: if the run expired or its files were cleaned, the follow-up fails with a clear error and you just start a new run. (Resume is CLI-only for now; the `fusion_agents` tool gaining a `resumeRunId` param is a planned follow-up.)
+Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), never in the project tree and never in Pi's own `/resume` list. They're pruned after ~24h and guarded by the run's working directory — resuming from a different project is refused. Resume is best-effort: if the run expired or its files were cleaned, the follow-up fails with a clear error and you just start a new run. Resume is available through CLI `--resume <runId>` and the `fusion_agents` tool's `resumeRunId` parameter.
 
 # Tasks
 

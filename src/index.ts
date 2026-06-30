@@ -34,6 +34,14 @@ const parameters = Type.Object({
         " or P0/P1/P2/P3 buckets). Honored by every panel agent and the final synthesis.",
     }),
   ),
+  resumeRunId: Type.Optional(
+    Type.String({
+      minLength: 1,
+      description:
+        "Resume a prior fusion run instead of starting a fresh panel. Use the run id returned" +
+        " by an earlier successful fusion_agents call.",
+    }),
+  ),
 });
 
 /** A short header title — the caller's `title`, else a trimmed first line of the question. */
@@ -71,8 +79,9 @@ function textContent(result: AgentToolResult<ProgressSnapshot>): string {
 /**
  * Registers the single external tool `fusion_agents`.
  *
- * Explicit invocation only; the tool result content is the final answer text only. While it
- * runs, a live 3-level progress block (root → judge → panel models) is streamed through
+ * Explicit invocation only; the tool result content is the fused answer plus the run id for
+ * follow-ups. While it runs, a live 3-level progress block (root → judge → panel models)
+ * is streamed through
  * `onUpdate` and drawn by {@link renderProgress} — the engine writes nothing to the host's
  * stdout/stderr. The caller's optional output instructions are carried end-to-end to both
  * the panel agents and synthesis (see {@link buildInvocationPrompt}).
@@ -82,7 +91,7 @@ export default function (pi: ExtensionAPI): void {
     name: "fusion_agents",
     label: "Fusion Agents",
     description:
-      "Run the same question across a panel of models and fuse their answers into one. Call explicitly with a question or instruction.",
+      "Run the same question across a panel of models and fuse their answers into one. For follow-up questions, pass resumeRunId from a prior result.",
     parameters,
     // The tool draws its own multi-line block; don't wrap it in the default tool shell.
     renderShell: "self",
@@ -122,12 +131,28 @@ export default function (pi: ExtensionAPI): void {
         // Thread the cancel signal end-to-end: aborting stops every in-flight agent.
         // Read-only by default (no `fullTools`) — the tool is a Q&A/review surface, so a
         // calling agent can't get edit/write/bash behind the user's back.
-        const result = await fuse(config, prompt, { cwd: ctx.cwd, signal, activitySink: sink });
+        const resumeRunId = params.resumeRunId?.trim();
+        if (params.resumeRunId !== undefined && !resumeRunId) {
+          return {
+            content: [{ type: "text", text: "fusion_agents failed: resumeRunId must be a non-empty string" }],
+            details: structuredClone(state),
+          };
+        }
+
+        const result = await fuse(config, prompt, { cwd: ctx.cwd, signal, activitySink: sink, resumeRunId });
         // Don't throw on failure — throwing makes the host discard the whole rendered block.
         // Return instead: the final snapshot stays in `details` so the block keeps its failed
         // (red/cancelled) rows, and the failure is surfaced as the content text (no fabricated
         // answer — it names the stage/model that broke).
-        const text = result.isErr() ? `fusion_agents failed: ${formatFailure(result.error)}` : result.value.answer;
+        const text = result.isErr()
+          ? `fusion_agents failed: ${formatFailure(result.error)}`
+          : [
+              result.value.answer,
+              "",
+              resumeRunId
+                ? `Run ID: ${result.value.runId} (resumed). Follow up again with resumeRunId: ${JSON.stringify(result.value.runId)}.`
+                : `Run ID: ${result.value.runId}. Follow up with resumeRunId: ${JSON.stringify(result.value.runId)}.`,
+            ].join("\n");
         return { content: [{ type: "text", text }], details: structuredClone(state) };
       } finally {
         clearInterval(ticker);
