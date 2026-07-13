@@ -36,6 +36,29 @@ Source lives in `src/`; the extension entry is `src/index.ts`, declared in `pack
   - `npm run test:unit` (`PI_TEST_UNIT_ONLY=1`) runs the deterministic suite only — 33 tests, ~1s, no key; the integration tests show as skipped, never failed. `npm test` with a key runs all 45.
   - New deterministic test loads the committed `.pi/fusion-agents.json` and guards its shape (3 panel + non-empty synth + `debugLog`); model-ID validity stays an integration concern.
 
+- [ ] PRJ-053 Rename product surfaces to Rejudge
+  Rejudge has one host-neutral identity across the package, CLI, Pi tool, configuration, workflows, documentation, and tests.
+
+  Replace the public `pi-fusion-agents` / `fusion` identity with Rejudge. The package becomes `@rejudge/pi`, the CLI artifact and command become `bin/rejudge.js` / `rejudge`, the Pi tool becomes `rejudge` with label `Rejudge for Pi`, and the workflows become `/rejudge` and `/rejudge-diff`.
+
+  Use `reviewer`, `panel`, and `judge` consistently. Machine-facing configuration uses `reviewers` and `judge`; per-model runtime roles use `reviewer` and `judge`; `panel` names the reviewers collectively or the collective stage. Whole-run code and types use review terminology: move `src/fusion.ts` to `src/review.ts` and `src/synth.ts` to `src/judge.ts`, with matching test and spec renames. `fusion` may remain only as a private name for the judge's result-combination operation. `ask_panel` and its current targeting contract stay unchanged; stable reviewer identifiers remain the scope of SYN-042.
+
+  Migrate project configuration to `.rejudge/config.json`, global configuration to `~/.config/rejudge/config.json`, debug logs to `.rejudge/logs/`, and temporary runs to `${TMPDIR}/rejudge/runs/<runId>/`. Keep the current flat model-string config shape and `debugLog`; old paths and the old `panel` / `synth` keys are not compatibility aliases. Existing logs and resumable runs are not migrated.
+
+  Rename the two repository skills and their installed links, update the global Pi package entry to the renamed repository, and update current documentation in `README.md`, `AGENTS.md`, `docs/tech.md`, `docs/draft.md`, and `docs/specs/`. Completed task journals may retain historical names. Preserve the existing uncommitted skill edits and leave `PROJECT-AND-NAMING-BRIEF.md` untouched.
+
+  User decisions:
+  - limit this task to naming; do not add product capabilities, change review behavior, or split the code into new packages
+  - use `.rejudge/config.json` for project configuration and `~/.config/rejudge/config.json` for global configuration
+  - perform a clean migration without compatibility aliases
+
+  DoD:
+  - all public names, paths, config keys, runtime roles, progress/error text, current documentation, tests, build scripts, and installed local links use the agreed Rejudge terminology
+  - whole-run implementation names use review terminology, while `fusion` is limited to the private combine step
+  - old config schemas fail clearly, and old public CLI/tool/workflow names are not exposed as aliases
+  - unit tests, typecheck, build, CLI smoke testing through `bin/rejudge.js`, and real Pi loading of the `rejudge` tool pass
+  - no core contract, adapter, instrumentation, evaluation, `inspect`, resume redesign, stable reviewer-ID work, or diff-mode behavior is added
+
 - [x] PRJ-021 Fix onboarding: dead justfile reference and no README
   AGENTS.md's first line says "read justfile", which doesn't exist, and there's no README. Remove the dead pointer and add a short README (what it is, the two commands, where keys go).
 
