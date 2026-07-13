@@ -48,7 +48,7 @@ The review prompt below is the same whichever way you launch. Pick the path:
     (ship / fix-first / discuss). Stay in scope. If there are no changes, say so.
     EOF
 
-    node /Users/syabro/code/rejudge/bin/rejudge.js -f /tmp/rejudge-diff-<id>.txt > /tmp/rejudge-diff-<id>.md
+    rejudge -f /tmp/rejudge-diff-<id>.txt > /tmp/rejudge-diff-<id>.md
     echo "exit=$?"
 
 - Fill `<PROBLEM>` / `<APPROACH>` / `<DECISIONS>` / `<CONSTRAINTS>` from the actual work — you did it, so you know the task, how you solved it, and every decision taken. Mark each decision **AGENT** or **USER**: the AGENT ones are the most suspect — the panel should pressure them; USER ones can still be flagged for discussion. Don't shield decisions as "given" — catching a bad one is the whole point. Constraints are the real boundaries the panel respects. Replace `<REF>` (default `HEAD`) and `<id>` (any short unique tag, e.g. `$$`, so parallel runs don't collide).

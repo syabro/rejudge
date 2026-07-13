@@ -1,0 +1,11 @@
+title = "Rejudge Gitleaks configuration"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Synthetic marker used by the resume integration test"
+condition = "AND"
+regexTarget = "secret"
+paths = ['''^test/resume\.test\.ts$''']
+regexes = ['''^X9Q7-KELP-418$''']

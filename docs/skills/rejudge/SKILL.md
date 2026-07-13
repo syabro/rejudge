@@ -1,6 +1,6 @@
 ---
 name: rejudge
-description: Run Rejudge — send a question to separate reviewers and a judge, returning one reviewed result (the rejudge tool inside Pi, else the bin/rejudge.js CLI; read-only). Use when the user says /rejudge or wants a multi-model review. For one external reviewer, use ask-subagent instead.
+description: Run Rejudge — send a question to separate reviewers and a judge, returning one reviewed result (the rejudge tool inside Pi, else the rejudge CLI; read-only). Use when the user says /rejudge or wants a multi-model review. For one external reviewer, use ask-subagent instead.
 user_invocable: true
 ---
 
@@ -15,16 +15,14 @@ One invocation = one review result: separate reviewers investigate the question 
 
 If `rejudge` appears in the available tools, use it. Fall back to the CLI only when the tool genuinely is not exposed.
 
-## The binary
+## The CLI
 
-`/Users/syabro/code/rejudge/bin/rejudge.js` — plain Node, run by absolute path from any project. It resolves dependencies from that repository's `node_modules`, so do not copy the bin alone. The bin is a gitignored build artifact: rebuild it after a fresh checkout, any `src/` change, or a pull:
-
-    ( cd /Users/syabro/code/rejudge && bun run build:cli )
+`rejudge` is the installed command and runs from any project. The current directory controls config lookup and reviewer file access. When developing Rejudge from a source checkout, run `bun run build:cli` from that checkout's root after a fresh checkout, a pull, or any `src/` change.
 
 ## Prerequisites
 
 - **Config**: Rejudge reads `<cwd>/.rejudge/config.json`, else `~/.config/rejudge/config.json` (or `$XDG_CONFIG_HOME/rejudge/config.json`). It contains `reviewers` and `judge` model IDs. A project config shadows the global config, so check the `config: <path>` line before trusting the result. With `debugLog: true`, logs go under `.rejudge/logs/`. On a non-zero exit, report the stderr reason; do not guess models.
-- **Key**: `OPENCODE_API_KEY` exported (it's in `~/.zshrc`), or Pi's stored auth (`pi login`). Never baked in. A missing key isn't instant — all agents fail a minute or two in, so confirm auth before a long run.
+- **Key**: `OPENCODE_API_KEY` exported in the environment, or Pi's stored auth (`pi login`). Never baked in. A missing key isn't instant — all agents fail a minute or two in, so confirm auth before a long run.
 
 ## Read-only by default
 
@@ -38,10 +36,10 @@ Run it in the foreground and wait. No tmux, detached sessions, polling, or backg
 
 ### Step 1 — feed the prompt on stdin via a quoted heredoc
 
-The bin reads the prompt from stdin — no temp file. Use a **quoted** heredoc (`<<'EOF'`) so nothing is escaped or interpolated. Never pass the prompt via `$(...)`, an unquoted heredoc, or an inline argument. Run it from the project root you want reviewed (the cwd drives BOTH config lookup and the panel agents' tools):
+The CLI reads the prompt from stdin — no temp file. Use a **quoted** heredoc (`<<'EOF'`) so nothing is escaped or interpolated. Never pass the prompt via `$(...)`, an unquoted heredoc, or an inline argument. Run it from the project root you want reviewed (the cwd drives BOTH config lookup and the panel agents' tools):
 
     # read-only by default — do NOT add --unsafe or --full (those enable write/bash)
-    node /Users/syabro/code/rejudge/bin/rejudge.js > /tmp/rejudge-<id>.md <<'EOF'
+    rejudge > /tmp/rejudge-<id>.md <<'EOF'
     ... full prompt body, multi-line, no escaping ...
     EOF
     echo "exit=$?"

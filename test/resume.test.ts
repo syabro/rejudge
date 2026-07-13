@@ -75,9 +75,9 @@ test("resuming a run whose session files are gone fails with a resume error", as
 // reviewer and judge sessions were persisted and restored with context. A control run (no resume)
 // can't recall it.
 integrationTest("a follow-up resumes a prior run and answers with its context", async () => {
-  const token = "X9Q7-KELP-418";
+  const verificationMarker = "X9Q7-KELP-418";
 
-  const first = await runReview(GOOD, `Repeat this token exactly: ${token}`, {
+  const first = await runReview(GOOD, `Repeat this token exactly: ${verificationMarker}`, {
     cwd: process.cwd(),
   });
   expect(first.isOk()).toBe(true);
@@ -92,7 +92,7 @@ integrationTest("a follow-up resumes a prior run and answers with its context", 
     });
     expect(followUp.isOk()).toBe(true);
     if (followUp.isOk()) {
-      expect(followUp.value.answer).toContain(token);
+      expect(followUp.value.answer).toContain(verificationMarker);
       expect(followUp.value.runId).toBe(runId);
     }
 
@@ -103,7 +103,7 @@ integrationTest("a follow-up resumes a prior run and answers with its context", 
     });
     expect(control.isOk()).toBe(true);
     if (control.isOk()) {
-      expect(control.value.answer).not.toContain(token);
+      expect(control.value.answer).not.toContain(verificationMarker);
       rmSync(runDir(control.value.runId), { recursive: true, force: true });
     }
   } finally {

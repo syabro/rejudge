@@ -6,6 +6,10 @@ Existing launch gates are tracked separately and are not duplicated here:
 - `EXT-052` — report Esc cancellation as a user cancellation
 - `SYN-042` — route duplicate model choices through stable role identities
 
+## Public repository hygiene
+
+The public source tree excludes private planning, local Rejudge and Pi state, editor state, generated bundles, caches, and environment files. Public workflow examples call the installed `rejudge` command instead of an author's checkout. Release preparation scans both the candidate source tree and complete Git history with the default Gitleaks rules; its only exception is the exact synthetic marker used by the resume integration test.
+
 # Tasks
 
 - [ ] REL-054 Package Rejudge 0.1.0 for npm		#release
@@ -25,7 +29,7 @@ Existing launch gates are tracked separately and are not duplicated here:
   - installing the packed tarball in an empty project makes `rejudge --help` work and includes a loadable Pi extension
   - the publishing account can publish public packages under `@rejudge`
 
-- [ ] REL-055 Sanitize the repository for public visibility		#release
+- [x] REL-055 Sanitize the repository for public visibility		#release
   The public repository contains only intentional project material and no local credentials, machine state, or unpublished planning files.
 
   Keep `PROJECT-AND-NAMING-BRIEF.md` private without editing its contents. Remove machine-specific paths from tracked material, exclude local state, commit the current progress-spacing change, and scan both the current tree and Git history for secrets.
@@ -38,6 +42,13 @@ Existing launch gates are tracked separately and are not duplicated here:
   - tracked public material contains no absolute path tied to the author’s machine
   - secret scanning passes for the current tree and complete Git history
   - the release diff contains only intentional public changes
+
+  **Implemented:**
+  - The private naming brief stays local, ignored, untracked, unchanged, and absent from Git history.
+  - Local tool state, editor files, generated bundles, caches, logs, and environment files stay outside the public source tree.
+  - Public workflow examples use the installed `rejudge` command and contain no author-specific absolute path or shell setup.
+  - Default Gitleaks scans pass for the candidate public tree and all Git refs; only the exact synthetic resume-test marker is exempted.
+  - The previously requested progress-row spacing is already present in commit `c565a12`.
 
 - [ ] REL-056 Make the Rejudge workflows portable		#release
   `/rejudge` and `/rejudge-diff` work from another user’s installation instead of relying on this machine’s checkout path.
