@@ -10,6 +10,18 @@ Existing launch gates are tracked separately and are not duplicated here:
 
 The public source tree excludes private planning, local Rejudge and Pi state, editor state, generated bundles, caches, and environment files. Public workflow examples call the installed `rejudge` command instead of an author's checkout. Release preparation scans both the candidate source tree and complete Git history with the default Gitleaks rules; its only exception is the exact synthetic marker used by the resume integration test.
 
+## Data, cost, and safety
+
+A fresh review sends its request to every configured reviewer model. Reviewers may add files, diffs, and optional web-search results to their model sessions. The judge model sees reviewer write-ups and any `ask_panel` replies rather than inspecting the workspace directly; those messages may quote sensitive request or project text. Read-only access prevents local changes, not disclosure, and instructions in inspected content can steer what reviewers read or return. If `web_search` is available and used, its query also goes to that tool's configured service.
+
+A successful fresh review invokes every reviewer and then the judge; tool loops, retries, empty-output recovery, and judge follow-ups can add provider requests. A resumed review restores all sessions but sends its first new turn only to the judge, which re-queries reviewers only through `ask_panel`. Rejudge sets no spending cap; the configured providers and models determine price and rate limits.
+
+Session JSONL is written during execution under `${TMPDIR}/rejudge/runs/<run-id>/`, including for runs that later fail or are cancelled. The files may contain the request, model messages, and tool calls or results. Only a successful manifested run is resumable. Run directories become eligible for best-effort cleanup after about 24 hours when a later fresh review starts; timely deletion is not guaranteed, and OS temp cleanup is separate. Optional debug logs under `.rejudge/logs/` contain full thinking and assistant text plus truncated tool arguments and results.
+
+Reviewers default to read/search/list, `git_diff`, and optional `web_search`; the judge has only `ask_panel`, and the Pi tool never enables write access. A CLI run created with `--unsafe` or `--full` also gives reviewers file-editing and shell tools in the user's environment, without a sandbox; the judge remains limited to `ask_panel`.
+
+Technical completion does not verify the result. Separate initial sessions provide an independent review process, not statistically independent errors, guaranteed correctness, consensus truth, or measured improvement over one strong model.
+
 # Tasks
 
 - [ ] REL-054 Package Rejudge 0.1.0 for npm		#release
@@ -84,7 +96,7 @@ The public source tree excludes private planning, local Rejudge and Pi state, ed
   - every documented command is verified in an isolated home directory or clean environment
   - expected successful output and common failure messages are shown
 
-- [ ] REL-058 Publish the data, cost, and safety contract		#release
+- [x] REL-058 Publish the data, cost, and safety contract		#release
   Users understand what leaves their machine, what a review may cost, and what permissions Rejudge receives before running it.
 
   Explain that prompts and selected project content may be sent to every configured model provider; a run makes several model calls; read-only reviewers can still reveal file contents; debug logs and persisted runs may contain sensitive text; and `--unsafe` grants write and shell access.
@@ -96,6 +108,12 @@ The public source tree excludes private planning, local Rejudge and Pi state, ed
   - the default read-only boundary and its limits are stated accurately
   - public copy promises an independent review process, not guaranteed correctness or measured improvement
   - the release contains no unsupported security or efficacy claim
+
+  **Implemented:**
+  - The README warns before installation which request, workspace, and search data can reach configured services.
+  - Fresh and resumed reviews have explicit provider-call, rate-limit, and user-owned cost boundaries.
+  - Persisted sessions and optional debug logs disclose their sensitive content and best-effort cleanup behavior.
+  - Default, Pi, and unsafe CLI permissions are explicit, alongside the limits of procedural independence and technical success.
 
 - [ ] REL-059 Add continuous integration and release checks
   Every public change proves that the source, npm package, CLI, and Pi extension still build and load.

@@ -13,7 +13,8 @@ export const USAGE = `usage: rejudge ["your question"] | rejudge -f <file> | rej
                    (read/grep/find/ls)
       --resume ID  follow up on a prior run: resume its reviewer and judge sessions
                    with their earlier context (the prompt is the follow-up).
-                   A fresh run prints its ID; runs expire after ~24h.
+                   Run directories become eligible for best-effort cleanup after
+                   ~24h when a later fresh run starts; cleanup is not guaranteed.
   -h, --help       show this help
 
 Config: <cwd>/.rejudge/config.json, else ~/.config/rejudge/config.json.

@@ -25,7 +25,7 @@ Every run is persisted so a later invocation can resume the same reviewer and ju
 
 The follow-up goes to the run's restored judge — it already holds round 1 and can re-query the restored panels via `ask_panel`; the panel fan-out is not re-run. Resuming is opt-in at use: a run with no `--resume` always starts clean.
 
-Runs live under `${TMPDIR}/rejudge/runs/<runId>/`, outside the project and Pi's own `/resume` list. They expire after about 24 hours and are bound to the original working directory. Resume is best-effort through CLI `--resume <runId>` or the `rejudge` tool's `resumeRunId` parameter.
+Runs live under `${TMPDIR}/rejudge/runs/<runId>/`, outside the project and Pi's own `/resume` list, and are bound to the original working directory. Run directories become eligible for best-effort cleanup after about 24 hours, checked when a later fresh run starts; deletion is not guaranteed, and a resume does not extend that lifetime. Resume is best-effort through CLI `--resume <runId>` or the `rejudge` tool's `resumeRunId` parameter.
 
 # Tasks
 
