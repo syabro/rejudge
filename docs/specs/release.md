@@ -29,6 +29,13 @@ The public source tree excludes private planning, local Rejudge and Pi state, ed
   - installing the packed tarball in an empty project makes `rejudge --help` work and includes a loadable Pi extension
   - the publishing account can publish public packages under `@rejudge`
 
+  **Implemented so far:**
+  - Added the MIT license and complete public metadata for `@rejudge/pi@0.1.0`.
+  - The five-file npm tarball installs without Bun, exposes `rejudge --help`, and loads the declared Pi extension.
+  - The npm bin entry works through the package manager's generated executable link.
+
+  **Blocked:** npm authentication returns `E401`, so publish permission for `@rejudge` cannot be confirmed. The package is not published and this task remains open.
+
 - [x] REL-055 Sanitize the repository for public visibility		#release
   The public repository contains only intentional project material and no local credentials, machine state, or unpublished planning files.
 

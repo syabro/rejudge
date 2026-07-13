@@ -1,18 +1,38 @@
 {
   "name": "@rejudge/pi",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Independent multi-model review for AI agents, with a Pi extension and CLI.",
   "type": "module",
-  "devDependencies": {
-    "@types/node": "^25.9.2",
-    "typescript": "^6.0.3",
-    "vitest": "^4.1.8"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/max-prtsr/rejudge.git"
   },
-  "dependencies": {
-    "@earendil-works/pi-agent-core": "^0.80.2",
-    "@earendil-works/pi-ai": "^0.80.2",
-    "@earendil-works/pi-coding-agent": "0.80.2",
-    "neverthrow": "^8.2.0",
-    "typebox": "^1.2.3"
+  "homepage": "https://github.com/max-prtsr/rejudge#readme",
+  "bugs": {
+    "url": "https://github.com/max-prtsr/rejudge/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi",
+    "ai-agents",
+    "multi-model",
+    "review"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "files": [
+    "bin/rejudge.js",
+    "dist/extension.js",
+    "README.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "rejudge": "bin/rejudge.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "test": "vitest run",
@@ -28,7 +48,18 @@
       "./dist/extension.js"
     ]
   },
+  "dependencies": {
+    "neverthrow": "^8.2.0"
+  },
   "peerDependencies": {
-    "@earendil-works/pi-tui": "^0.79.0"
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8",
+    "@earendil-works/pi-ai": "^0.80.2"
   }
 }

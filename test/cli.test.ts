@@ -1,6 +1,8 @@
 import { test, expect } from "vitest";
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseCliArgs } from "../src/cli-args.ts";
 
@@ -124,6 +126,20 @@ test("-f without a value is an error, not a throw", () => {
 // when ./bin/rejudge.js hasn't been built. The TTY-true branch can't be exercised here
 // (a spawned child's stdin is a pipe, never a terminal).
 const BIN = fileURLToPath(new URL("../bin/rejudge.js", import.meta.url));
+
+test.skipIf(!existsSync(BIN))("built bin: npm-style symlink runs the CLI", () => {
+  const dir = mkdtempSync(join(tmpdir(), "rejudge-bin-link-"));
+  const link = join(dir, "rejudge");
+  symlinkSync(BIN, link);
+
+  try {
+    const run = spawnSync(process.execPath, [link, "--help"], { encoding: "utf8", timeout: 10_000 });
+    expect(run.status).toBe(0);
+    expect(run.stdout).toContain("usage: rejudge");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test.skipIf(!existsSync(BIN))("built bin: empty stdin fails (exit 1) without hanging", () => {
   for (const input of ["", "   \n  "]) {

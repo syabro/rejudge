@@ -7,9 +7,9 @@
 //
 // Config: reads <cwd>/.rejudge/config.json, else ~/.config/rejudge/config.json.
 // Key: Pi reads OPENCODE_API_KEY from the environment (or its stored auth) on its own —
-// the CLI never touches the key. Note: the built bin resolves its dependencies from THIS
-// repo's node_modules, so it is not portable outside the repo tree.
-import { readFileSync } from "node:fs";
+// the CLI never touches the key. Packaged builds resolve runtime dependencies from the
+// package installation.
+import { readFileSync, realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { parseCliArgs, USAGE } from "./cli-args.ts";
 import { resolveRejudgeConfig } from "./config.ts";
@@ -151,8 +151,9 @@ async function main(): Promise<number> {
 // Run only when executed as the entry, not when imported (defensive — the pure logic
 // lives in cli-args.ts, so nothing should import this module). pathToFileURL works on
 // every Node version, unlike `import.meta.main` (Node 24+, would silently no-op older).
+const entryPath = process.argv[1];
 const invokedDirectly =
-  process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href;
+  entryPath !== undefined && import.meta.url === pathToFileURL(realpathSync(entryPath)).href;
 
 if (invokedDirectly) {
   main().then(
