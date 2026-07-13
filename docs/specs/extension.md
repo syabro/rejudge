@@ -28,14 +28,14 @@ While `rejudge` runs inside Pi it shows a live block, refreshed every second, as
     Rejudge review the runner change
       gpt-5.5 (judge)       0. thinking   12s  …checking the disagreement
         ⎿ deepseek-v4-pro   2. read       03s  src/runner.ts
-        ⎿ mimo-v2.5-pro      ✓ done (46s | 4 tools)
+        ⎿ mimo-v2.5-pro      ✓  done (46s | 4 tools)
         ⎿ gpt-5.4           waiting…
     Total 1m18s
 
 - **Header** `Rejudge <title>` uses the `title` parameter or the first question line. It is neutral while running, green when done, red on failure, and dim on cancel.
 - **Judge** sits above the panel; reviewers hang under it (`⎿`). Status cells share one aligned column.
 - **A running model** reads `nn. tool  time  detail`: a dimmed step number (tools so far), the step (`thinking`/`writing`/the tool name), the step's duration (live while it runs, frozen between steps so the gap shows the previous step, not a blank), then a dimmed detail — the tool's params (a read's path, `git_diff`'s mode, a `web_search` query) or the live tail of the streamed thinking/writing text. The detail trims to the terminal width (keeping its end), so the block fits the window and never wraps, and it reflows on resize. Before the first step the cell is empty.
-- **A finished model** reads `✓ done (time | N tools)` in green; a broken one `✗ <reason> (…)` in red; one cancelled by an abort `⊘ cancelled (…)` in dim.
+- **A finished model** reads `✓  done (time | N tools)` in green; a broken one `✗ <reason> (…)` in red; one cancelled by an abort `⊘ cancelled (…)` in dim.
 - Durations are `NNs` under a minute, `NmNNs` at or past one. The **Total** line (dimmed) at the bottom is the whole run's time. With `debugLog` on, a dimmed line shows the log path.
 - Expand the result (Ctrl+O) to see the full request under `Request:` and the review answer below the tree. Collapsed, the header shows the clipped title and expand hint. On failure the block remains with its final rows and total.
 - The engine never writes directly to host output; the Pi tool owns this block and the CLI renders the same events to stderr.
@@ -121,7 +121,7 @@ While `rejudge` runs inside Pi it shows a live block, refreshed every second, as
   - Successful tool output includes a `Run ID` follow-up hint, with resumed calls keeping the same run id.
   - Deterministic tool tests cover the public parameter and resume forwarding without a model call; the live tool smoke asserts that a run id is returned.
 
-- [ ] EXT-052 Surface user cancellation separately from Fusion failures
+- [ ] EXT-052 Surface user cancellation separately from Fusion failures		#release
   Pi agents can tell when a `fusion_agents` run was cancelled by the user instead of treating it as a broken review.
 
   Pressing Esc during a `fusion_agents` run cancels the tool, but the host agent currently sees that like a failed Fusion run. User cancellation should be surfaced as its own clear outcome in the tool result, distinct from panel, synth, config, or resume failures.

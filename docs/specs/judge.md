@@ -98,7 +98,7 @@ Runs live under `${TMPDIR}/rejudge/runs/<runId>/`, outside the project and Pi's 
   - A re-queried row shows the current step and elapsed time, then returns to done, cancelled, or error when the follow-up ends.
   - Fresh and resumed runs use the same behavior; cancelled and error re-queries still return as tool text rather than breaking fusion.
 
-- [ ] SYN-042 Use stable role keys for judge ↔ panel communication
+- [ ] SYN-042 Use stable role keys for judge ↔ panel communication		#release
   Duplicate model choices should not make the judge talk to the wrong panel session.
 
   Internal fusion communication currently identifies judge and panel sessions by model slug. That breaks when the same model is used in more than one role, for example `gpt-5.5` as both judge and a panel member. The UI and logs may show the right model names, but internal routing needs stable role identities.

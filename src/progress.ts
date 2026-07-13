@@ -183,7 +183,7 @@ function statusCell(p: ModelProgress, now: number, theme: Theme): { text: string
   const total = (p.endedAt ?? now) - p.startedAt;
   switch (p.status) {
     case "done":
-      return { text: `  ✓ done (${meta(total, p.toolCount)})` };
+      return { text: `  ✓  done (${meta(total, p.toolCount)})` };
     case "error":
       return { text: `  ✗ ${p.error ?? "failed"} (${meta(total, p.toolCount)})` };
     case "cancelled":
@@ -259,7 +259,7 @@ interface Row {
  *     review the runner change (ctrl+o to expand)
  *       glm-5.1 (judge)        0. thinking   12s  …keep it concise
  *         ⎿ deepseek-v4-pro    2. read       03s  src/runner.ts
- *         ⎿ minimax-m3        ✓ done (35s | 6 tools)
+ *         ⎿ minimax-m3        ✓  done (35s | 6 tools)
  *     Total 41s
  *
  * Line 1 is bold `Rejudge`, colored by status (green done, red fail, dim cancel, neutral running).

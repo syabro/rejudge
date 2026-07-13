@@ -8,7 +8,7 @@ Existing launch gates are tracked separately and are not duplicated here:
 
 # Tasks
 
-- [ ] REL-054 Package Rejudge 0.1.0 for npm
+- [ ] REL-054 Package Rejudge 0.1.0 for npm		#release
   `@rejudge/pi` installs as a public package and exposes both the Pi extension and the `rejudge` CLI.
 
   Add the MIT license and complete the package metadata, public file list, executable mapping, runtime requirements, and build lifecycle. Confirm that the `@rejudge` npm scope can publish a public package.
@@ -25,7 +25,7 @@ Existing launch gates are tracked separately and are not duplicated here:
   - installing the packed tarball in an empty project makes `rejudge --help` work and includes a loadable Pi extension
   - the publishing account can publish public packages under `@rejudge`
 
-- [ ] REL-055 Sanitize the repository for public visibility
+- [ ] REL-055 Sanitize the repository for public visibility		#release
   The public repository contains only intentional project material and no local credentials, machine state, or unpublished planning files.
 
   Keep `PROJECT-AND-NAMING-BRIEF.md` private without editing its contents. Remove machine-specific paths from tracked material, exclude local state, commit the current progress-spacing change, and scan both the current tree and Git history for secrets.
@@ -39,7 +39,7 @@ Existing launch gates are tracked separately and are not duplicated here:
   - secret scanning passes for the current tree and complete Git history
   - the release diff contains only intentional public changes
 
-- [ ] REL-056 Make the Rejudge workflows portable
+- [ ] REL-056 Make the Rejudge workflows portable		#release
   `/rejudge` and `/rejudge-diff` work from another user’s installation instead of relying on this machine’s checkout path.
 
   Replace fixed local paths with a portable way to locate the installed CLI, and document how to install both workflows.
@@ -52,7 +52,7 @@ Existing launch gates are tracked separately and are not duplicated here:
   - a clean user profile can install and run each workflow using only the public instructions
   - workflow failures explain missing Rejudge installation or authentication clearly
 
-- [ ] REL-057 Write and verify the Pi and CLI quickstart
+- [ ] REL-057 Write and verify the Pi and CLI quickstart		#release
   A stranger can install, configure, and run Rejudge through Pi or the CLI without private setup knowledge.
 
   Document supported Node, Bun, and Pi versions; npm and source installation; authentication; model configuration; Pi loading; workflow installation; the first CLI run; the first Pi tool call; and common setup failures.
@@ -66,7 +66,7 @@ Existing launch gates are tracked separately and are not duplicated here:
   - every documented command is verified in an isolated home directory or clean environment
   - expected successful output and common failure messages are shown
 
-- [ ] REL-058 Publish the data, cost, and safety contract
+- [ ] REL-058 Publish the data, cost, and safety contract		#release
   Users understand what leaves their machine, what a review may cost, and what permissions Rejudge receives before running it.
 
   Explain that prompts and selected project content may be sent to every configured model provider; a run makes several model calls; read-only reviewers can still reveal file contents; debug logs and persisted runs may contain sensitive text; and `--unsafe` grants write and shell access.
@@ -91,15 +91,15 @@ Existing launch gates are tracked separately and are not duplicated here:
   - CI uses declared runtime versions and no private credentials
   - the release commit has a green CI result
 
-- [ ] REL-060 Publish Rejudge 0.1.0 and announce it
-  The same verified commit is available from GitHub and npm and is linked from an approved Telegram announcement.
+- [ ] REL-060 Publish Rejudge 0.1.0		#release
+  The same verified release is available from GitHub and npm.
 
-  Do not start this task until the release tasks above and existing gates `EXT-052` and `SYN-042` are complete. Create the public GitHub repository, push the reviewed tree, tag the release, publish npm interactively, verify both installation paths, and prepare the exact Telegram post for approval.
+  Do not start this task until the release tasks above and existing gates `EXT-052` and `SYN-042` are complete. Create the public GitHub repository, push the reviewed tree, tag the release, publish npm interactively, and verify both installation paths.
 
   User decisions:
   - release through public GitHub and npm
   - publish Pi and CLI together
-  - benchmark evidence is not required for this announcement
+  - benchmark evidence is not required for this release
 
   DoD:
   - the public GitHub repository is accessible and its default branch points to the reviewed release commit
@@ -107,5 +107,3 @@ Existing launch gates are tracked separately and are not duplicated here:
   - `npm view @rejudge/pi@0.1.0` succeeds and a clean registry installation works
   - the public README links and installation commands work
   - `EXT-052` and `SYN-042` are complete
-  - the exact Telegram post preview is approved before publication
-  - the published post links to the verified GitHub and npm pages
