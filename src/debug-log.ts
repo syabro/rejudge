@@ -1,7 +1,7 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import type { ActivitySink } from "./events.ts";
+import type { ActivitySink, RoleKey } from "./events.ts";
 
 /** A per-run debug-log sink. `write` never throws — a logging failure must not break a run. */
 export interface DebugLog {
@@ -95,17 +95,22 @@ export function createDebugLog(cwd: string, emit?: ActivitySink): DebugLog | und
 /**
  * Subscribe one agent's session to the shared {@link DebugLog}. Records thinking and
  * assistant text in full, tool args/results truncated (head/tail + char cap) with their
- * true size, plus the context/slowness signals (compaction, retry, agent end). Returns an
+ * true size, plus the stable role key and context/slowness signals (compaction, retry, agent end). Returns an
  * unsubscribe function. The whole per-event handler is wrapped so a logging error never
  * propagates into the SDK's event dispatch.
  */
-export function attachDebugLog(session: AgentSession, modelId: string, log: DebugLog): () => void {
+export function attachDebugLog(
+  session: AgentSession,
+  roleKey: RoleKey,
+  modelId: string,
+  log: DebugLog,
+): () => void {
   const model = modelId.slice(modelId.lastIndexOf("/") + 1);
   return session.subscribe((event) => {
     try {
       const rec = recordFor(event);
       if (rec) {
-        log.write({ t: Date.now(), model, ...rec });
+        log.write({ t: Date.now(), roleKey, model, ...rec });
       }
     } catch {
       // Never let a logging failure break the agent run.

@@ -11,6 +11,7 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 ## Agents
 - Native `@earendil-works/pi-coding-agent` SDK (`createAgentSession`), in-process. Not `pi -p`, not third-party (pi-subagents, oh-my-pi).
 - Keep reviewer sessions alive through the judge step so `ask_panel` can re-query them.
+- Address agent slots internally by stable role key (`judge`, `panel-1`, `panel-2`, …). Provider/model IDs are configuration and display metadata, never routing keys. Persisted manifest version 4 stores these keys and rejects older ambiguous runs.
 
 ## Runtime & layout
 - bun = dev only (deps + tests). No Bun APIs (`bun:*`, `Bun.*`) in code; runs on npm + plain Node.

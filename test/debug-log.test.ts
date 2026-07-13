@@ -42,9 +42,13 @@ integrationTest("a debugLog run writes a per-run JSONL file of inner-agent activ
   const records = lines.map((l) => JSON.parse(l));
   for (const r of records) {
     expect(typeof r.t).toBe("number");
+    expect(typeof r.roleKey).toBe("string");
     expect(typeof r.model).toBe("string");
     expect(typeof r.kind).toBe("string");
   }
+  expect(new Set(records.map((record) => record.roleKey))).toEqual(
+    new Set(["panel-1", "panel-2", "panel-3", "judge"]),
+  );
   // The run did real work, so at least one substantive activity kind shows up.
   expect(records.some((r) => ["thinking", "text", "tool_call", "tool_result"].includes(r.kind))).toBe(true);
 }, 180_000);

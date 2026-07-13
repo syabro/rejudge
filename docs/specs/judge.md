@@ -10,7 +10,7 @@
 
 ## Multi-round: the judge can re-query the panel
 
-The judge's only tool is `ask_panel`: it re-queries still-live reviewer sessions to settle disagreement, confirm a load-bearing claim, or pressure a disputed finding. A call takes a batch of `{model, question}` queries and runs them in parallel. Each reviewer keeps its earlier context. Stable reviewer IDs are deferred to SYN-042; the current targeting contract remains model-based.
+The judge's only tool is `ask_panel`: it re-queries still-live reviewer sessions to settle disagreement, confirm a load-bearing claim, or pressure a disputed finding. A call takes a batch of `{role, question}` queries and runs them in parallel. Reviewer sessions use stable keys (`panel-1`, `panel-2`, …), so the same provider/model can fill several slots without changing which session receives a follow-up. Model IDs remain display metadata. Each reviewer keeps its earlier context.
 
 Consulting the panel is the default pre-answer step. The judge prompt requires `ask_panel` when material analyses disagree, a load-bearing claim is weak, a critical checkable claim may be wrong despite agreement, or task/output requirements are unclear. There is no fixed extra round or consensus requirement.
 
@@ -98,7 +98,7 @@ Runs live under `${TMPDIR}/rejudge/runs/<runId>/`, outside the project and Pi's 
   - A re-queried row shows the current step and elapsed time, then returns to done, cancelled, or error when the follow-up ends.
   - Fresh and resumed runs use the same behavior; cancelled and error re-queries still return as tool text rather than breaking fusion.
 
-- [ ] SYN-042 Use stable role keys for judge ↔ panel communication		#release
+- [x] SYN-042 Use stable role keys for judge ↔ panel communication		#release
   Duplicate model choices should not make the judge talk to the wrong panel session.
 
   Internal fusion communication currently identifies judge and panel sessions by model slug. That breaks when the same model is used in more than one role, for example `gpt-5.5` as both judge and a panel member. The UI and logs may show the right model names, but internal routing needs stable role identities.
@@ -108,6 +108,12 @@ Runs live under `${TMPDIR}/rejudge/runs/<runId>/`, outside the project and Pi's 
   User decision: internal judge/panel communication must not be keyed by model slugs; use stable role keys instead.
 
   DoD: judge re-queries and progress/debug routing address sessions by role key, so duplicate model IDs across judge and panel slots do not collide or misroute.
+
+  **Implemented:**
+  - Reviewer slots use stable `panel-N` keys and the judge uses `judge`; provider/model IDs remain display metadata.
+  - `ask_panel` targets reviewer role keys, so duplicate model choices re-query the intended live or resumed session.
+  - Pi progress and debug logs keep duplicate-model slots separate across initial runs and follow-ups.
+  - New persisted runs retain role keys; older incompatible temporary runs expire instead of resuming ambiguously.
 
 - [ ] SYN-050 Expose explicit fresh/resume mode for Fusion reviews		@blocked_by:EXT-051
   Review follow-ups should make the cost and context choice explicit instead of rerunning full panels by accident.

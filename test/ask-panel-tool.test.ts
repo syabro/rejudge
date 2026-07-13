@@ -49,33 +49,57 @@ function fakePanelSession(
   } as unknown as ReviewerResult["session"];
 }
 
-// Deterministic (no session touched, no model): an unknown model id short-circuits before any
-// re-query and returns an error VALUE (not a throw) that lists the valid panel ids — so the judge
-// learns which models it can actually re-query. The dummy entries are a typed input, not a mock of
+// Deterministic (no session touched, no model): an unknown role key short-circuits before any
+// re-query and returns an error VALUE (not a throw) that lists the valid panel roles — so the judge
+// learns which sessions it can actually re-query. The dummy entries are a typed input, not a mock of
 // the runner/Pi/models (the not-found branch never reads the session).
-test("ask_panel returns an error listing valid models for an unknown model", async () => {
-  const panel = [
-    { modelId: "provider/alpha", text: "a", session: {} as ReviewerResult["session"] },
-    { modelId: "provider/beta", text: "b", session: {} as ReviewerResult["session"] },
+test("ask_panel returns an error listing valid roles for an unknown role", async () => {
+  const panel: ReviewerResult[] = [
+    { roleKey: "panel-1", modelId: "provider/alpha", text: "a", session: {} as ReviewerResult["session"] },
+    { roleKey: "panel-2", modelId: "provider/beta", text: "b", session: {} as ReviewerResult["session"] },
   ];
   const tool = makeAskPanelTool(panel);
 
   const result = await tool.execute(
     "call-1",
-    { queries: [{ model: "provider/nope", question: "anything" }] },
+    { queries: [{ role: "panel-9", question: "anything" }] },
     undefined,
     undefined,
     { cwd: process.cwd() } as never,
   );
 
   const text = resultText(result);
-  expect(text).toContain("provider/nope");
-  expect(text).toContain("provider/alpha");
-  expect(text).toContain("provider/beta");
+  expect(text).toContain("panel-9");
+  expect(text).toContain("Valid roles: panel-1, panel-2.");
 });
 
-// Deterministic fake session: ask_panel re-prompts the live panel session, so its progress must
-// surface as panel lifecycle/activity events for the live tree.
+// Deterministic fake sessions: role-key targeting must pick the requested slot even when model ids
+// are identical.
+test("ask_panel targets a stable panel role when model ids are duplicated", async () => {
+  const prompts = [0, 0];
+  const makeSession = (index: number) => fakePanelSession(({ messages }) => {
+    prompts[index]++;
+    messages.push({ role: "assistant", stopReason: "stop" });
+  });
+  const panel = [
+    { roleKey: "panel-1", modelId: "provider/shared", text: "a", session: makeSession(0) },
+    { roleKey: "panel-2", modelId: "provider/shared", text: "b", session: makeSession(1) },
+  ] as ReviewerResult[];
+  const tool = makeAskPanelTool(panel);
+
+  const result = await tool.execute(
+    "call-1",
+    { queries: [{ role: "panel-2", question: "check the second slot" }] },
+    undefined,
+    undefined,
+    { cwd: process.cwd() } as never,
+  );
+
+  expect(prompts).toEqual([0, 1]);
+  expect(resultText(result)).toContain("panel-2 (provider/shared)");
+});
+
+// Re-query progress carries the same stable role key as the target session.
 test("ask_panel emits panel progress while re-querying a live session", async () => {
   const session = fakePanelSession(({ messages, emit }) => {
     emit({ type: "message_update", assistantMessageEvent: { type: "text_start" } });
@@ -85,26 +109,26 @@ test("ask_panel emits panel progress while re-querying a live session", async ()
   });
 
   const events: ProgressEvent[] = [];
-  const tool = makeAskPanelTool([{ modelId: "provider/alpha", text: "a", session }], (event) => {
+  const tool = makeAskPanelTool([{ roleKey: "panel-1", modelId: "provider/alpha", text: "a", session }], (event) => {
     events.push(event);
   });
 
   const result = await tool.execute(
     "call-1",
-    { queries: [{ model: "provider/alpha", question: "check again" }] },
+    { queries: [{ role: "panel-1", question: "check again" }] },
     undefined,
     undefined,
     { cwd: process.cwd() } as never,
   );
 
   expect(resultText(result)).toContain("follow-up answer");
-  expect(events[0]).toMatchObject({ kind: "model_start", model: "provider/alpha", role: "reviewer" });
-  expect(events).toContainEqual(expect.objectContaining({ kind: "activity", model: "provider/alpha", activity: "writing", phase: "start" }));
+  expect(events[0]).toMatchObject({ kind: "model_start", roleKey: "panel-1", model: "provider/alpha", role: "reviewer" });
+  expect(events).toContainEqual(expect.objectContaining({ kind: "activity", roleKey: "panel-1", model: "provider/alpha", activity: "writing", phase: "start" }));
   const activityEnd = events.findIndex((event) => event.kind === "activity" && event.phase === "end");
   const modelEnd = events.findIndex((event) => event.kind === "model_end");
   expect(activityEnd).toBeGreaterThan(0);
   expect(modelEnd).toBeGreaterThan(activityEnd);
-  expect(events[modelEnd]).toMatchObject({ kind: "model_end", model: "provider/alpha", role: "reviewer", status: "done" });
+  expect(events[modelEnd]).toMatchObject({ kind: "model_end", roleKey: "panel-1", model: "provider/alpha", role: "reviewer", status: "done" });
 });
 
 // If the judge turn was already cancelled, ask_panel must not start a new model call or show a
@@ -115,7 +139,7 @@ test("ask_panel does not start a re-query when the signal is already aborted", a
     prompted = true;
   });
   const events: ProgressEvent[] = [];
-  const tool = makeAskPanelTool([{ modelId: "provider/alpha", text: "a", session }], (event) => {
+  const tool = makeAskPanelTool([{ roleKey: "panel-1", modelId: "provider/alpha", text: "a", session }], (event) => {
     events.push(event);
   });
   const controller = new AbortController();
@@ -123,7 +147,7 @@ test("ask_panel does not start a re-query when the signal is already aborted", a
 
   const result = await tool.execute(
     "call-1",
-    { queries: [{ model: "provider/alpha", question: "check again" }] },
+    { queries: [{ role: "panel-1", question: "check again" }] },
     controller.signal,
     undefined,
     { cwd: process.cwd() } as never,
@@ -146,13 +170,13 @@ test("ask_panel marks an in-flight re-query as cancelled", async () => {
     { onAbort: () => { abortCalled = true; } },
   );
   const events: ProgressEvent[] = [];
-  const tool = makeAskPanelTool([{ modelId: "provider/alpha", text: "a", session }], (event) => {
+  const tool = makeAskPanelTool([{ roleKey: "panel-1", modelId: "provider/alpha", text: "a", session }], (event) => {
     events.push(event);
   });
 
   const result = await tool.execute(
     "call-1",
-    { queries: [{ model: "provider/alpha", question: "check again" }] },
+    { queries: [{ role: "panel-1", question: "check again" }] },
     controller.signal,
     undefined,
     { cwd: process.cwd() } as never,
@@ -170,13 +194,13 @@ test("ask_panel marks a thrown re-query as an error", async () => {
     throw new Error("boom");
   });
   const events: ProgressEvent[] = [];
-  const tool = makeAskPanelTool([{ modelId: "provider/alpha", text: "a", session }], (event) => {
+  const tool = makeAskPanelTool([{ roleKey: "panel-1", modelId: "provider/alpha", text: "a", session }], (event) => {
     events.push(event);
   });
 
   const result = await tool.execute(
     "call-1",
-    { queries: [{ model: "provider/alpha", question: "check again" }] },
+    { queries: [{ role: "panel-1", question: "check again" }] },
     undefined,
     undefined,
     { cwd: process.cwd() } as never,
@@ -192,13 +216,13 @@ test("ask_panel marks a non-clean re-query stop reason as an error", async () =>
     messages.push({ role: "assistant", stopReason: "length", errorMessage: "too long" });
   });
   const events: ProgressEvent[] = [];
-  const tool = makeAskPanelTool([{ modelId: "provider/alpha", text: "a", session }], (event) => {
+  const tool = makeAskPanelTool([{ roleKey: "panel-1", modelId: "provider/alpha", text: "a", session }], (event) => {
     events.push(event);
   });
 
   const result = await tool.execute(
     "call-1",
-    { queries: [{ model: "provider/alpha", question: "check again" }] },
+    { queries: [{ role: "panel-1", question: "check again" }] },
     undefined,
     undefined,
     { cwd: process.cwd() } as never,
@@ -249,7 +273,7 @@ integrationTest("ask_panel re-queries a live panel session for a second round", 
   try {
     const result = await tool.execute(
       "call-1",
-      { queries: [{ model: STUB, question: "Now reply with exactly the word: PING. Nothing else." }] },
+      { queries: [{ role: "panel-1", question: "Now reply with exactly the word: PING. Nothing else." }] },
       new AbortController().signal,
       undefined,
       { cwd: process.cwd() } as never,

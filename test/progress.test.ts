@@ -16,9 +16,9 @@ const THEME = { fg: (_c: string, s: string) => s, bold: (s: string) => s } as un
 /** Seed a running snapshot with the panel + judge started. */
 function seeded(): ProgressSnapshot {
   const s = createProgressState(["prov/panel-a", "prov/panel-b"], "prov/judge", "a title");
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/judge", role: "judge" });
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-a", role: "reviewer" });
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-b", role: "reviewer" });
+  applyEvent(s, { kind: "model_start", t: 0, roleKey: "judge", model: "prov/judge", role: "judge" });
+  applyEvent(s, { kind: "model_start", t: 0, roleKey: "panel-1", model: "prov/panel-a", role: "reviewer" });
+  applyEvent(s, { kind: "model_start", t: 0, roleKey: "panel-2", model: "prov/panel-b", role: "reviewer" });
   return s;
 }
 
@@ -46,6 +46,7 @@ test("renderProgress clamps a long error-reason row to width", () => {
   applyEvent(s, {
     kind: "model_end",
     t: 5000,
+    roleKey: "panel-1",
     model: "prov/panel-a",
     role: "reviewer",
     status: "error",
@@ -62,10 +63,11 @@ test("renderProgress clamps a long error-reason row to width", () => {
 test("a final cancelled snapshot keeps its cancelled row visible", () => {
   const s = createProgressState(["prov/panel-a"], "prov/judge", "cancel me");
   const start = s.startedAt;
-  applyEvent(s, { kind: "model_start", t: start, model: "prov/panel-a", role: "reviewer" });
+  applyEvent(s, { kind: "model_start", t: start, roleKey: "panel-1", model: "prov/panel-a", role: "reviewer" });
   applyEvent(s, {
     kind: "model_end",
     t: start + 1000,
+    roleKey: "panel-1",
     model: "prov/panel-a",
     role: "reviewer",
     status: "cancelled",
@@ -95,9 +97,9 @@ test("expanded view shows the full request first; collapsed keeps it behind the 
     "short title",
     "REQ-LINE-1\nREQ-LINE-2",
   );
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/judge", role: "judge" });
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-a", role: "reviewer" });
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-b", role: "reviewer" });
+  applyEvent(s, { kind: "model_start", t: 0, roleKey: "judge", model: "prov/judge", role: "judge" });
+  applyEvent(s, { kind: "model_start", t: 0, roleKey: "panel-1", model: "prov/panel-a", role: "reviewer" });
+  applyEvent(s, { kind: "model_start", t: 0, roleKey: "panel-2", model: "prov/panel-b", role: "reviewer" });
 
   // Collapsed: the clipped title + the expand hint; the full request stays hidden.
   const collapsed = renderProgress(s, THEME, 0, 80, false).join("\n");
@@ -141,17 +143,31 @@ test("a long unbreakable request stays within width when expanded", () => {
   }
 });
 
+test("duplicate model ids keep independent progress rows by role key", () => {
+  const shared = "prov/shared";
+  const s = createProgressState([shared, shared], shared, "duplicates");
+  applyEvent(s, { kind: "model_start", t: 0, roleKey: "panel-1", model: shared, role: "reviewer" });
+  applyEvent(s, { kind: "model_end", t: 1000, roleKey: "panel-1", model: shared, role: "reviewer", status: "done", durationMs: 1000 });
+  applyEvent(s, { kind: "model_start", t: 0, roleKey: "panel-2", model: shared, role: "reviewer" });
+  applyEvent(s, { kind: "activity", t: 500, roleKey: "panel-2", model: shared, activity: "writing", phase: "start" });
+
+  expect(s.models.map((model) => model.roleKey)).toEqual(["panel-1", "panel-2"]);
+  const rendered = renderProgress(s, THEME, 1500, 120).join("\n");
+  expect(rendered).toContain("✓  done");
+  expect(rendered).toContain("writing");
+});
+
 // During ask_panel, a panel model that already finished round 1 starts again on the same row.
 test("a completed panel row reopens during an ask_panel re-query", () => {
   const s = createProgressState(["prov/panel-a"], "prov/judge", "a title");
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-a", role: "reviewer" });
-  applyEvent(s, { kind: "activity", t: 100, model: "prov/panel-a", activity: "read", phase: "start", detail: "src/file.ts" });
-  applyEvent(s, { kind: "model_end", t: 1000, model: "prov/panel-a", role: "reviewer", status: "done", durationMs: 1000 });
+  applyEvent(s, { kind: "model_start", t: 0, roleKey: "panel-1", model: "prov/panel-a", role: "reviewer" });
+  applyEvent(s, { kind: "activity", t: 100, roleKey: "panel-1", model: "prov/panel-a", activity: "read", phase: "start", detail: "src/file.ts" });
+  applyEvent(s, { kind: "model_end", t: 1000, roleKey: "panel-1", model: "prov/panel-a", role: "reviewer", status: "done", durationMs: 1000 });
 
   expect(renderProgress(s, THEME, 1500, 120).join("\n")).toContain("✓  done");
 
-  applyEvent(s, { kind: "model_start", t: 2000, model: "prov/panel-a", role: "reviewer" });
-  applyEvent(s, { kind: "activity", t: 2500, model: "prov/panel-a", activity: "writing", phase: "start", detail: "checking again" });
+  applyEvent(s, { kind: "model_start", t: 2000, roleKey: "panel-1", model: "prov/panel-a", role: "reviewer" });
+  applyEvent(s, { kind: "activity", t: 2500, roleKey: "panel-1", model: "prov/panel-a", activity: "writing", phase: "start", detail: "checking again" });
 
   const running = renderProgress(s, THEME, 3000, 120).join("\n");
   expect(s.models).toHaveLength(1);
@@ -159,8 +175,8 @@ test("a completed panel row reopens during an ask_panel re-query", () => {
   expect(running).toContain("checking again");
   expect(running).not.toContain("✓  done");
 
-  applyEvent(s, { kind: "activity", t: 3200, model: "prov/panel-a", activity: "writing", phase: "end", durationMs: 700 });
-  applyEvent(s, { kind: "model_end", t: 4000, model: "prov/panel-a", role: "reviewer", status: "done", durationMs: 2000 });
+  applyEvent(s, { kind: "activity", t: 3200, roleKey: "panel-1", model: "prov/panel-a", activity: "writing", phase: "end", durationMs: 700 });
+  applyEvent(s, { kind: "model_end", t: 4000, roleKey: "panel-1", model: "prov/panel-a", role: "reviewer", status: "done", durationMs: 2000 });
 
   expect(renderProgress(s, THEME, 4500, 120).join("\n")).toContain("✓  done");
 });

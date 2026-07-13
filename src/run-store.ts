@@ -3,13 +3,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ThinkingLevel } from "@earendil-works/pi-ai";
 import { VALID_THINKING_LEVELS } from "./config.ts";
+import { JUDGE_ROLE_KEY, panelRoleKey, type RoleKey } from "./events.ts";
 
 /**
  * SYN-029 run store. A persisted review run lives in the OS temp dir so a later, separate
  * invocation can resume the same reviewer and judge sessions. The session
  * JSONL is written and restored by the SDK's SessionManager; this module owns only the
  * run-level grouping the SDK doesn't know about: the runId, the per-run directory, a small
- * manifest (which file is which model, plus the run's config), and TTL garbage collection.
+ * manifest (which role and model own each file, plus the run's config), and TTL garbage collection.
  *
  * Everything here is best-effort — a persistence failure must never break a live run, so the
  * writes swallow their errors. Temp by design: runs are ephemeral, GC'd after {@link RUN_TTL_MS},
@@ -27,6 +28,8 @@ const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-[a-z0-9]{1,8}$/;
 const MANIFEST = "manifest.json";
 
 export interface RunSessionRef {
+  /** Stable internal address for this session. */
+  roleKey: RoleKey;
   /** The bare `provider/model` id this session ran on. */
   modelId: string;
   /** Reasoning level the session ran at — re-applied on resume (CFG-030). */
@@ -35,8 +38,8 @@ export interface RunSessionRef {
   file: string;
 }
 
-/** Current manifest format version. Version 3 uses reviewer/judge role names. */
-const MANIFEST_VERSION = 3;
+/** Current manifest format version. Version 4 persists stable role keys. */
+const MANIFEST_VERSION = 4;
 
 export interface RunManifest {
   /** Format version, so incompatible ephemeral runs fail closed instead of resuming incorrectly. */
@@ -91,6 +94,7 @@ function isSessionRef(x: unknown): x is RunSessionRef {
   return (
     typeof x === "object" &&
     x !== null &&
+    typeof ref.roleKey === "string" &&
     typeof ref.modelId === "string" &&
     typeof ref.file === "string" &&
     typeof ref.level === "string" &&
@@ -114,8 +118,11 @@ export function readManifest(runId: string): RunManifest | undefined {
       typeof m.cwd === "string" &&
       typeof m.fullTools === "boolean" &&
       Array.isArray(m.reviewers) &&
-      m.reviewers.every(isSessionRef) &&
-      isSessionRef(m.judge);
+      m.reviewers.every(
+        (reviewer, index) => isSessionRef(reviewer) && reviewer.roleKey === panelRoleKey(index),
+      ) &&
+      isSessionRef(m.judge) &&
+      m.judge.roleKey === JUDGE_ROLE_KEY;
     return valid ? m : undefined;
   } catch {
     return undefined;

@@ -1,5 +1,6 @@
 import { test, expect } from "vitest";
-import { existsSync, mkdirSync, rmSync, utimesSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, utimesSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import {
   gcExpired,
   newRunId,
@@ -21,16 +22,16 @@ test("newRunId is sortable (timestamp first) and filename-safe", () => {
 test("writeManifest then readManifest round-trips", () => {
   const runId = newRunId();
   const manifest: RunManifest = {
-    version: 3,
+    version: 4,
     runId,
     cwd: "/some/project",
     createdAt: new Date(0).toISOString(),
     fullTools: false,
     reviewers: [
-      { modelId: "prov/a", level: "xhigh", file: "/runs/a.jsonl" },
-      { modelId: "prov/b", level: "high", file: "/runs/b.jsonl" },
+      { roleKey: "panel-1", modelId: "prov/a", level: "xhigh", file: "/runs/a.jsonl" },
+      { roleKey: "panel-2", modelId: "prov/b", level: "high", file: "/runs/b.jsonl" },
     ],
-    judge: { modelId: "prov/judge", level: "medium", file: "/runs/judge.jsonl" },
+    judge: { roleKey: "judge", modelId: "prov/judge", level: "medium", file: "/runs/judge.jsonl" },
   };
   try {
     writeManifest(manifest);
@@ -42,6 +43,37 @@ test("writeManifest then readManifest round-trips", () => {
 
 test("readManifest returns undefined for an unknown run", () => {
   expect(readManifest("2020-01-01T00-00-00-000Z-nope11")).toBeUndefined();
+});
+
+test("readManifest rejects legacy or invalid role-key routing", () => {
+  const valid = {
+    version: 4,
+    cwd: "/some/project",
+    createdAt: new Date(0).toISOString(),
+    fullTools: false,
+    reviewers: [
+      { roleKey: "panel-1", modelId: "prov/shared", level: "minimal", file: "/runs/a.jsonl" },
+      { roleKey: "panel-2", modelId: "prov/shared", level: "minimal", file: "/runs/b.jsonl" },
+    ],
+    judge: { roleKey: "judge", modelId: "prov/shared", level: "minimal", file: "/runs/judge.jsonl" },
+  };
+  const invalid = [
+    { ...valid, version: 3 },
+    { ...valid, reviewers: [valid.reviewers[0], { ...valid.reviewers[1], roleKey: "panel-1" }] },
+    { ...valid, judge: { ...valid.judge, roleKey: "panel-3" } },
+  ];
+
+  for (const candidate of invalid) {
+    const runId = newRunId();
+    const dir = runDir(runId);
+    mkdirSync(dir, { recursive: true });
+    try {
+      writeFileSync(join(dir, "manifest.json"), JSON.stringify({ ...candidate, runId }));
+      expect(readManifest(runId)).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
 });
 
 test("gcExpired removes runs older than the TTL and keeps fresh ones", () => {

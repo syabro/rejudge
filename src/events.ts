@@ -5,11 +5,22 @@
  * {@link ProgressEvent}s to a caller-supplied {@link ActivitySink}; each consumer renders
  * them its own way (the CLI → stderr lines with durations; the `rejudge` tool → its live
  * block). With no sink the engine is silent — both output channels belong to the consumer.
- * Every event carries `t` (epoch ms) so a consumer can place it on a timeline.
+ * Every event carries `t` (epoch ms) so a consumer can place it on a timeline. Agent events also
+ * carry a stable `roleKey`; `model` is display metadata and may be duplicated.
  */
 
 /** A model's role in a review run: an individual reviewer or the judge. */
 export type ModelRole = "reviewer" | "judge";
+
+/** Stable internal address for one agent slot. Model IDs are display metadata, not keys. */
+export type RoleKey = "judge" | `panel-${number}`;
+
+export const JUDGE_ROLE_KEY: RoleKey = "judge";
+
+/** Stable one-based key for a zero-based panel slot. */
+export function panelRoleKey(index: number): RoleKey {
+  return `panel-${index + 1}`;
+}
 
 /** A collective stage in a review run. */
 export type ReviewStage = "panel" | "judge";
@@ -30,10 +41,11 @@ export type RunStatus = "done" | "error" | "cancelled";
  *   otherwise have gone to stderr.
  */
 export type ProgressEvent =
-  | { kind: "model_start"; t: number; model: string; role: ModelRole }
+  | { kind: "model_start"; t: number; roleKey: RoleKey; model: string; role: ModelRole }
   | {
       kind: "activity";
       t: number;
+      roleKey: RoleKey;
       model: string;
       activity: string;
       /** A short summary of the step: a read's path / git_diff's mode for tools, or the live
@@ -46,6 +58,7 @@ export type ProgressEvent =
   | {
       kind: "model_end";
       t: number;
+      roleKey: RoleKey;
       model: string;
       role: ModelRole;
       status: RunStatus;

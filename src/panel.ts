@@ -1,5 +1,6 @@
 import { err, Result } from "neverthrow";
 import type { ModelSpec } from "./config.ts";
+import { panelRoleKey } from "./events.ts";
 import {
   runReviewer,
   type AgentFailure,
@@ -58,6 +59,7 @@ export async function runPanel(
         const result = await runReviewer(m.id, agentPrompt, {
           ...options,
           signal: controller.signal,
+          roleKey: panelRoleKey(i),
           thinkingLevel: m.level,
           sessionManager: managers?.[i],
         });

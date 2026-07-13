@@ -13,7 +13,14 @@ import type { Model, ThinkingLevel } from "@earendil-works/pi-ai";
 import { err, ok, type Result } from "neverthrow";
 import { attachActivityLog } from "./activity.ts";
 import { attachDebugLog, type DebugLog } from "./debug-log.ts";
-import type { ActivitySink, ModelRole, RunStatus } from "./events.ts";
+import {
+  JUDGE_ROLE_KEY,
+  panelRoleKey,
+  type ActivitySink,
+  type ModelRole,
+  type RoleKey,
+  type RunStatus,
+} from "./events.ts";
 import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "./git-diff-tool.ts";
 
 /**
@@ -57,6 +64,8 @@ const EMPTY_VISIBLE_TEXT_RETRY_PROMPT =
   "Your previous turn had no visible final answer. Please provide the final answer now in visible assistant text only. Do not use hidden thinking as the answer.";
 
 export interface ReviewerResult {
+  /** Stable internal address for this reviewer slot. */
+  roleKey: RoleKey;
   /** The "provider/model" id this reviewer ran on. */
   modelId: string;
   /** The reviewer's finished answer text. */
@@ -100,6 +109,8 @@ export interface RunReviewerOptions {
    * {@link askPanel}. Default: "reviewer".
    */
   role?: ModelRole;
+  /** Stable internal address for this agent slot. Defaults to `judge` or `panel-1`. */
+  roleKey?: RoleKey;
   /** The judge's only tool, `ask_panel`; reviewers run their standard tool set. */
   askPanel?: ToolDefinition;
   /**
@@ -260,8 +271,9 @@ export async function runReviewer(
 
   const sink = options.activitySink;
   const role = options.role ?? "reviewer";
+  const roleKey = options.roleKey ?? (role === "judge" ? JUDGE_ROLE_KEY : panelRoleKey(0));
   const startedAt = Date.now();
-  sink?.({ kind: "model_start", t: startedAt, model: modelId, role });
+  sink?.({ kind: "model_start", t: startedAt, roleKey, model: modelId, role });
 
   // Recorded on whichever path we exit by, then emitted once as model_end in the outer
   // finally — so the event fires exactly once no matter how the run ends.
@@ -300,10 +312,10 @@ export async function runReviewer(
       // it (config.debugLog); bridge the cancel signal to session.abort() (an abort makes
       // prompt() resolve with stopReason "aborted", caught as a failed run).
       if (sink) {
-        detach = attachActivityLog(session, modelId, sink);
+        detach = attachActivityLog(session, roleKey, modelId, sink);
       }
       if (options.debugLog) {
-        detachDebug = attachDebugLog(session, modelId, options.debugLog);
+        detachDebug = attachDebugLog(session, roleKey, modelId, options.debugLog);
       }
       options.signal?.addEventListener("abort", onAbort, { once: true });
 
@@ -357,14 +369,14 @@ export async function runReviewer(
 
       let outcome: Result<ReviewerResult, AgentFailure>;
       if (firstTurn.kind === "success") {
-        outcome = ok({ modelId, text: firstTurn.text, session });
+        outcome = ok({ roleKey, modelId, text: firstTurn.text, session });
       } else if (firstTurn.kind === "failure") {
         outcome = fail(firstTurn.error, firstTurn.aborted);
       } else {
         options.signal?.throwIfAborted();
         const retryTurn = await runPromptTurn(EMPTY_VISIBLE_TEXT_RETRY_PROMPT, true);
         if (retryTurn.kind === "success") {
-          outcome = ok({ modelId, text: retryTurn.text, session });
+          outcome = ok({ roleKey, modelId, text: retryTurn.text, session });
         } else if (retryTurn.kind === "empty") {
           outcome = fail("empty-output-after-retry: retry returned empty text");
         } else {
@@ -402,6 +414,7 @@ export async function runReviewer(
       sink({
         kind: "model_end",
         t,
+        roleKey,
         model: modelId,
         role,
         status: endStatus,

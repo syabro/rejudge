@@ -7,12 +7,13 @@ import {
   type RunReviewerOptions,
 } from "./runner.ts";
 import { ASK_PANEL_TOOL_NAME } from "./ask-panel-tool.ts";
+import { JUDGE_ROLE_KEY } from "./events.ts";
 
 /**
- * The slice of a reviewer result the judge consumes: just the finished text and
- * the model that produced it. The judge does not take ownership of reviewer sessions.
+ * The slice of a reviewer result the judge consumes: the finished text, its stable role key,
+ * and the model that produced it. The judge does not take ownership of reviewer sessions.
  */
-export type ReviewerOutput = Pick<ReviewerResult, "modelId" | "text">;
+export type ReviewerOutput = Pick<ReviewerResult, "roleKey" | "modelId" | "text">;
 
 /**
  * Build the judge prompt. The judge receives only the analyses; it fuses them into the final
@@ -22,21 +23,21 @@ export type ReviewerOutput = Pick<ReviewerResult, "modelId" | "text">;
  */
 export function buildJudgePrompt(panel: ReviewerOutput[]): string {
   const analyses = panel
-    .map((p, i) => `### Analysis ${i + 1}\n${p.text}`)
+    .map((p) => `### ${p.roleKey} (${p.modelId})\n${p.text}`)
     .join("\n\n");
 
-  const ids = panel.map((p) => p.modelId).join(", ");
+  const roles = panel.map((reviewer) => reviewer.roleKey).join(", ");
   const instructions = [
     "Several models were each given one task and produced an analysis; the analyses are",
     "below. Your job is to fuse them into the single final answer.",
     "",
-    `Your only tool is \`${ASK_PANEL_TOOL_NAME}\`, which re-queries those same models by id`,
-    `(${ids}): they hold the task, the files, the diff, and their own analysis. Your access`,
+    `Your only tool is \`${ASK_PANEL_TOOL_NAME}\`, which re-queries reviewer sessions by role key`,
+    `(${roles}): they hold the task, the files, the diff, and their own analysis. Your access`,
     "runs entirely through it — the task and its requirements, any file or diff, and every",
     "check come from them.",
     "",
-    `Before you answer, make one batched \`${ASK_PANEL_TOOL_NAME}\` call with every model and`,
-    "question you need to: resolve any disagreement between the analyses, confirm the",
+    `Before you answer, make one batched \`${ASK_PANEL_TOOL_NAME}\` call with every reviewer role`,
+    "you need to query: resolve any disagreement between the analyses, confirm the",
     "claims the answer rests on, re-check anything checkable that could be wrong even",
     "when all the analyses agree, and pull anything about the task or its required",
     "output that the analyses leave unclear. Skip the call only when the analyses already",
@@ -72,7 +73,12 @@ export async function runJudge(
 ): Promise<Result<string, AgentFailure>> {
   // The judge reaches the task, files, and checks through ask_panel; it has no direct host tools.
   const judgePrompt = buildJudgePrompt(panel);
-  const result = await runReviewer(judgeModelId, judgePrompt, { ...options, role: "judge", askPanel });
+  const result = await runReviewer(judgeModelId, judgePrompt, {
+    ...options,
+    role: "judge",
+    roleKey: JUDGE_ROLE_KEY,
+    askPanel,
+  });
 
   return result.map((judge) => {
     const text = judge.text;

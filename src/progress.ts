@@ -1,6 +1,14 @@
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import { type Component, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
-import { type ModelRole, type ProgressEvent, formatDur, shortModel } from "./events.ts";
+import {
+  JUDGE_ROLE_KEY,
+  panelRoleKey,
+  type ModelRole,
+  type ProgressEvent,
+  type RoleKey,
+  formatDur,
+  shortModel,
+} from "./events.ts";
 
 /**
  * The live-progress model and renderer for the `rejudge` tool block: a snapshot built
@@ -13,6 +21,8 @@ type ModelStatus = "running" | "done" | "error" | "cancelled";
 
 /** Live state of one inner agent, built up from its progress events. */
 interface ModelProgress {
+  /** Stable internal address for this agent slot. */
+  roleKey: RoleKey;
   /** Full "provider/model" id. */
   model: string;
   role: ModelRole;
@@ -51,7 +61,7 @@ export interface ProgressSnapshot {
   reviewerModels: string[];
   /** Full judge model id. */
   judgeModel: string;
-  /** Per-model live state, for models that have started. */
+  /** Per-role live state, for agent slots that have started. */
   models: ModelProgress[];
   diagnostics: { severity: "info" | "warn" | "error"; message: string }[];
 }
@@ -77,11 +87,13 @@ export function createProgressState(
 
 /** Apply one engine event to the snapshot (mutates in place). */
 export function applyEvent(state: ProgressSnapshot, event: ProgressEvent): void {
-  const find = (model: string): ModelProgress | undefined => state.models.find((m) => m.model === model);
+  const find = (roleKey: RoleKey): ModelProgress | undefined =>
+    state.models.find((model) => model.roleKey === roleKey);
   switch (event.kind) {
     case "model_start": {
-      const existing = find(event.model);
+      const existing = find(event.roleKey);
       const fresh: ModelProgress = {
+        roleKey: event.roleKey,
         model: event.model,
         role: event.role,
         status: "running",
@@ -103,7 +115,7 @@ export function applyEvent(state: ProgressSnapshot, event: ProgressEvent): void 
     }
 
     case "activity": {
-      const m = find(event.model);
+      const m = find(event.roleKey);
       if (!m || m.status !== "running") return;
 
       if (event.phase === "start") {
@@ -125,7 +137,7 @@ export function applyEvent(state: ProgressSnapshot, event: ProgressEvent): void 
     }
 
     case "model_end": {
-      const m = find(event.model);
+      const m = find(event.roleKey);
       if (m) {
         m.status = event.status;
         m.endedAt = event.t;
@@ -277,7 +289,7 @@ export function renderProgress(
   width: number = Number.POSITIVE_INFINITY,
   expanded = false,
 ): string[] {
-  const byModel = new Map(s.models.map((m) => [m.model, m]));
+  const byRoleKey = new Map(s.models.map((model) => [model.roleKey, model]));
 
   // Header line 1: bold "Rejudge", colored by status (the time lives on the Total line).
   const lines = [tintRow(theme, s.status, theme.bold("Rejudge"))];
@@ -300,9 +312,9 @@ export function renderProgress(
     lines.push(`${truncateToWidth(title, width - hint.length, "…")}${theme.fg("dim", hint)}`);
   }
 
-  // Build each model row, then align the status cell to one shared column.
+  // Build each role-keyed model row, then align the status cell to one shared column.
   const judgeName = shortModel(s.judgeModel);
-  const judge = byModel.get(s.judgeModel);
+  const judge = byRoleKey.get(JUDGE_ROLE_KEY);
   const rows: Row[] = [
     {
       left: `  ${judgeName} (judge)`,
@@ -312,8 +324,8 @@ export function renderProgress(
   ];
 
   const nameW = Math.max(1, ...s.reviewerModels.map((model) => visibleWidth(shortModel(model))));
-  for (const modelId of s.reviewerModels) {
-    const p = byModel.get(modelId);
+  for (const [index, modelId] of s.reviewerModels.entries()) {
+    const p = byRoleKey.get(panelRoleKey(index));
     rows.push({
       left: `    ⎿ ${padTo(shortModel(modelId), nameW)}`,
       ...(p ? statusCell(p, now, theme) : { text: "  waiting…" }),

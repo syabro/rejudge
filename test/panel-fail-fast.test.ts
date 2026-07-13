@@ -17,6 +17,7 @@ const FAILS: ModelSpec = { id: "provider/fails", level: "minimal" };
 
 function fakeResult(modelId: string): ReviewerResult {
   return {
+    roleKey: "panel-1",
     modelId,
     text: "late success",
     session: { dispose: vi.fn() } as unknown as ReviewerResult["session"],

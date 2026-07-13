@@ -11,9 +11,9 @@ const STUB = "opencode-go/kimi-k2.6";
 // make consulting the default, and omit the "## Task" section.
 test("buildJudgePrompt gives the judge the analyses + ask_panel, not the task", () => {
   const panel: ReviewerOutput[] = [
-    { modelId: "m1", text: "alpha-distinct-answer" },
-    { modelId: "m2", text: "beta-distinct-answer" },
-    { modelId: "m3", text: "gamma-distinct-answer" },
+    { roleKey: "panel-1", modelId: "m1", text: "alpha-distinct-answer" },
+    { roleKey: "panel-2", modelId: "m2", text: "beta-distinct-answer" },
+    { roleKey: "panel-3", modelId: "m3", text: "gamma-distinct-answer" },
   ];
   const built = buildJudgePrompt(panel);
 
@@ -28,7 +28,8 @@ test("buildJudgePrompt gives the judge the analyses + ask_panel, not the task", 
   expect(built).toContain("ask_panel");
   expect(built).toContain("Before you answer, make one batched");
   expect(built).toContain("checkable");
-  expect(built).toContain("(m1, m2, m3)");
+  expect(built).toContain("(panel-1, panel-2, panel-3)");
+  expect(built).toContain("### panel-2 (m2)");
 });
 
 // Real run, no mocks: one real judge call fuses three static analyses into a single answer.
@@ -37,9 +38,9 @@ test("buildJudgePrompt gives the judge the analyses + ask_panel, not the task", 
 // review.test.ts.
 integrationTest("runJudge fuses the analyses into one answer", async () => {
   const panel: ReviewerOutput[] = [
-    { modelId: "m1", text: "RESULT: The capital of France is Paris." },
-    { modelId: "m2", text: "RESULT: Paris is the capital of France." },
-    { modelId: "m3", text: "RESULT: It's Paris." },
+    { roleKey: "panel-1", modelId: "m1", text: "RESULT: The capital of France is Paris." },
+    { roleKey: "panel-2", modelId: "m2", text: "RESULT: Paris is the capital of France." },
+    { roleKey: "panel-3", modelId: "m3", text: "RESULT: It's Paris." },
   ];
 
   const result = await runJudge(STUB, panel, makeAskPanelTool([]));

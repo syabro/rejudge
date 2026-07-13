@@ -1,5 +1,5 @@
 import type { AgentSession, AgentSessionEvent } from "@earendil-works/pi-coding-agent";
-import type { ActivitySink } from "./events.ts";
+import type { ActivitySink, RoleKey } from "./events.ts";
 
 /**
  * Subscribe one inner agent's session and emit an `activity` {@link ProgressEvent} for each
@@ -12,7 +12,12 @@ import type { ActivitySink } from "./events.ts";
  * `end` with `aborted:true` and its partial duration, so a consumer never shows a ghost
  * "running" step after the agent is gone.
  */
-export function attachActivityLog(session: AgentSession, modelId: string, emit: ActivitySink): () => void {
+export function attachActivityLog(
+  session: AgentSession,
+  roleKey: RoleKey,
+  modelId: string,
+  emit: ActivitySink,
+): () => void {
   // Steps in flight, keyed so parallel tools don't collide: a tool by its toolCallId, the
   // thinking/writing phases by a fixed key (only one of each runs at a time per agent). `buf`
   // accumulates a streamed thinking/writing text; `lastEmit` throttles its update events.
@@ -21,7 +26,7 @@ export function attachActivityLog(session: AgentSession, modelId: string, emit: 
   const start = (key: string, activity: string, detail?: string): void => {
     const t = Date.now();
     open.set(key, { activity, detail, startedAt: t });
-    emit({ kind: "activity", t, model: modelId, activity, phase: "start", ...(detail ? { detail } : {}) });
+    emit({ kind: "activity", t, roleKey, model: modelId, activity, phase: "start", ...(detail ? { detail } : {}) });
   };
 
   // Append a streamed chunk to an open thinking/writing step and refresh its dimmed tail. The
@@ -36,7 +41,7 @@ export function attachActivityLog(session: AgentSession, modelId: string, emit: 
     const t = Date.now();
     if (step.lastEmit !== undefined && t - step.lastEmit < UPDATE_THROTTLE_MS) return;
     step.lastEmit = t;
-    emit({ kind: "activity", t, model: modelId, activity: step.activity, phase: "update", ...(step.detail ? { detail: step.detail } : {}) });
+    emit({ kind: "activity", t, roleKey, model: modelId, activity: step.activity, phase: "update", ...(step.detail ? { detail: step.detail } : {}) });
   };
 
   const end = (key: string, aborted = false): void => {
@@ -48,6 +53,7 @@ export function attachActivityLog(session: AgentSession, modelId: string, emit: 
     emit({
       kind: "activity",
       t,
+      roleKey,
       model: modelId,
       activity: step.activity,
       phase: "end",

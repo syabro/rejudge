@@ -13,7 +13,7 @@ import {
   type ReviewerResult,
   type RunReviewerOptions,
 } from "./runner.ts";
-import type { RunStatus } from "./events.ts";
+import { JUDGE_ROLE_KEY, type RunStatus } from "./events.ts";
 import { createDebugLog } from "./debug-log.ts";
 import {
   gcExpired,
@@ -149,7 +149,7 @@ async function freshRun(
   sink?.({ kind: "stage_end", t: panelEnd, stage: "panel", durationMs: panelEnd - runStart });
 
   // SYN-011: the judge can re-query a live panel via ask_panel before fusing.
-  const askPanel = makeAskPanelTool(panel.value, sink);
+  const askPanel = makeAskPanelTool(panel.value, sink, debugLog);
 
   const judgeStart = Date.now();
   try {
@@ -169,17 +169,23 @@ async function freshRun(
 
     // Run complete → write the manifest (the commit marker) so this run is resumable.
     writeManifest({
-      version: 3,
+      version: 4,
       runId,
       cwd,
       createdAt: new Date().toISOString(),
       fullTools: Boolean(options.fullTools),
-      reviewers: config.reviewers.map((model, i) => ({
+      reviewers: config.reviewers.map((model, index) => ({
+        roleKey: panel.value[index].roleKey,
         modelId: model.id,
         level: model.level,
-        file: reviewerManagers[i].getSessionFile() ?? "",
+        file: reviewerManagers[index].getSessionFile() ?? "",
       })),
-      judge: { modelId: config.judge.id, level: config.judge.level, file: judgeManager.getSessionFile() ?? "" },
+      judge: {
+        roleKey: JUDGE_ROLE_KEY,
+        modelId: config.judge.id,
+        level: config.judge.level,
+        file: judgeManager.getSessionFile() ?? "",
+      },
     });
     return ok({ answer: judge.value, runId });
   } finally {
@@ -238,14 +244,19 @@ async function resumeRun(
         session.dispose();
         throw new Error(`reviewer "${ref.modelId}" session is empty`);
       }
-      panel.push({ modelId: ref.modelId, text: session.getLastAssistantText() ?? "", session });
+      panel.push({
+        roleKey: ref.roleKey,
+        modelId: ref.modelId,
+        text: session.getLastAssistantText() ?? "",
+        session,
+      });
     }
   } catch (e) {
     for (const reviewer of panel) reviewer.session.dispose();
     return err(resumeFailure(runId, `could not reopen reviewer sessions: ${message(e)}`));
   }
 
-  const askPanel = makeAskPanelTool(panel, sink);
+  const askPanel = makeAskPanelTool(panel, sink, debugLog);
   const judgeStart = Date.now();
   try {
     let judgeSession: AgentSession;
@@ -271,6 +282,7 @@ async function resumeRun(
       cwd,
       debugLog,
       role: "judge",
+      roleKey: manifest.judge.roleKey,
       thinkingLevel: manifest.judge.level,
       existingSession: judgeSession,
     });
