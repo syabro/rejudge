@@ -49,7 +49,7 @@ test("runPanel aborts in-flight siblings when the first agent fails", async () =
           clearTimeout(fallback);
           setTimeout(() => {
             slowCleanupDone = true;
-            resolve(err({ model: modelId, error: "cancelled" }));
+            resolve(err({ model: modelId, error: "cancelled", aborted: true }));
           }, 0);
         };
 
@@ -63,7 +63,7 @@ test("runPanel aborts in-flight siblings when the first agent fails", async () =
 
     if (modelId === FAILS.id) {
       await slowStarted;
-      return err({ model: modelId, error: "boom" });
+      return err({ model: modelId, error: "boom", aborted: false });
     }
 
     throw new Error(`unexpected model ${modelId}`);
@@ -73,7 +73,7 @@ test("runPanel aborts in-flight siblings when the first agent fails", async () =
 
   expect(result.isErr()).toBe(true);
   if (result.isErr()) {
-    expect(result.error).toEqual({ model: FAILS.id, error: "boom" });
+    expect(result.error).toEqual({ model: FAILS.id, error: "boom", aborted: false });
   }
   expect(slowObservedAbort).toBe(true);
   expect(slowCleanupDone).toBe(true);

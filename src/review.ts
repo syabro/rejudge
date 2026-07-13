@@ -63,9 +63,8 @@ function message(e: unknown): string {
 function toReviewFailure(
   stage: "panel" | "judge",
   failure: AgentFailure,
-  aborted: boolean,
 ): ReviewFailure {
-  return { stage, model: failure.model, error: failure.error, aborted };
+  return { stage, model: failure.model, error: failure.error, aborted: failure.aborted };
 }
 
 /** A resume setup failure (run not found, cwd mismatch, missing files) — never an abort/model fault. */
@@ -100,7 +99,7 @@ export async function runReview(
     const result = options.resumeRunId
       ? await resumeRun(config, prompt, options.resumeRunId, options)
       : await freshRun(config, prompt, options);
-    status = result.isOk() ? "done" : options.signal?.aborted ? "cancelled" : "error";
+    status = result.isOk() ? "done" : result.error.aborted ? "cancelled" : "error";
     return result;
   } finally {
     if (sink) {
@@ -123,7 +122,6 @@ async function freshRun(
   const sink = options.activitySink;
   const runStart = Date.now();
   const cwd = resolve(options.cwd ?? process.cwd());
-  const aborted = (): boolean => Boolean(options.signal?.aborted);
 
   // One per-run debug log shared by every agent (when config.debugLog is on). Best-effort —
   // createDebugLog never throws; its notices ride the sink as diagnostics, not raw stderr.
@@ -145,7 +143,7 @@ async function freshRun(
     sessionManagers: reviewerManagers,
   });
   if (panel.isErr()) {
-    return err(toReviewFailure("panel", panel.error, aborted()));
+    return err(toReviewFailure("panel", panel.error));
   }
   const panelEnd = Date.now();
   sink?.({ kind: "stage_end", t: panelEnd, stage: "panel", durationMs: panelEnd - runStart });
@@ -164,7 +162,7 @@ async function freshRun(
       sessionManager: judgeManager,
     });
     if (judge.isErr()) {
-      return err(toReviewFailure("judge", judge.error, aborted()));
+      return err(toReviewFailure("judge", judge.error));
     }
     const judgeEnd = Date.now();
     sink?.({ kind: "stage_end", t: judgeEnd, stage: "judge", durationMs: judgeEnd - judgeStart });
@@ -222,7 +220,6 @@ async function resumeRun(
   }
 
   const debugLog = config.debugLog ? createDebugLog(cwd, sink) : undefined;
-  const aborted = (): boolean => Boolean(options.signal?.aborted);
 
   // Reopen reviewer sessions — live but unprompted — so ask_panel can re-query them. Restore the
   // same tool policy the run used; resume never widens it.
@@ -278,7 +275,7 @@ async function resumeRun(
       existingSession: judgeSession,
     });
     if (judge.isErr()) {
-      return err(toReviewFailure("judge", judge.error, aborted()));
+      return err(toReviewFailure("judge", judge.error));
     }
     const judgeEnd = Date.now();
     sink?.({ kind: "stage_end", t: judgeEnd, stage: "judge", durationMs: judgeEnd - judgeStart });

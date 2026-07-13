@@ -15,6 +15,7 @@ interface FakePromptTurn {
   stopReason: string;
   text?: string;
   errorMessage?: string;
+  beforeMessage?: () => void;
 }
 
 type FakeRunSession = AgentSession & {
@@ -38,6 +39,7 @@ function fakeRunSession(turns: FakePromptTurn[]): FakeRunSession {
       const turn = pendingTurns.shift();
       if (!turn) throw new Error("unexpected prompt");
 
+      turn.beforeMessage?.();
       const message: Record<string, unknown> = { role: "assistant", stopReason: turn.stopReason };
       if (turn.errorMessage) {
         message.errorMessage = turn.errorMessage;
@@ -190,6 +192,47 @@ test("runReviewer does not retry an initially non-clean response", async () => {
   if (result.isErr()) {
     expect(result.error.error).toContain("did not complete cleanly");
     expect(result.error.error).not.toContain("retry");
+  }
+});
+
+test("runReviewer marks an SDK-aborted prompt as cancelled", async () => {
+  const controller = new AbortController();
+  const session = fakeRunSession([
+    {
+      stopReason: "aborted",
+      errorMessage: "cancelled",
+      beforeMessage: () => controller.abort(),
+    },
+  ]);
+
+  const result = await runReviewer("provider/model", "original prompt", {
+    existingSession: session,
+    signal: controller.signal,
+  });
+
+  expect(result.isErr()).toBe(true);
+  if (result.isErr()) expect(result.error.aborted).toBe(true);
+});
+
+test("runReviewer keeps a technical failure technical after a late abort", async () => {
+  const controller = new AbortController();
+  const session = fakeRunSession([
+    {
+      stopReason: "error",
+      errorMessage: "provider failed",
+      beforeMessage: () => controller.abort(),
+    },
+  ]);
+
+  const result = await runReviewer("provider/model", "original prompt", {
+    existingSession: session,
+    signal: controller.signal,
+  });
+
+  expect(result.isErr()).toBe(true);
+  if (result.isErr()) {
+    expect(result.error.error).toContain("provider failed");
+    expect(result.error.aborted).toBe(false);
   }
 });
 

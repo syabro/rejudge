@@ -143,7 +143,9 @@ export default function (pi: ExtensionAPI): void {
         // (red/cancelled) rows, and the failure is surfaced as the content text (no fabricated
         // answer — it names the stage/model that broke).
         const text = result.isErr()
-          ? `rejudge failed: ${formatFailure(result.error)}`
+          ? result.error.aborted
+            ? "Rejudge cancelled by user."
+            : `rejudge failed: ${formatFailure(result.error)}`
           : [
               result.value.answer,
               "",

@@ -157,6 +157,8 @@ export interface AgentFailure {
   model: string;
   /** Human-readable failure reason. */
   error: string;
+  /** True only when this failure was caused by the abort signal. */
+  aborted: boolean;
 }
 
 /**
@@ -250,12 +252,11 @@ export async function runReviewer(
   prompt: string,
   options: RunReviewerOptions = {},
 ): Promise<Result<ReviewerResult, AgentFailure>> {
-  const fail = (error: string): Result<ReviewerResult, AgentFailure> =>
-    err({ model: modelId, error });
+  const fail = (error: string, aborted = false): Result<ReviewerResult, AgentFailure> =>
+    err({ model: modelId, error, aborted });
   const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
-
-  // A cancel reads as "cancelled", anything else as "error" — used for the model_end status.
-  const endStatusFor = (): RunStatus => (options.signal?.aborted ? "cancelled" : "error");
+  const isSignalAbort = (e: unknown): boolean =>
+    Boolean(options.signal?.aborted && e === options.signal.reason);
 
   const sink = options.activitySink;
   const role = options.role ?? "reviewer";
@@ -281,9 +282,10 @@ export async function runReviewer(
         options.existingSession.dispose();
       }
       const error = message(e);
-      endStatus = endStatusFor();
+      const aborted = isSignalAbort(e);
+      endStatus = aborted ? "cancelled" : "error";
       endError = error;
-      return fail(error);
+      return fail(error, aborted);
     }
 
     // Cleanup handles are assigned inside the try below so that a throw from the setup
@@ -311,7 +313,7 @@ export async function runReviewer(
       type PromptTurnOutcome =
         | { kind: "success"; text: string }
         | { kind: "empty" }
-        | { kind: "failure"; error: string };
+        | { kind: "failure"; error: string; aborted: boolean };
 
       const runPromptTurn = async (turnPrompt: string, retry: boolean): Promise<PromptTurnOutcome> => {
         const messageCount = session.state.messages.length;
@@ -327,12 +329,20 @@ export async function runReviewer(
         // Only "stop" is a clean completion. "length" (truncated), "toolUse" (loop ended
         // mid tool-cycle), "error" and "aborted" are all partial/failed runs.
         if (!last) {
-          return { kind: "failure", error: retry ? "empty-output retry produced no response" : "produced no response" };
+          return {
+            kind: "failure",
+            error: retry ? "empty-output retry produced no response" : "produced no response",
+            aborted: false,
+          };
         }
         if (last.stopReason !== "stop") {
           const detail = last.errorMessage ? `: ${last.errorMessage}` : "";
           const prefix = retry ? "empty-output retry did not complete cleanly" : "did not complete cleanly";
-          return { kind: "failure", error: `${prefix} (stopReason: ${last.stopReason})${detail}` };
+          return {
+            kind: "failure",
+            error: `${prefix} (stopReason: ${last.stopReason})${detail}`,
+            aborted: last.stopReason === "aborted",
+          };
         }
 
         const text = session.getLastAssistantText();
@@ -349,7 +359,7 @@ export async function runReviewer(
       if (firstTurn.kind === "success") {
         outcome = ok({ modelId, text: firstTurn.text, session });
       } else if (firstTurn.kind === "failure") {
-        outcome = fail(firstTurn.error);
+        outcome = fail(firstTurn.error, firstTurn.aborted);
       } else {
         options.signal?.throwIfAborted();
         const retryTurn = await runPromptTurn(EMPTY_VISIBLE_TEXT_RETRY_PROMPT, true);
@@ -358,14 +368,14 @@ export async function runReviewer(
         } else if (retryTurn.kind === "empty") {
           outcome = fail("empty-output-after-retry: retry returned empty text");
         } else {
-          outcome = fail(retryTurn.error);
+          outcome = fail(retryTurn.error, retryTurn.aborted);
         }
       }
 
       // Keep the session alive only on success; the caller disposes it then.
       if (outcome.isErr()) {
         session.dispose();
-        endStatus = endStatusFor();
+        endStatus = outcome.error.aborted ? "cancelled" : "error";
         endError = outcome.error.error;
       } else {
         endStatus = "done";
@@ -374,9 +384,10 @@ export async function runReviewer(
     } catch (e) {
       session.dispose();
       const error = message(e);
-      endStatus = endStatusFor();
+      const aborted = isSignalAbort(e);
+      endStatus = aborted ? "cancelled" : "error";
       endError = error;
-      return fail(error);
+      return fail(error, aborted);
     } finally {
       options.signal?.removeEventListener("abort", onAbort);
       if (detachDebug) {

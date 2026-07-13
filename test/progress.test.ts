@@ -59,6 +59,26 @@ test("renderProgress clamps a long error-reason row to width", () => {
   }
 });
 
+test("a final cancelled snapshot keeps its cancelled row visible", () => {
+  const s = createProgressState(["prov/panel-a"], "prov/judge", "cancel me");
+  const start = s.startedAt;
+  applyEvent(s, { kind: "model_start", t: start, model: "prov/panel-a", role: "reviewer" });
+  applyEvent(s, {
+    kind: "model_end",
+    t: start + 1000,
+    model: "prov/panel-a",
+    role: "reviewer",
+    status: "cancelled",
+    durationMs: 1000,
+  });
+  applyEvent(s, { kind: "total", t: start + 1000, durationMs: 1000, status: "cancelled" });
+
+  const rendered = renderProgress(s, THEME, start + 1000, 100).join("\n");
+  expect(s.status).toBe("cancelled");
+  expect(rendered).toContain("⊘ cancelled");
+  expect(rendered).toContain("Total 01s");
+});
+
 // Unbounded width (the default) must not clamp — lines pass through unchanged.
 test("renderProgress leaves lines untouched at unbounded width", () => {
   const s = seeded();

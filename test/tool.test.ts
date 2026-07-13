@@ -9,6 +9,7 @@ import { resolve, join } from "node:path";
 import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { runDir } from "../src/run-store.ts";
+import type { ProgressSnapshot } from "../src/progress.ts";
 
 const STUB = "opencode-go/kimi-k2.6";
 const packageManifest = JSON.parse(readFileSync(resolve("package.json"), "utf8")) as {
@@ -77,6 +78,42 @@ test("buildInvocationPrompt composes the question with output instructions", () 
   expect(composed).toContain(question);
   expect(composed).toContain("Begin your reply with RESULT:");
   expect(composed).toContain("Output instructions");
+});
+
+test("rejudge returns user cancellation as its own model-visible result", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
+  mkdirSync(join(cwd, ".rejudge"), { recursive: true });
+  writeFileSync(
+    join(cwd, ".rejudge", "config.json"),
+    JSON.stringify({
+      reviewers: ["provider/reviewer-a@minimal", "provider/reviewer-b@minimal"],
+      judge: "provider/judge@minimal",
+    }),
+  );
+
+  const tool = await loadTool(cwd, agentDir);
+  expect(tool).toBeDefined();
+
+  const result = await tool!.definition.execute(
+    "test-call",
+    { question: "review this" },
+    AbortSignal.abort(),
+    undefined,
+    { cwd } as unknown as ExtensionContext,
+  );
+
+  const text = result.content
+    .map((content) => (content.type === "text" ? content.text : ""))
+    .join("");
+  const snapshot = result.details as ProgressSnapshot;
+
+  expect(text).toBe("Rejudge cancelled by user.");
+  expect(text).not.toMatch(/rejudge failed/i);
+  expect(snapshot.status).toBe("cancelled");
+  expect(snapshot.models).toHaveLength(2);
+  expect(snapshot.models.every((model) => model.role === "reviewer")).toBe(true);
+  expect(snapshot.models.every((model) => model.status === "cancelled" && model.toolCount === 0)).toBe(true);
 });
 
 test("rejudge forwards resumeRunId to the resume path", async () => {

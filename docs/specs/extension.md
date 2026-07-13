@@ -13,7 +13,7 @@ The `@rejudge/pi` package loads `dist/extension.js` through the `pi.extensions` 
 
 Without `resumeRunId`, Rejudge starts a fresh panel and the judge returns one answer plus a run ID. With `resumeRunId`, it restores the prior reviewer and judge sessions and sends the follow-up to the judge without repeating the fan-out. Intermediate reviewer outputs remain internal. Output instructions travel in the shared reviewer prompt and are reflected by the judge.
 
-A missing or invalid config is a tool error. A panel or judge failure returns a non-fabricated result naming the stage, model, and reason. Reviewers are read-only by default; the judge has only `ask_panel`. See `tools.md`.
+A missing or invalid config is a tool error. Pressing Esc returns the model-visible result `Rejudge cancelled by user.`; it is not reported as a broken review. A panel or judge failure still returns a non-fabricated result naming the stage, model, and reason. Reviewers are read-only by default; the judge has only `ask_panel`. See `tools.md`.
 
 ## Trust boundary
 
@@ -37,7 +37,7 @@ While `rejudge` runs inside Pi it shows a live block, refreshed every second, as
 - **A running model** reads `nn. tool  time  detail`: a dimmed step number (tools so far), the step (`thinking`/`writing`/the tool name), the step's duration (live while it runs, frozen between steps so the gap shows the previous step, not a blank), then a dimmed detail — the tool's params (a read's path, `git_diff`'s mode, a `web_search` query) or the live tail of the streamed thinking/writing text. The detail trims to the terminal width (keeping its end), so the block fits the window and never wraps, and it reflows on resize. Before the first step the cell is empty.
 - **A finished model** reads `✓  done (time | N tools)` in green; a broken one `✗ <reason> (…)` in red; one cancelled by an abort `⊘ cancelled (…)` in dim.
 - Durations are `NNs` under a minute, `NmNNs` at or past one. The **Total** line (dimmed) at the bottom is the whole run's time. With `debugLog` on, a dimmed line shows the log path.
-- Expand the result (Ctrl+O) to see the full request under `Request:` and the review answer below the tree. Collapsed, the header shows the clipped title and expand hint. On failure the block remains with its final rows and total.
+- Expand the result (Ctrl+O) to see the full request under `Request:` and the review answer below the tree. Collapsed, the header shows the clipped title and expand hint. On failure or cancellation the block remains with its final rows and total.
 - The engine never writes directly to host output; the Pi tool owns this block and the CLI renders the same events to stderr.
 
 # Tasks
@@ -121,7 +121,7 @@ While `rejudge` runs inside Pi it shows a live block, refreshed every second, as
   - Successful tool output includes a `Run ID` follow-up hint, with resumed calls keeping the same run id.
   - Deterministic tool tests cover the public parameter and resume forwarding without a model call; the live tool smoke asserts that a run id is returned.
 
-- [ ] EXT-052 Surface user cancellation separately from Fusion failures		#release
+- [x] EXT-052 Surface user cancellation separately from Fusion failures		#release
   Pi agents can tell when a `fusion_agents` run was cancelled by the user instead of treating it as a broken review.
 
   Pressing Esc during a `fusion_agents` run cancels the tool, but the host agent currently sees that like a failed Fusion run. User cancellation should be surfaced as its own clear outcome in the tool result, distinct from panel, synth, config, or resume failures.
@@ -130,3 +130,9 @@ While `rejudge` runs inside Pi it shows a live block, refreshed every second, as
   - cancelling a `fusion_agents` run from Pi returns a model-visible user-cancelled result
   - technical Fusion failures still return failure text with stage/model details
   - the live progress block still shows cancelled rows and keeps the final snapshot visible
+
+  **Implemented:**
+  - Pi reports an Esc cancellation as `Rejudge cancelled by user.` instead of a failed review.
+  - Cancellation is attributed to the outcome that actually aborted, so a later Esc cannot hide a technical model or tool failure.
+  - The final progress snapshot remains visible with cancelled reviewer rows and the total duration.
+  - Deterministic tests cover the Pi tool result, late-abort attribution, and cancelled-row rendering.
