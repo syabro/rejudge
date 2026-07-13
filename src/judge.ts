@@ -1,28 +1,26 @@
 import { type Result } from "neverthrow";
 import { type ToolDefinition } from "@earendil-works/pi-coding-agent";
 import {
-  runPanelAgent,
+  runReviewer,
   type AgentFailure,
-  type PanelAgentResult,
-  type RunPanelAgentOptions,
+  type ReviewerResult,
+  type RunReviewerOptions,
 } from "./runner.ts";
 import { ASK_PANEL_TOOL_NAME } from "./ask-panel-tool.ts";
 
 /**
- * The slice of a panel result the synthesis step consumes: just the finished
- * text (and which model produced it). Synthesis deliberately does NOT take the
- * live session — session ownership/disposal stays with the caller (`fuse`), and
- * decoupling it lets the synthesis run on static panel outputs in tests.
+ * The slice of a reviewer result the judge consumes: just the finished text and
+ * the model that produced it. The judge does not take ownership of reviewer sessions.
  */
-export type PanelOutput = Pick<PanelAgentResult, "modelId" | "text">;
+export type ReviewerOutput = Pick<ReviewerResult, "modelId" | "text">;
 
 /**
- * Build the synthesis prompt. The judge receives only the analyses; it fuses them into the final
+ * Build the judge prompt. The judge receives only the analyses; it fuses them into the final
  * answer and reaches the task, files, and any check through the panel via its only tool, `ask_panel`.
  * Consulting the panel is the default pre-answer step. The output format rides through the analyses
  * (the panel applied it; the judge mirrors). It writes in its own voice as the final-answer author.
  */
-export function buildSynthesisPrompt(panel: PanelOutput[]): string {
+export function buildJudgePrompt(panel: ReviewerOutput[]): string {
   const analyses = panel
     .map((p, i) => `### Analysis ${i + 1}\n${p.text}`)
     .join("\n\n");
@@ -62,27 +60,23 @@ export function buildSynthesisPrompt(panel: PanelOutput[]): string {
 }
 
 /**
- * Run the synthesis step: one distinct call on the configured synth model that
- * fuses the panel outputs into a single final answer. Returns ONLY the fused answer
- * text; intermediate panel outputs are never surfaced. Owns and disposes its own
- * synth session.
+ * Run the judge step: one distinct call on the configured judge model that fuses the reviewer
+ * analyses into one final answer. Intermediate reviewer outputs are never surfaced. The judge
+ * owns and disposes its session.
  */
-export async function synthesize(
-  synthModelId: string,
-  panel: PanelOutput[],
+export async function runJudge(
+  judgeModelId: string,
+  panel: ReviewerOutput[],
   askPanel: ToolDefinition,
-  options: RunPanelAgentOptions = {},
+  options: RunReviewerOptions = {},
 ): Promise<Result<string, AgentFailure>> {
-  // role "synth" scopes the judge to its single tool, ask_panel, passed here so every judge is built
-  // with it. The task lives with the panel, and the judge reaches the task, the files, and any check
-  // through ask_panel. It just fuses the analyses.
-  const synthPrompt = buildSynthesisPrompt(panel);
-  const result = await runPanelAgent(synthModelId, synthPrompt, { ...options, role: "synth", askPanel });
-  // On success take the fused text and dispose the synth session; on failure pass the
-  // AgentFailure straight through.
-  return result.map((synth) => {
-    const text = synth.text;
-    synth.session.dispose();
+  // The judge reaches the task, files, and checks through ask_panel; it has no direct host tools.
+  const judgePrompt = buildJudgePrompt(panel);
+  const result = await runReviewer(judgeModelId, judgePrompt, { ...options, role: "judge", askPanel });
+
+  return result.map((judge) => {
+    const text = judge.text;
+    judge.session.dispose();
     return text;
   });
 }

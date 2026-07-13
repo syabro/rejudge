@@ -25,61 +25,58 @@ export interface ModelSpec {
   level: ThinkingLevel;
 }
 
-/** A panel of >= 2 models + 1 synthesis model, each carrying its own reasoning level. */
-export interface FusionConfig {
-  panel: ModelSpec[];
-  synth: ModelSpec;
+/** Two or more reviewers plus one judge, each carrying its own reasoning level. */
+export interface RejudgeConfig {
+  reviewers: ModelSpec[];
+  judge: ModelSpec;
   /** When true, write a per-run JSONL debug log of inner-agent activity. Default false. */
   debugLog: boolean;
 }
 
 export function configPath(cwd: string): string {
-  return join(cwd, ".pi", "fusion-agents.json");
+  return join(cwd, ".rejudge", "config.json");
 }
 
 /**
- * Path to the user-global config, used by the CLI as a fallback when the project has no
- * `.pi/fusion-agents.json`. Honors `XDG_CONFIG_HOME`, else `~/.config`.
+ * Path to the user-global config, used as a fallback when the project has no
+ * `.rejudge/config.json`. Honors `XDG_CONFIG_HOME`, else `~/.config`.
  */
 export function globalConfigPath(): string {
   const base = process.env.XDG_CONFIG_HOME?.trim() || join(homedir(), ".config");
-  return join(base, "fusion-agents.json");
+  return join(base, "rejudge", "config.json");
 }
 
 /** A loaded config plus the file it came from (for CLI diagnostics). */
 export interface ResolvedConfig {
-  config: FusionConfig;
+  config: RejudgeConfig;
   path: string;
 }
 
 /**
- * Resolve config for the CLI: prefer the project's `<cwd>/.pi/fusion-agents.json`, else
- * fall back to the user-global {@link globalConfigPath}. Throws a clear error naming both
- * paths when neither exists. (The Pi extension keeps using {@link loadFusionConfig} —
- * cwd-only, with no global fallback.)
+ * Resolve config: prefer the project's `<cwd>/.rejudge/config.json`, else fall back to the
+ * user-global {@link globalConfigPath}. Throws a clear error naming both paths when neither exists.
  */
-export function resolveFusionConfig(cwd: string): ResolvedConfig {
+export function resolveRejudgeConfig(cwd: string): ResolvedConfig {
   const local = configPath(cwd);
-  if (existsSync(local)) return { config: loadFusionConfigFromPath(local), path: local };
+  if (existsSync(local)) return { config: loadRejudgeConfigFromPath(local), path: local };
   const global = globalConfigPath();
-  if (existsSync(global)) return { config: loadFusionConfigFromPath(global), path: global };
+  if (existsSync(global)) return { config: loadRejudgeConfigFromPath(global), path: global };
   throw new Error(`no config found: looked in ${local} and ${global}`);
 }
 
 /**
- * Load and validate `<cwd>/.pi/fusion-agents.json`.
+ * Load and validate `<cwd>/.rejudge/config.json`.
  *
- * Valid = at least 2 non-empty panel model IDs + 1 non-empty synthesis ID (full
- * provider/model form). Throws a clear error on a missing file, malformed JSON,
- * too few panel models, or missing synthesis ID — `fusion_agents` must not run on a
- * bad config. Config shape beyond these IDs is deferred.
+ * Valid = at least 2 non-empty reviewer model IDs + 1 non-empty judge ID in full
+ * provider/model form. Throws a clear error on a missing file, malformed JSON,
+ * too few reviewers, or a missing judge — Rejudge must not run on a bad config.
  */
-export function loadFusionConfig(cwd: string): FusionConfig {
-  return loadFusionConfigFromPath(configPath(cwd));
+export function loadRejudgeConfig(cwd: string): RejudgeConfig {
+  return loadRejudgeConfigFromPath(configPath(cwd));
 }
 
-/** Load and validate a config from an explicit file path. See {@link loadFusionConfig}. */
-export function loadFusionConfigFromPath(path: string): FusionConfig {
+/** Load and validate a config from an explicit file path. See {@link loadRejudgeConfig}. */
+export function loadRejudgeConfigFromPath(path: string): RejudgeConfig {
   let raw: string;
   try {
     raw = readFileSync(path, "utf8");
@@ -95,8 +92,12 @@ export function loadFusionConfigFromPath(path: string): FusionConfig {
   }
 
   const cfg = (parsed ?? {}) as Record<string, unknown>;
-  const panel = cfg.panel;
-  const synth = cfg.synth;
+  const reviewers = cfg.reviewers;
+  const judge = cfg.judge;
+
+  if ("panel" in cfg || "synth" in cfg) {
+    throw new Error(`config keys "panel" and "synth" are no longer supported — use "reviewers" and "judge"`);
+  }
 
   // The old per-stage `thinking` block is gone (CFG-030) — reasoning level now lives in each model
   // id as a `@level` suffix. A leftover `thinking` key is a half-migrated config: hard-error with a
@@ -108,16 +109,16 @@ export function loadFusionConfigFromPath(path: string): FusionConfig {
     );
   }
 
-  if (!Array.isArray(panel) || panel.length < 2 || !panel.every((m) => typeof m === "string" && m.trim() !== "")) {
-    throw new Error(`config "panel" must be at least 2 non-empty model IDs`);
+  if (!Array.isArray(reviewers) || reviewers.length < 2 || !reviewers.every((m) => typeof m === "string" && m.trim() !== "")) {
+    throw new Error(`config "reviewers" must be at least 2 non-empty model IDs`);
   }
-  if (typeof synth !== "string" || synth.trim() === "") {
-    throw new Error(`config "synth" must be a non-empty model ID`);
+  if (typeof judge !== "string" || judge.trim() === "") {
+    throw new Error(`config "judge" must be a non-empty model ID`);
   }
 
   return {
-    panel: (panel as string[]).map((m, i) => parseModelSpec(m, `panel[${i}]`)),
-    synth: parseModelSpec(synth, "synth"),
+    reviewers: (reviewers as string[]).map((m, i) => parseModelSpec(m, `reviewers[${i}]`)),
+    judge: parseModelSpec(judge, "judge"),
     debugLog: parseDebugLog(cfg.debugLog),
   };
 }

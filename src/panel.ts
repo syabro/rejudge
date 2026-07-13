@@ -1,10 +1,10 @@
 import { err, Result } from "neverthrow";
 import type { ModelSpec } from "./config.ts";
 import {
-  runPanelAgent,
+  runReviewer,
   type AgentFailure,
-  type PanelAgentResult,
-  type RunPanelAgentOptions,
+  type ReviewerResult,
+  type RunReviewerOptions,
 } from "./runner.ts";
 
 /**
@@ -13,8 +13,8 @@ import {
  *
  * Every agent receives the byte-identical `prompt` — diversity comes only from
  * the model and the tool-use path it takes, never from the input. Agents run
- * concurrently; on success this returns one {@link PanelAgentResult} per model
- * in input order, each with its session left alive for a later synthesis/judge
+ * concurrently; on success this returns one {@link ReviewerResult} per model
+ * in input order, each with its session left alive for the judge
  * step (the caller disposes them).
  *
  * All-or-nothing, never a silent partial panel: if any agent fails (malformed model
@@ -27,9 +27,9 @@ import {
 export async function runPanel(
   models: ModelSpec[],
   prompt: string,
-  options: RunPanelAgentOptions = {},
-): Promise<Result<PanelAgentResult[], AgentFailure>> {
-  // runPanelAgent never throws (it returns a Result), so Promise.all is safe. The panel still
+  options: RunReviewerOptions = {},
+): Promise<Result<ReviewerResult[], AgentFailure>> {
+  // runReviewer never throws (it returns a Result), so Promise.all is safe. The panel still
   // owns its own abort controller: the caller's signal cancels the whole panel, and the first
   // agent failure also cancels every sibling through the same signal.
   const managers = options.sessionManagers;
@@ -55,7 +55,7 @@ export async function runPanel(
       models.map(async (m, i) => {
         const add = adds?.[i];
         const agentPrompt = add ? `${prompt}\n\n${add}` : prompt;
-        const result = await runPanelAgent(m.id, agentPrompt, {
+        const result = await runReviewer(m.id, agentPrompt, {
           ...options,
           signal: controller.signal,
           thinkingLevel: m.level,
@@ -71,7 +71,7 @@ export async function runPanel(
     );
 
     // On any failure, dispose the sessions that DID succeed so nothing leaks. Failed/aborted
-    // agents dispose themselves in runPanelAgent.
+    // reviewers dispose themselves in runReviewer.
     if (firstFailure) {
       for (const r of results) {
         if (r.isErr()) continue;

@@ -1,22 +1,22 @@
 // Pure CLI argument handling — no I/O, no side effects, so it can be unit-tested.
-// `cli.ts` (the bin entry) imports these and does the actual file/config/fuse I/O.
+// `cli.ts` (the bin entry) imports these and does the actual file/config/review I/O.
 import { parseArgs } from "node:util";
 
-export const USAGE = `usage: fusion ["your question"] | fusion -f <file> | fusion <<'EOF' … EOF
+export const USAGE = `usage: rejudge ["your question"] | rejudge -f <file> | rejudge <<'EOF' … EOF
 
   positional       the question/instruction (quote multi-word questions)
   -f, --file       read the prompt from a file instead of the command line
   (stdin)          with no positional and no -f, the prompt is read from stdin
-                   (e.g. \`fusion <<'EOF' … EOF\` or \`cmd | fusion\`)
-      --unsafe,    give inner agents the full tool set (edit/write/bash) — they can
+                   (e.g. \`rejudge <<'EOF' … EOF\` or \`cmd | rejudge\`)
+      --unsafe,    give reviewers the full tool set (edit/write/bash) — they can
       --full       change files and run shell in the cwd; default is read-only
                    (read/grep/find/ls)
-      --resume ID  follow up on a prior run: resume its panel + synth sessions and
-                   answer with their earlier context (the prompt is the follow-up).
+      --resume ID  follow up on a prior run: resume its reviewer and judge sessions
+                   with their earlier context (the prompt is the follow-up).
                    A fresh run prints its ID; runs expire after ~24h.
   -h, --help       show this help
 
-Config: <cwd>/.pi/fusion-agents.json, else ~/.config/fusion-agents.json.
+Config: <cwd>/.rejudge/config.json, else ~/.config/rejudge/config.json.
 Key:    set OPENCODE_API_KEY in the environment (or use Pi's stored auth).`;
 
 /** Parsed CLI intent. `fullTools`/`resume`/`promptAdds` ride on the prompt/file/stdin kinds (orthogonal to the source). */
@@ -31,7 +31,7 @@ export type CliArgs =
 const PROMPT_ADD_RE = /^--prompt-add-(\d+)(?:=(.*))?$/s;
 
 /**
- * TESTING-ONLY (not a product feature, never exposed by the `fusion_agents` tool): pull
+ * TESTING-ONLY (not a product feature, never exposed by the `rejudge` tool): pull
  * `--prompt-add-<N>` flags out of argv before {@link parseArgs} sees them (it would reject them as
  * unknown). Each appends a per-panel instruction to the otherwise byte-identical prompt of panel
  * member N (1-based) — the only sanctioned way to break the "every agent gets the same input"

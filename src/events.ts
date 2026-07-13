@@ -1,27 +1,30 @@
 /**
- * Progress events the fusion engine emits, and the sink it emits them through.
+ * Progress events the review engine emits, and the sink it emits them through.
  *
  * The engine writes nothing to stdout/stderr on its own. Instead it emits structured
  * {@link ProgressEvent}s to a caller-supplied {@link ActivitySink}; each consumer renders
- * them its own way (the CLI → stderr lines with durations; the `fusion_agents` tool → its
- * live block). With no sink the engine is silent — both output channels belong to the
- * consumer. Every event carries `t` (epoch ms) so a consumer can place it on a timeline.
+ * them its own way (the CLI → stderr lines with durations; the `rejudge` tool → its live
+ * block). With no sink the engine is silent — both output channels belong to the consumer.
+ * Every event carries `t` (epoch ms) so a consumer can place it on a timeline.
  */
 
-/** A model's role in the run: a panel member, or the synthesis ("judge") model. */
-export type ModelRole = "panel" | "synth";
+/** A model's role in a review run: an individual reviewer or the judge. */
+export type ModelRole = "reviewer" | "judge";
+
+/** A collective stage in a review run. */
+export type ReviewStage = "panel" | "judge";
 
 /** Terminal state of a single model, or of the whole run. */
 export type RunStatus = "done" | "error" | "cancelled";
 
 /**
  * One progress event. The union is discriminated by `kind`:
- * - `model_start` / `model_end` bracket one inner agent (panel member or synth);
+ * - `model_start` / `model_end` bracket one inner agent (reviewer or judge);
  * - `activity` brackets one step inside an agent (a tool call, or the `thinking`/`writing`
  *   phases), `phase:"start"` when it begins and `phase:"end"` when it finishes — the end
  *   carries `durationMs`, or `aborted:true` (with a partial `durationMs`) if the run was
  *   torn down with the step still open;
- * - `stage_end` marks the panel or synth stage finishing (its own elapsed time);
+ * - `stage_end` marks the panel or judge stage finishing (its own elapsed time);
  * - `total` marks the whole run finishing;
  * - `diagnostic` carries an out-of-band notice (e.g. a debug-log path) that would
  *   otherwise have gone to stderr.
@@ -49,7 +52,7 @@ export type ProgressEvent =
       durationMs: number;
       error?: string;
     }
-  | { kind: "stage_end"; t: number; stage: ModelRole; durationMs: number }
+  | { kind: "stage_end"; t: number; stage: ReviewStage; durationMs: number }
   | { kind: "total"; t: number; durationMs: number; status: RunStatus }
   | { kind: "diagnostic"; t: number; severity: "info" | "warn" | "error"; message: string };
 

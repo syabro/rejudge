@@ -1,8 +1,8 @@
-# pi-fusion-agents
+# Rejudge
 
 Dev commands are npm/bun scripts in `package.json` — `bun run test`, `bun run test:unit`, `bun run typecheck`, `bun run build:cli`. See @README.md for what this is and how to run it.
 
-After committing code changes, rebuild: `bun run build` (CLI + extension). `bin/fusion.js` (from `src/cli.ts`) and `dist/extension.js` (from `src/index.ts`, with `neverthrow` inlined) are gitignored bundles that won't reflect `src/` changes until rebuilt; `bun install` also rebuilds them via the `prepare` script. The Pi extension is loaded as the built bundle, not from `src/` — Pi 0.80's loader only resolves the pi SDK + typebox, so third-party deps must be bundled in.
+After committing code changes, rebuild: `bun run build` (CLI + extension). `bin/rejudge.js` (from `src/cli.ts`) and `dist/extension.js` (from `src/index.ts`, with `neverthrow` inlined) are gitignored bundles that won't reflect `src/` changes until rebuilt; `bun install` also rebuilds them via the `prepare` script. The Pi extension is loaded as the built bundle, not from `src/` — Pi 0.80's loader only resolves the pi SDK + typebox, so third-party deps must be bundled in.
 
 ## Release publishing
 
@@ -21,7 +21,7 @@ No linter is configured — these are upheld by reading the code (and by LLM cod
 
 ## Reviews (mdtask)
 
-For the two review steps in the `mdtask-do` / `mdtask-next` skills, use our own fusion panel as the reviewer (no hardcoded command — the skill knows how to launch it): code review → the `fusion-review` skill; plan review → the `fusion` skill with a plan-review prompt. The fused panel answer is the review. This runs fusion_agents in real use ("боевой режим").
+For the two review steps in the `mdtask-do` / `mdtask-next` skills, use Rejudge as the reviewer (no hardcoded command — the skill knows how to launch it): code review → the `rejudge-diff` skill; plan review → the `rejudge` skill with a plan-review prompt. The judge's answer is the review. This runs the `rejudge` tool or CLI in real use ("боевой режим").
 
 ## Technical decisions
 

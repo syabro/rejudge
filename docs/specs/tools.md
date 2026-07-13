@@ -2,9 +2,9 @@
 
 ## Inner-agent tools
 
-The external `fusion_agents` tool surface — its params, what it returns, and the invocation contract — is in `extension.md`. This section covers the tools the inner agents (the panel models and synthesis) run with.
+The external `rejudge` tool contract is in `extension.md`. This section covers reviewer and judge tools.
 
-Each inner agent (the panel models and the synthesis) runs read-only by default in the working directory: `read` plus the dedicated `grep`/`find`/`ls` search-and-list tools — no `edit`/`write`/`bash` — so the tool cannot change files or run shell commands. The dedicated tools let agents search and list directly instead of shelling out. The full local set (adding `edit`/`write`/`bash`) is an explicit opt-in (`fullTools`), not exposed through the `fusion_agents` tool itself today; the CLI exposes it via `--unsafe`/`--full` (see `cli.md`). Host extensions are not inherited.
+Reviewers run read-only by default with `read`/`grep`/`find`/`ls`; they cannot edit files or execute shell commands. The CLI's explicit `--unsafe` / `--full` option adds `edit`/`write`/`bash` for reviewers. The Pi `rejudge` tool never enables that option. The judge always has only `ask_panel`. Unrelated host extensions are not inherited.
 
 For code review, every inner agent also gets a custom read-only `git_diff` tool. It returns the working-tree diff so a reviewing agent sees the actual change instead of depending on the diff being pasted into the prompt. Parameters: `mode` (`stat` default = the change map + untracked list / `full` = the whole diff / `file` = one path), `ref` (default `HEAD`; a branch name or commit hash to review committed work), and `path` (only for `mode=file`). It only reads git state — never modifies the repo. An oversized diff hard-stops with guidance (narrow with `mode=file`, or `read` a huge single file) rather than flooding the context; there is no truncation.
 

@@ -20,12 +20,12 @@ import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "./git-diff-tool.ts";
  * The full local tool set: the SDK's built-ins — read, the dedicated grep/find/ls
  * search-and-list tools, and edit/write/bash. Used only when the caller opts into
  * write access (`fullTools`); the default is the read-only subset below. grep/find/ls
- * are wired in so agents search and list with the dedicated tools rather than
+ * are wired in so reviewers search and list with the dedicated tools rather than
  * shelling out through bash (slow and noisy). Host extensions are not inherited —
- * only these built-in tools are exposed (which also keeps the agent from re-entering
- * `fusion_agents`).
+ * only these built-in tools are exposed (which also keeps a reviewer from re-entering
+ * `rejudge`).
  */
-export const PANEL_TOOLS = ["read", "grep", "find", "ls", "edit", "write", "bash"] as const;
+export const REVIEWER_TOOLS = ["read", "grep", "find", "ls", "edit", "write", "bash"] as const;
 
 /**
  * The read-only subset (the SDK's read-only tools): read plus the dedicated
@@ -46,9 +46,9 @@ export const WEB_SEARCH_TOOL = "web_search";
 
 /**
  * Host extension tools an inner agent is allowed to opt into. Only the host extensions that
- * provide one of these are loaded into an inner session (see {@link runPanelAgent}); every
- * other host extension is filtered out so its lifecycle handlers never fire for a panel/synth
- * agent — which is what made a host like Herdr or a session indicator flash on each inner
+ * provide one of these are loaded into an inner session (see {@link runReviewer}); every
+ * other host extension is filtered out so its lifecycle handlers never fire for a reviewer or
+ * judge — which is what made a host like Herdr or a session indicator flash on each inner
  * agent's completion. Today the only opt-in is `web_search`.
  */
 const OPT_IN_HOST_TOOLS = new Set<string>([WEB_SEARCH_TOOL]);
@@ -56,57 +56,55 @@ const OPT_IN_HOST_TOOLS = new Set<string>([WEB_SEARCH_TOOL]);
 const EMPTY_VISIBLE_TEXT_RETRY_PROMPT =
   "Your previous turn had no visible final answer. Please provide the final answer now in visible assistant text only. Do not use hidden thinking as the answer.";
 
-export interface PanelAgentResult {
-  /** The "provider/model" id this agent ran on. */
+export interface ReviewerResult {
+  /** The "provider/model" id this reviewer ran on. */
   modelId: string;
-  /** The agent's finished answer text. */
+  /** The reviewer's finished answer text. */
   text: string;
-  /** Live session, left open for a later judge/synthesis re-query; the caller disposes it. */
+  /** Live session, left open for a later judge re-query; the caller disposes it. */
   session: AgentSession;
 }
 
-export interface RunPanelAgentOptions {
+export interface RunReviewerOptions {
   /** Working directory the agent's tools operate in. Default: process.cwd(). */
   cwd?: string;
   /** Reasoning level for this agent. Default: "xhigh". */
   thinkingLevel?: ThinkingLevel;
   /**
-   * Cancellation signal. `fuse` forwards it unchanged to every panel agent and the
-   * synthesis agent; aborting it stops all in-flight agents (and short-circuits ones
-   * not yet started), so a cancelled fusion returns `{ ok: false }` instead of
-   * leaving agents running and burning credits.
+   * Cancellation signal. `runReview` forwards it unchanged to every reviewer and the
+   * judge; aborting it stops all in-flight agents (and short-circuits ones not yet
+   * started) instead of leaving agents running and burning credits.
    */
   signal?: AbortSignal;
   /**
-   * Per-run debug log to record this agent's activity into. `fuse` creates one shared log
+   * Per-run debug log to record this agent's activity into. `runReview` creates one shared log
    * (when `config.debugLog` is set) and forwards it to every agent. Omitted → no logging.
    */
   debugLog?: DebugLog;
   /**
-   * Give the agent the full local tool set ({@link PANEL_TOOLS}: adds edit/write/bash
+   * Give a reviewer the full local tool set ({@link REVIEWER_TOOLS}: adds edit/write/bash
    * on top of read/grep/find/ls) so it can change files and run shell commands in its
-   * cwd. `fuse` forwards it to every panel and synth agent. Default: false →
-   * {@link READONLY_TOOLS}. Read-only is the safe default; writing is an explicit opt-in.
+   * cwd. `runReview` forwards it to every reviewer; the judge remains restricted to
+   * `ask_panel`. Default: false → {@link READONLY_TOOLS}.
    */
   fullTools?: boolean;
   /**
    * Progress sink. When set, this agent emits `model_start`/`activity`/`model_end`
    * {@link ActivitySink} events through it so a consumer can render live progress. When
-   * omitted the agent is silent — it writes nothing to stdout/stderr itself. `fuse`
-   * forwards it (and tags each stage's {@link role}) to every panel and synth agent.
+   * omitted the agent is silent — it writes nothing to stdout/stderr itself. `runReview`
+   * forwards it (and tags each agent's {@link role}) to every reviewer and the judge.
    */
   activitySink?: ActivitySink;
   /**
-   * This agent's role. Stamped on progress events; for `"synth"` it also scopes the agent's tools to
-   * {@link askPanel}. Default: "panel".
+   * This agent's role. Stamped on progress events; for `"judge"` it also scopes the agent's tools to
+   * {@link askPanel}. Default: "reviewer".
    */
   role?: ModelRole;
-  /** The synth/"judge" agent's only tool: `ask_panel`, required for the synth stage; panel agents
-   *  run their standard tool set. */
+  /** The judge's only tool, `ask_panel`; reviewers run their standard tool set. */
   askPanel?: ToolDefinition;
   /**
    * Where this agent's session is persisted. Default: {@link SessionManager.inMemory} — nothing
-   * on disk, so the host's `/resume` list stays clean. `fuse` passes a disk-backed manager
+   * on disk, so the host's `/resume` list stays clean. `runReview` passes a disk-backed manager
    * (`SessionManager.create(cwd, runDir)` for a fresh run, `SessionManager.open(file)` to resume)
    * when persisting a run for later follow-up (SYN-029).
    */
@@ -117,7 +115,7 @@ export interface RunPanelAgentOptions {
    */
   sessionManagers?: SessionManager[];
   /**
-   * TESTING-ONLY ({@link runPanel} only; never set by the `fusion_agents` tool). A per-panel prompt
+   * TESTING-ONLY ({@link runPanel} only; never set by the `rejudge` tool). A per-reviewer prompt
    * suffix, index-aligned with `models` (`undefined` = no suffix for that slot). When set, runPanel
    * appends `promptAdds[i]` to agent `i`'s prompt — deliberately breaking the "every agent gets the
    * byte-identical prompt" invariant to force panel divergence and reproduce cross-examination
@@ -126,7 +124,7 @@ export interface RunPanelAgentOptions {
   promptAdds?: (string | undefined)[];
   /**
    * A pre-built, possibly already-populated session to prompt instead of constructing a new one.
-   * `fuse` uses this to resume a synth/"judge" session opened from disk (SYN-029): the run skips
+   * `runReview` uses this to resume a judge session opened from disk (SYN-029): the run skips
    * {@link createInnerSession} and prompts the supplied session, which already carries round-1
    * context. Default: build a fresh session.
    */
@@ -151,7 +149,7 @@ export function resolveModel(modelId: string): Model<any> {
 
 /**
  * A failure from a single inner agent: which model broke and why. Carried in the `Err`
- * arm of {@link runPanelAgent}'s result so a caller reports the failing model as
+ * arm of {@link runReviewer}'s result so a caller reports the failing model as
  * structured data instead of parsing a message.
  */
 export interface AgentFailure {
@@ -165,28 +163,28 @@ export interface AgentFailure {
  * Build one inner-agent session (no prompt). Resolves the model, loads the host's extensions but
  * keeps only those that provide an opt-in tool ({@link OPT_IN_HOST_TOOLS}, today just
  * `web_search`) — everything else is dropped at load so its lifecycle handlers (a Herdr/terminal
- * notifier, a session indicator, even `fusion_agents` itself) never fire for a panel/synth agent —
+ * notifier, a session indicator, even `rejudge` itself) never fire for a reviewer or judge —
  * then creates the session with the right tool set.
  *
- * A panel agent gets the local tool set: read/grep/find/ls + `git_diff` (TLS-026), `fullTools` adds
- * edit/write/bash, plus `web_search` when the host has it. The synth/"judge" (role "synth") gets only
- * `askPanel`. In-memory unless a `sessionManager` is given (SYN-029). Shared by {@link runPanelAgent}
+ * A reviewer gets the local tool set: read/grep/find/ls + `git_diff` (TLS-026), `fullTools` adds
+ * edit/write/bash, plus `web_search` when the host has it. The judge gets only `askPanel`.
+ * In-memory unless a `sessionManager` is given (SYN-029). Shared by {@link runReviewer}
  * and the resume path.
  */
 export async function createInnerSession(
   modelId: string,
-  options: RunPanelAgentOptions = {},
+  options: RunReviewerOptions = {},
 ): Promise<AgentSession> {
   const model = resolveModel(modelId);
   const cwd = options.cwd ?? process.cwd();
 
-  // The synth/"judge" gets only ask_panel; a panel agent gets the local tool set
+  // The judge gets only ask_panel; a reviewer gets the local tool set
   // (read-only or, on opt-in, full) plus git_diff.
-  const judge = options.role === "synth";
+  const judge = options.role === "judge";
   const askPanel = options.askPanel;
   const tools = judge
     ? askPanel ? [askPanel.name] : []
-    : [...(options.fullTools ? PANEL_TOOLS : READONLY_TOOLS), GIT_DIFF_TOOL_NAME];
+    : [...(options.fullTools ? REVIEWER_TOOLS : READONLY_TOOLS), GIT_DIFF_TOOL_NAME];
   const customTools = judge ? (askPanel ? [askPanel] : []) : [gitDiffTool];
 
   // Build and reload the loader ourselves so we can read the surviving host tools, then hand the
@@ -224,7 +222,7 @@ export async function createInnerSession(
     customTools,
     resourceLoader,
     settingsManager,
-    // Reasoning level comes from the caller (fuse threads it per stage); default "xhigh" for
+    // Reasoning level comes from the caller (runReview threads it per role); default "xhigh" for
     // direct callers. Pi clamps it to what each model supports.
     thinkingLevel: options.thinkingLevel ?? "xhigh",
     // In-memory by default so an inner agent never floods the host's /resume list; a disk-backed
@@ -237,22 +235,22 @@ export async function createInnerSession(
 /**
  * Run one panel agent end-to-end on a single model.
  *
- * The agent runs in the local environment with the read-only {@link READONLY_TOOLS}
- * set by default, or the full {@link PANEL_TOOLS} set when `fullTools` is passed. Returns
+ * The reviewer runs in the local environment with the read-only {@link READONLY_TOOLS}
+ * set by default, or the full {@link REVIEWER_TOOLS} set when `fullTools` is passed. Returns
  * `ok(result)` only on a clean run; any model/tool/runtime failure (or a cancel) becomes
  * `err({ model, error })` — never a throw, never a silent partial. On success the session
- * is left open (the caller disposes it) so a later synthesis/judge step can re-query it.
+ * is left open (the caller disposes it) so the judge can re-query it later.
  *
  * When an `activitySink` is given the agent emits `model_start`/`activity`/`model_end`
  * progress events through it (see {@link attachActivityLog}); with no sink it is silent and
  * writes nothing to stdout/stderr.
  */
-export async function runPanelAgent(
+export async function runReviewer(
   modelId: string,
   prompt: string,
-  options: RunPanelAgentOptions = {},
-): Promise<Result<PanelAgentResult, AgentFailure>> {
-  const fail = (error: string): Result<PanelAgentResult, AgentFailure> =>
+  options: RunReviewerOptions = {},
+): Promise<Result<ReviewerResult, AgentFailure>> {
+  const fail = (error: string): Result<ReviewerResult, AgentFailure> =>
     err({ model: modelId, error });
   const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -260,7 +258,7 @@ export async function runPanelAgent(
   const endStatusFor = (): RunStatus => (options.signal?.aborted ? "cancelled" : "error");
 
   const sink = options.activitySink;
-  const role = options.role ?? "panel";
+  const role = options.role ?? "reviewer";
   const startedAt = Date.now();
   sink?.({ kind: "model_start", t: startedAt, model: modelId, role });
 
@@ -278,7 +276,7 @@ export async function runPanelAgent(
     } catch (e) {
       // resolveModel / createAgentSession / a pre-start abort. A freshly built session didn't
       // survive to assignment, but a caller-supplied existingSession (resume) is ours now —
-      // dispose it so a failed resume doesn't leak the reopened synth session.
+      // dispose it so a failed resume doesn't leak the reopened judge session.
       if (options.existingSession) {
         options.existingSession.dispose();
       }
@@ -296,7 +294,7 @@ export async function runPanelAgent(
     const onAbort = () => void session.abort();
     try {
       // Emit this agent's activity changes through the sink (only when one is set — the
-      // engine is otherwise silent); persist a richer per-run debug log when fuse enabled
+      // engine is otherwise silent); persist a richer per-run debug log when runReview enabled
       // it (config.debugLog); bridge the cancel signal to session.abort() (an abort makes
       // prompt() resolve with stopReason "aborted", caught as a failed run).
       if (sink) {
@@ -347,7 +345,7 @@ export async function runPanelAgent(
       options.signal?.throwIfAborted();
       const firstTurn = await runPromptTurn(prompt, false);
 
-      let outcome: Result<PanelAgentResult, AgentFailure>;
+      let outcome: Result<ReviewerResult, AgentFailure>;
       if (firstTurn.kind === "success") {
         outcome = ok({ modelId, text: firstTurn.text, session });
       } else if (firstTurn.kind === "failure") {

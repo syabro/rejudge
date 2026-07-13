@@ -2,24 +2,24 @@ import { Type } from "typebox";
 import { defineTool, type AgentSession } from "@earendil-works/pi-coding-agent";
 import { attachActivityLog } from "./activity.ts";
 import type { ActivitySink, RunStatus } from "./events.ts";
-import type { PanelAgentResult } from "./runner.ts";
+import type { ReviewerResult } from "./runner.ts";
 
 /**
- * The custom `ask_panel` tool (SYN-011). It lets the synth/"judge" agent re-query the LIVE
- * sessions of one or more analyses' authors for a second round — to cross-examine a disagreement
+ * The custom `ask_panel` tool lets the judge re-query the live sessions of one or more reviewers
+ * for a second round — to cross-examine a disagreement
  * or pressure a disputed finding — before it produces the final answer. Re-prompting the SAME
  * session keeps that author's round-1 context, so it answers the follow-up remembering what it
  * already said.
  *
- * A single call takes a batch of `{ model, question }` queries and runs them IN PARALLEL, so the
- * judge re-queries every author it wants in one shot (the normal move) without paying for serial
+ * A single call takes a batch of `{ model, question }` queries and runs them in parallel, so the
+ * judge re-queries every reviewer it wants in one shot without paying for serial
  * round-trips; it may also target just one. Delegating the deep re-verification back to the authors
  * this way is what lets the judge be a cheaper model than the panel.
  *
- * It's a factory: it closes over the live panel results so the tool can reach their sessions (the
+ * It's a factory: it closes over the live reviewer results so the tool can reach their sessions (the
  * SDK only hands `execute` its params/signal/ctx, never our sessions). Whether and whom to re-query
  * is the judge's call; the caller steers it through the question/output instructions. Like every
- * inner tool it returns failures as text, never throws — so the no-throw fusion contract holds even
+ * inner tool it returns failures as text, never throws — so the no-throw review contract holds even
  * if a re-query breaks.
  */
 
@@ -35,7 +35,7 @@ function lastAssistant(session: AgentSession) {
     .find((m): m is Extract<typeof m, { role: "assistant" }> => m.role === "assistant");
 }
 
-export function makeAskPanelTool(panel: PanelAgentResult[], activitySink?: ActivitySink) {
+export function makeAskPanelTool(panel: ReviewerResult[], activitySink?: ActivitySink) {
   const models = panel.map((p) => p.modelId);
 
   /**
@@ -69,11 +69,11 @@ export function makeAskPanelTool(panel: PanelAgentResult[], activitySink?: Activ
     let endStatus: RunStatus = "error";
     let endError: string | undefined;
 
-    // Bridge the tool-call signal (the synth turn's signal — fires when the whole fusion is
+    // Bridge the tool-call signal (the judge turn's signal — fires when the whole review is
     // cancelled) to this session; session.prompt() takes no signal of its own.
     const onAbort = () => void session.abort();
     signal?.addEventListener("abort", onAbort, { once: true });
-    activitySink?.({ kind: "model_start", t: startedAt, model, role: "panel" });
+    activitySink?.({ kind: "model_start", t: startedAt, model, role: "reviewer" });
 
     try {
       if (activitySink) {
@@ -120,7 +120,7 @@ export function makeAskPanelTool(panel: PanelAgentResult[], activitySink?: Activ
           kind: "model_end",
           t,
           model,
-          role: "panel",
+          role: "reviewer",
           status: endStatus,
           durationMs: t - startedAt,
           ...(endError ? { error: endError } : {}),

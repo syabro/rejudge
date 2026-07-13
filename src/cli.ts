@@ -1,19 +1,19 @@
 #!/usr/bin/env node
-// fusion — local CLI for pi-fusion-agents. Ask a question, get the single fused answer
-// (a panel of >= 2 models + 1-model synthesis). Built into ./bin via `bun run build:cli`.
+// rejudge — local CLI for Rejudge. Ask a question and get one independently reviewed answer.
+// Built into ./bin via `bun run build:cli`.
 //
-//   fusion "your question here"
-//   fusion -f prompt.txt
+//   rejudge "your question here"
+//   rejudge -f prompt.txt
 //
-// Config: reads <cwd>/.pi/fusion-agents.json, else ~/.config/fusion-agents.json.
+// Config: reads <cwd>/.rejudge/config.json, else ~/.config/rejudge/config.json.
 // Key: Pi reads OPENCODE_API_KEY from the environment (or its stored auth) on its own —
 // the CLI never touches the key. Note: the built bin resolves its dependencies from THIS
 // repo's node_modules, so it is not portable outside the repo tree.
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { parseCliArgs, USAGE } from "./cli-args.ts";
-import { resolveFusionConfig } from "./config.ts";
-import { formatFailure, fuse } from "./fusion.ts";
+import { resolveRejudgeConfig } from "./config.ts";
+import { formatFailure, runReview } from "./review.ts";
 import { createStderrSink } from "./stderr-sink.ts";
 
 function msg(err: unknown): string {
@@ -42,7 +42,7 @@ async function main(): Promise<number> {
     return 0;
   }
   if (args.kind === "error") {
-    console.error(`fusion: ${args.message}\n\n${USAGE}`);
+    console.error(`rejudge: ${args.message}\n\n${USAGE}`);
     return 1;
   }
 
@@ -53,28 +53,28 @@ async function main(): Promise<number> {
     try {
       prompt = readFileSync(args.path, "utf8");
     } catch (err) {
-      console.error(`fusion: cannot read prompt file ${args.path} (${msg(err)})`);
+      console.error(`rejudge: cannot read prompt file ${args.path} (${msg(err)})`);
       return 1;
     }
     if (prompt.trim() === "") {
-      console.error(`fusion: prompt file is empty: ${args.path}`);
+      console.error(`rejudge: prompt file is empty: ${args.path}`);
       return 1;
     }
   } else if (args.kind === "stdin") {
     // A bare interactive terminal has nothing to read — print usage instead of
     // hanging on stdin waiting for input that will never come.
     if (process.stdin.isTTY) {
-      console.error(`fusion: no prompt given\n\n${USAGE}`);
+      console.error(`rejudge: no prompt given\n\n${USAGE}`);
       return 1;
     }
     try {
       prompt = await readStdin();
     } catch (err) {
-      console.error(`fusion: cannot read prompt from stdin (${msg(err)})`);
+      console.error(`rejudge: cannot read prompt from stdin (${msg(err)})`);
       return 1;
     }
     if (prompt.trim() === "") {
-      console.error("fusion: prompt on stdin is empty");
+      console.error("rejudge: prompt on stdin is empty");
       return 1;
     }
   } else {
@@ -86,27 +86,27 @@ async function main(): Promise<number> {
   const cwd = process.cwd();
   let config, path;
   try {
-    ({ config, path } = resolveFusionConfig(cwd));
+    ({ config, path } = resolveRejudgeConfig(cwd));
   } catch (err) {
-    console.error(`fusion: ${msg(err)}\n\n${USAGE}`);
+    console.error(`rejudge: ${msg(err)}\n\n${USAGE}`);
     return 1;
   }
 
   console.error(`config: ${path}`);
   const showSpec = (m: { id: string; level: string }): string => `${m.id}@${m.level}`;
-  console.error(`panel: ${config.panel.map(showSpec).join(", ")} | synth: ${showSpec(config.synth)}`);
+  console.error(`reviewers: ${config.reviewers.map(showSpec).join(", ")} | judge: ${showSpec(config.judge)}`);
 
   // Testing-only --prompt-add-N validation needs the resolved panel size. A resume doesn't re-run
   // the panel, so a per-panel add would be silently ignored — reject the combination loudly.
   const promptAdds = args.promptAdds;
   if (promptAdds) {
     if (args.resume) {
-      console.error("fusion: --prompt-add-N can't be combined with --resume (a resume doesn't re-run the panel)");
+      console.error("rejudge: --prompt-add-N can't be combined with --resume (a resume doesn't re-run the panel)");
       return 1;
     }
     for (let i = 0; i < promptAdds.length; i++) {
-      if (promptAdds[i] !== undefined && i >= config.panel.length) {
-        console.error(`fusion: --prompt-add-${i + 1} is out of range — the panel has ${config.panel.length} members`);
+      if (promptAdds[i] !== undefined && i >= config.reviewers.length) {
+        console.error(`rejudge: --prompt-add-${i + 1} is out of range — the panel has ${config.reviewers.length} reviewers`);
         return 1;
       }
     }
@@ -121,11 +121,11 @@ async function main(): Promise<number> {
         ? "unsafe: inner agents can edit/write/run bash in this directory"
         : "read-only: inner agents limited to read/grep/find/ls",
     );
-    console.error("running fusion on real models (this takes a few minutes)…");
+    console.error("running Rejudge on real models (this takes a few minutes)…");
   }
 
-  // Live progress to stderr (durations per step + a total); the fused answer owns stdout.
-  const result = await fuse(config, prompt, {
+  // Live progress goes to stderr; the review answer owns stdout.
+  const result = await runReview(config, prompt, {
     cwd,
     fullTools: args.fullTools,
     resumeRunId: args.resume,
@@ -133,7 +133,7 @@ async function main(): Promise<number> {
     activitySink: createStderrSink(),
   });
   if (result.isErr()) {
-    console.error(`fusion: ${formatFailure(result.error)}`);
+    console.error(`rejudge: ${formatFailure(result.error)}`);
     return 1;
   }
   console.log(result.value.answer);
@@ -142,8 +142,8 @@ async function main(): Promise<number> {
   const id = result.value.runId;
   console.error(
     args.resume
-      ? `run ${id} extended — follow up again: fusion --resume ${id} "<question>"`
-      : `run saved as ${id} — follow up: fusion --resume ${id} "<question>"`,
+      ? `run ${id} extended — follow up again: rejudge --resume ${id} "<question>"`
+      : `run saved as ${id} — follow up: rejudge --resume ${id} "<question>"`,
   );
   return 0;
 }
@@ -158,7 +158,7 @@ if (invokedDirectly) {
   main().then(
     (code) => process.exit(code),
     (err) => {
-      console.error(`fusion: unexpected error: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
+      console.error(`rejudge: unexpected error: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`);
       process.exit(1);
     },
   );

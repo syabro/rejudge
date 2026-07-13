@@ -3,8 +3,8 @@ import { mkdtempSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { truncate } from "../src/debug-log.ts";
-import { fuse } from "../src/fusion.ts";
-import type { FusionConfig } from "../src/config.ts";
+import { runReview } from "../src/review.ts";
+import type { RejudgeConfig } from "../src/config.ts";
 import { integrationTest } from "./integration.ts";
 
 // Pure logic: head-3 + "N omitted" + tail-3, then a hard char cap. Literal in/out, no mocks.
@@ -18,22 +18,22 @@ test("truncate keeps short content, collapses the middle of long content, caps h
   expect(out.length).toBeLessThan(huge.length);
 });
 
-// Real run, no mocks: enable debugLog, run a fusion in a temp cwd, then read the file it
+// Real run, no mocks: enable debugLog, run a review in a temp cwd, then read the file it
 // produced and assert it's valid JSONL carrying the expected fields.
 const STUB = "opencode-go/kimi-k2.6";
 const SPEC = { id: STUB, level: "minimal" } as const;
-const CONFIG: FusionConfig = {
-  panel: [SPEC, SPEC, SPEC],
-  synth: SPEC,
+const CONFIG: RejudgeConfig = {
+  reviewers: [SPEC, SPEC, SPEC],
+  judge: SPEC,
   debugLog: true,
 };
 
 integrationTest("a debugLog run writes a per-run JSONL file of inner-agent activity", async () => {
-  const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-dbg-"));
-  const result = await fuse(CONFIG, "Reply with exactly the word: PONG. Nothing else.", { cwd });
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-dbg-"));
+  const result = await runReview(CONFIG, "Reply with exactly the word: PONG. Nothing else.", { cwd });
   expect(result.isOk()).toBe(true);
 
-  const dir = join(cwd, ".pi", "fusion-logs");
+  const dir = join(cwd, ".rejudge", "logs");
   const files = readdirSync(dir).filter((f) => f.endsWith(".jsonl"));
   expect(files.length).toBe(1);
 

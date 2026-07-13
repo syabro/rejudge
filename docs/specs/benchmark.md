@@ -17,7 +17,7 @@ Grading is deterministic, SWE-bench style. The submission is `git diff base_comm
 Pi is a thin pier agent, no fork: pier loads a custom agent by import path (`create_agent_from_import_path`); `SUPPORTS_ATIF` defaults false, so the agent ships in our tree and skips the trajectory format at first. `run(instruction, environment, context)` runs with CWD = repo root. Concrete shape:
 
 - Install (`install_spec`): Node ≥18, then `npm install -g --ignore-scripts @earendil-works/pi-coding-agent` (or `curl -fsSL https://pi.dev/install.sh | sh`); the task image may lack Node, so the step must provide it.
-- Offline start: sandboxes are `allow_internet=false`, so pass `--no-extensions --no-skills --no-prompt-templates --no-themes --no-context-files` and `PI_OFFLINE=1` — this also turns `fusion_agents` OFF, giving a clean Pi-vs-codex baseline (the panel is read-only and useless for edit tasks). `network_allowlist()` must permit the provider's base URL so the model call still works.
+- Offline start: sandboxes are `allow_internet=false`, so pass `--no-extensions --no-skills --no-prompt-templates --no-themes --no-context-files` and `PI_OFFLINE=1` — this also turns `rejudge` off, giving a clean Pi-vs-codex baseline (the panel is read-only and useless for edit tasks). `network_allowlist()` must permit the provider's base URL so the model call still works.
 - Invoke: pipe `instruction.md` into `pi -p --model <id>` via stdin (not argv — length limits), with Pi's edit/write/bash tools enabled.
 - Commit wrapper: `pi -p … ; git add -A ; git diff --cached --quiet || git commit -m agent` — survives a non-zero Pi exit and skips an empty commit, so `base..HEAD` is non-empty exactly when Pi changed something.
 - Provider key: set `OPENCODE_API_KEY` in the process env in `run()` (not on argv), or pre-bake `~/.pi/agent/auth.json` in `install_spec`.
@@ -96,12 +96,12 @@ comparable today; per-token cost is codex-only.
 
 ### Open decisions (resolve before the comparison run)
 
-- Model: pin the SAME model for both sides, or accept a harness+model comparison (Pi+its model vs codex+its model). Baseline default: plain Pi (fusion off).
+- Model: pin the SAME model for both sides, or accept a harness+model comparison (Pi+its model vs codex+its model). Baseline default: plain Pi (Rejudge off).
 - Sample size: n=10 validates the pipeline; a defensible Pi-vs-codex number needs n≥30 per agent. Set a total budget cap for both runs.
 
 ### Picking "medium" tasks (DeepSWE difficulty signal) — bench/
 
-To choose tasks where a fusion panel can plausibly beat a single model (not trivial, not impossible) we mine DeepSWE's OWN published trials instead of running our own multi-attempt sweeps.
+To choose tasks where Rejudge can plausibly beat a single model (not trivial, not impossible), we mine DeepSWE's own published trials instead of running our own multi-attempt sweeps.
 
 **Data source (read-only, public):**
 - Trials index: `https://deepswe.datacurve.ai/artifacts/v1/trials.json` — MUST send `Accept: application/json` (the same path returns the SPA's HTML to a browser request). 14728 rows; fields incl. `trial_name, task_name, model, reasoning_effort, source, eval_scope, included_in_score, passed`. Per-test fraction fields (`f2p_total` etc.) are **null** here.
@@ -123,9 +123,9 @@ To choose tasks where a fusion panel can plausibly beat a single model (not triv
 - `bench/deepswe_f2p.py` (Stage 2, offline): parse → `bench/deepswe-f2p.jsonl` (per run: reward, exit_code, f2p_total/passed/failed, progress, progress_quality, p2p_regression, build_failed).
 - `bench/deepswe_f2p_report.py`: aggregate per (task, model) → `bench/deepswe-difficulty.csv` (all 113 tasks, sortable) + the medium band.
 
-**Selection decision (fusion-panel-vetted):**
+**Selection decision (reviewed through Rejudge):**
 - **Headline = Set A: all 20 tasks where BOTH models solve 1..n-1 of n** (both coin-flip). Frozen in `bench/medium-tasks.txt`. Don't filter down — 4-run data makes any extra filter noisy / cherry-picking; if forced, shrink by language/repo diversity, not by progress/gap. Set A is clean (`regression_gap ≈ 0` → failures are genuine feature misses, not regressions).
-- **Set B (near-miss: low solve, progress ≈ 0.9–1.0)** = SEPARATE secondary slice, NOT in the headline. Many are p2p-regression traps (feature implemented but breaks an old test every time) — a different claim, not "fusion can finish the job".
+- **Set B (near-miss: low solve, progress ≈ 0.9–1.0)** = SEPARATE secondary slice, NOT in the headline. Many are p2p-regression traps (feature implemented but breaks an old test every time) — a different claim, not "Rejudge can finish the job".
 - **Validity risk (moderate, not fatal):** difficulty was measured on the `mini-swe-agent` harness; we run Pi+gpt-5.5 (different harness). Treat DeepSWE as a SHORTLIST signal, not proof. Hedge: run a small non-scored Pi calibration on 3–5 of the 20 first; if they're trivial/impossible in Pi, recalibrate; report both the DeepSWE selection rule and the observed Pi solo baseline.
 
 # Tasks

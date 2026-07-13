@@ -120,10 +120,10 @@ test("-f without a value is an error, not a throw", () => {
 
 // Real-bin smoke test for the stdin guard: empty stdin must fail (exit 1, the single
 // non-zero failure code), not hang, not run the panel. This path short-circuits before
-// config/fuse, so it needs no API key — but it does need the built bin, so it's skipped
-// when ./bin/fusion.js hasn't been built. The TTY-true branch can't be exercised here
+// config/review, so it needs no API key — but it does need the built bin, so it's skipped
+// when ./bin/rejudge.js hasn't been built. The TTY-true branch can't be exercised here
 // (a spawned child's stdin is a pipe, never a terminal).
-const BIN = fileURLToPath(new URL("../bin/fusion.js", import.meta.url));
+const BIN = fileURLToPath(new URL("../bin/rejudge.js", import.meta.url));
 
 test.skipIf(!existsSync(BIN))("built bin: empty stdin fails (exit 1) without hanging", () => {
   for (const input of ["", "   \n  "]) {

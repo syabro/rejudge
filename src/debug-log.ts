@@ -52,14 +52,14 @@ function size(s: string): { chars: number; lines: number } {
 }
 
 /**
- * Open a per-run debug log at `<cwd>/.pi/fusion-logs/<timestamp>.jsonl`. Returns a sink,
+ * Open a per-run debug log at `<cwd>/.rejudge/logs/<timestamp>.jsonl`. Returns a sink,
  * or `undefined` if the directory can't be created (never throws — a debug log must never
  * abort a real run). Records are appended synchronously; writes are bounded (one per
  * activity, not per token), so appendFileSync is fine.
  *
  * Notices (the log path, a creation/write failure) go through the optional `emit` sink as
- * `diagnostic` events rather than straight to stderr — so when fusion runs as the
- * `fusion_agents` tool inside a host Pi, they surface in the tool's own block instead of
+ * `diagnostic` events rather than straight to stderr — so when Rejudge runs as the `rejudge`
+ * tool inside a host Pi, they surface in the tool's own block instead of
  * corrupting the host's output. With no sink, notices are dropped (the engine stays silent).
  */
 export function createDebugLog(cwd: string, emit?: ActivitySink): DebugLog | undefined {
@@ -68,7 +68,7 @@ export function createDebugLog(cwd: string, emit?: ActivitySink): DebugLog | und
   };
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const rand = Math.random().toString(36).slice(2, 8);
-  const path = join(cwd, ".pi", "fusion-logs", `${stamp}-${rand}.jsonl`);
+  const path = join(cwd, ".rejudge", "logs", `${stamp}-${rand}.jsonl`);
   try {
     mkdirSync(dirname(path), { recursive: true });
   } catch (err) {

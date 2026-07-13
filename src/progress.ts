@@ -3,7 +3,7 @@ import { type Component, truncateToWidth, visibleWidth, wrapTextWithAnsi } from 
 import { type ModelRole, type ProgressEvent, formatDur, shortModel } from "./events.ts";
 
 /**
- * The live-progress model and renderer for the `fusion_agents` tool block: a snapshot built
+ * The live-progress model and renderer for the `rejudge` tool block: a snapshot built
  * up from the engine's {@link ProgressEvent}s ({@link applyEvent}) and drawn as a 3-level
  * tree ({@link renderProgress}). Kept out of the extension entry so the entry stays just
  * registration + plumbing.
@@ -34,23 +34,23 @@ interface ModelProgress {
 }
 
 /**
- * Snapshot of a fusion's progress, carried in the tool result's `details` and drawn by
- * {@link renderProgress}. The panel + judge model ids are seeded up front so the whole tree
+ * Snapshot of a review's progress, carried in the tool result's `details` and drawn by
+ * {@link renderProgress}. The reviewers and judge are seeded up front so the whole tree
  * shows from the first paint (each row "waiting…" until its model starts).
  */
 export interface ProgressSnapshot {
   startedAt: number;
   endedAt?: number;
   status: ModelStatus;
-  /** Short title shown in the header (`Fusion <title>`); what this run is about. */
+  /** Short title shown in the header (`Rejudge <title>`); what this run is about. */
   title?: string;
   /** Full request sent to the panel (`buildInvocationPrompt(question, outputInstructions)`),
    *  shown in the header when expanded (Ctrl+O); falls back to {@link title} when blank. */
   request?: string;
-  /** Full panel model ids, in config order. */
-  panelModels: string[];
-  /** Full synth ("judge") model id. */
-  synthModel: string;
+  /** Full reviewer model ids, in config order. */
+  reviewerModels: string[];
+  /** Full judge model id. */
+  judgeModel: string;
   /** Per-model live state, for models that have started. */
   models: ModelProgress[];
   diagnostics: { severity: "info" | "warn" | "error"; message: string }[];
@@ -58,8 +58,8 @@ export interface ProgressSnapshot {
 
 /** A fresh snapshot with the full tree seeded — every row present, none started yet. */
 export function createProgressState(
-  panelModels: string[],
-  synthModel: string,
+  reviewerModels: string[],
+  judgeModel: string,
   title?: string,
   request?: string,
 ): ProgressSnapshot {
@@ -68,8 +68,8 @@ export function createProgressState(
     status: "running",
     title,
     request,
-    panelModels: [...panelModels],
-    synthModel,
+    reviewerModels: [...reviewerModels],
+    judgeModel,
     models: [],
     diagnostics: [],
   };
@@ -255,18 +255,18 @@ interface Row {
 /**
  * Draw the live 3-level progress tree as lines, fit to `width` columns:
  *
- *     Fusion
+ *     Rejudge
  *     review the runner change (ctrl+o to expand)
  *       glm-5.1 (judge)        0. thinking   12s  …keep it concise
  *         ⎿ deepseek-v4-pro    2. read       03s  src/runner.ts
  *         ⎿ minimax-m3        ✓ done (35s | 6 tools)
  *     Total 41s
  *
- * Line 1 is bold `Fusion`, colored by status (green done, red fail, dim cancel, neutral running).
+ * Line 1 is bold `Rejudge`, colored by status (green done, red fail, dim cancel, neutral running).
  * Line 2 is the query: collapsed → a clipped title + the dimmed ctrl+o hint (shown above); expanded
  * (Ctrl+O) → the full request under a dim `Request:` label, falling back to the title when blank. The
- * tree is root → judge → panel models, the status cell aligned to one shared column across the judge
- * (level 2) and the panels (level 3). A running row's dimmed detail is trimmed to whatever width is
+ * tree is root → judge → reviewers, the status cell aligned to one shared column across the judge
+ * (level 2) and reviewers (level 3). A running row's dimmed detail is trimmed to whatever width is
  * left on the line, so it never wraps. The overall time lives on a dimmed `Total <time>` line at the
  * bottom. `now`/`width` are injected for deterministic tests; `width` defaults to unbounded (no trimming).
  */
@@ -279,8 +279,8 @@ export function renderProgress(
 ): string[] {
   const byModel = new Map(s.models.map((m) => [m.model, m]));
 
-  // Header line 1: bold "Fusion", colored by status (the time lives on the Total line).
-  const lines = [tintRow(theme, s.status, theme.bold("Fusion"))];
+  // Header line 1: bold "Rejudge", colored by status (the time lives on the Total line).
+  const lines = [tintRow(theme, s.status, theme.bold("Rejudge"))];
 
   // Header line 2: the query. Collapsed → one clipped title line + a dimmed expand hint; expanded
   // (Ctrl+O) → the full request (what was sent to the panel), wrapped, under a dim "Request:" label,
@@ -301,18 +301,18 @@ export function renderProgress(
   }
 
   // Build each model row, then align the status cell to one shared column.
-  const judgeName = shortModel(s.synthModel);
-  const synth = byModel.get(s.synthModel);
+  const judgeName = shortModel(s.judgeModel);
+  const judge = byModel.get(s.judgeModel);
   const rows: Row[] = [
     {
       left: `  ${judgeName} (judge)`,
-      ...(synth ? statusCell(synth, now, theme) : { text: "  waiting…" }),
-      status: synth?.status ?? "waiting",
+      ...(judge ? statusCell(judge, now, theme) : { text: "  waiting…" }),
+      status: judge?.status ?? "waiting",
     },
   ];
 
-  const nameW = Math.max(1, ...s.panelModels.map((m) => visibleWidth(shortModel(m))));
-  for (const modelId of s.panelModels) {
+  const nameW = Math.max(1, ...s.reviewerModels.map((model) => visibleWidth(shortModel(model))));
+  for (const modelId of s.reviewerModels) {
     const p = byModel.get(modelId);
     rows.push({
       left: `    ⎿ ${padTo(shortModel(modelId), nameW)}`,

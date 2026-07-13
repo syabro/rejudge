@@ -1,24 +1,24 @@
 # Config — mdtask
 
-## .pi/fusion-agents.json
+## `.rejudge/config.json`
 
-`fusion_agents` reads its config from `<project>/.pi/fusion-agents.json` and refuses to run without a valid one:
+Rejudge reads project configuration from `<project>/.rejudge/config.json`, then falls back to `~/.config/rejudge/config.json` (or `$XDG_CONFIG_HOME/rejudge/config.json`). The project file wins.
 
 ```json
 {
-  "panel": ["provider/model-a@xhigh", "provider/model-b@xhigh", "provider/model-c@xhigh"],
-  "synth": "provider/model-d@medium",
+  "reviewers": [
+    "provider/model-a@xhigh",
+    "provider/model-b@xhigh",
+    "provider/model-c@xhigh"
+  ],
+  "judge": "provider/model-d@medium",
   "debugLog": false
 }
 ```
 
-At least 2 `panel` model IDs + 1 `synth` model ID, full `provider/model@level` form (the example above uses 3 — the project default — but any panel of 2 or more is accepted). A missing file, malformed JSON, fewer than 2 panel models, or missing `synth` makes the tool error out with a clear message.
+Use at least two `reviewers` and one `judge`. Every model is a full `provider/model@level` string. Valid levels are `minimal`, `low`, `medium`, `high`, and `xhigh`; the suffix is required and may differ per model. Missing files, malformed JSON, fewer than two reviewers, a missing judge, invalid model IDs or levels, legacy `panel` / `synth` keys, and the removed `thinking` block all fail clearly.
 
-Config resolves from the project's `.pi/fusion-agents.json`, else the user-global `~/.config/fusion-agents.json` (honoring `XDG_CONFIG_HOME`); the project file, when present, wins. (The tool that consumes this config is described in `extension.md`; the CLI in `cli.md`.)
-
-Every model ID carries its reasoning level as a required `@level` suffix — `provider/model@level`, for both panel models and `synth`. Valid levels: `minimal`, `low`, `medium`, `high`, `xhigh` (lowercase; `off` is not one). The suffix is required: a model ID with no `@level`, or an invalid level, is a config error and the tool refuses to start — so a forgotten level never silently runs a model with reasoning off. Each model can carry a different level (e.g. panel at `xhigh`, synth at `medium`). The old separate `thinking` block is gone; a config still carrying a `thinking` key is rejected with a migration hint.
-
-`debugLog` is optional (default `false`) and must be a boolean. When `true`, each run writes a per-run JSONL debug log of inner-agent activity to `.pi/fusion-logs/<timestamp>.jsonl` (gitignored) for after-the-fact analysis of what bloats the context or slows the run — see the Debug log section in `panel.md`. A non-boolean value is a config error.
+`debugLog` is optional, defaults to `false`, and must be a boolean. When enabled, each review writes JSONL activity to `.rejudge/logs/<timestamp>.jsonl`; see `panel.md`.
 
 # Tasks
 

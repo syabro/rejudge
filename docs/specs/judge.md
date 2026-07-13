@@ -1,31 +1,31 @@
-# Synth — mdtask
+# Judge — mdtask
 
-## Synthesis
+## Judge
 
-`synthesize(synthModelId, panel, askPanel, { cwd? })` is the synthesis step: one distinct call on the configured synth model that fuses the panel analyses into a single final answer and returns only that text.
+`runJudge(judgeModelId, panel, askPanel, { cwd? })` runs one distinct judge call that fuses reviewer analyses into a single final answer and returns only that text.
 
 - The judge works only from the panel's analyses; the task itself stays with the panel. It fuses them and writes the answer in its own voice — never referring to the analyses or to the fact a panel produced them, so only a standalone answer is surfaced. It gives back that final answer alone; intermediate panel outputs stay internal.
 - The judge's only tool is `ask_panel` (see below): it reaches the task, its requirements, the files, the diff, and any check by re-querying the panel models. The requested output format reaches the final answer through the analyses themselves — the panel already applied it, and the judge mirrors it.
-- Runs as its own agent on the synth model and disposes its own session; the caller still owns the panel sessions. `fuse` calls it as the second stage of the all-or-nothing flow.
+- Runs as its own agent on the configured judge model and disposes its session; `runReview` owns the reviewer sessions and calls the judge as the second all-or-nothing stage.
 
 ## Multi-round: the judge can re-query the panel
 
-The synth/"judge" model's only tool is `ask_panel`: it re-queries the panel models' still-live sessions — to settle a disagreement, confirm a load-bearing claim, or pressure a disputed finding — and that is how it reaches the task, the files, the diff, and any check. A single call takes a BATCH of `{model, question}` queries and runs them in PARALLEL, so the judge re-queries every model it wants in one shot (the normal move) or targets just one. Each re-query reuses that model's session, so it answers remembering its own earlier analysis. Because the panel does the deep re-verification, the judge model can be cheaper than the panel.
+The judge's only tool is `ask_panel`: it re-queries still-live reviewer sessions to settle disagreement, confirm a load-bearing claim, or pressure a disputed finding. A call takes a batch of `{model, question}` queries and runs them in parallel. Each reviewer keeps its earlier context. Stable reviewer IDs are deferred to SYN-042; the current targeting contract remains model-based.
 
-Consulting the panel is the DEFAULT pre-answer step. The synth prompt names when the judge MUST call `ask_panel` — the analyses disagree on a point that changes the answer; a load-bearing claim rests on a single analysis or is unsupported; a critical, checkable claim could be wrong even though the analyses agree (consensus is not proof); or a task/output detail the analyses leave unclear — and it answers straight from the analyses only once they are complete, consistent, and well-supported. The judge still chooses whom to re-query and how; there is no fixed extra round or escalation protocol.
+Consulting the panel is the default pre-answer step. The judge prompt requires `ask_panel` when material analyses disagree, a load-bearing claim is weak, a critical checkable claim may be wrong despite agreement, or task/output requirements are unclear. There is no fixed extra round or consensus requirement.
 
 `ask_panel` is always the judge's tool — there is no config/CLI/tool flag to turn it on or off. During a re-query, the targeted panel row reopens in the live progress block, shows its current step and elapsed time, then returns to its terminal state when the re-query finishes.
 
 ## Resumable runs: follow up on a prior run
 
-Every run is persisted so a LATER, separate invocation can follow up on it — resuming the same panel + synth sessions and answering with their earlier context. You usually only realise you want a follow-up after seeing the answer, so there's nothing to opt into up front; instead a fresh run prints its id and the CLI resumes by id:
+Every run is persisted so a later invocation can resume the same reviewer and judge sessions. A fresh run prints its ID; the CLI resumes by ID:
 
-    fusion "review my auth change"                      # stderr: run saved as <runId> — follow up: …
-    fusion --resume <runId> "you missed the CSRF case — re-check it"
+    rejudge "review my auth change"
+    rejudge --resume <runId> "you missed the CSRF case — re-check it"
 
 The follow-up goes to the run's restored judge — it already holds round 1 and can re-query the restored panels via `ask_panel`; the panel fan-out is not re-run. Resuming is opt-in at use: a run with no `--resume` always starts clean.
 
-Runs live in the OS temp dir (`${TMPDIR}/fusion-agents-sessions/<runId>/`), never in the project tree and never in Pi's own `/resume` list. They're pruned after ~24h and guarded by the run's working directory — resuming from a different project is refused. Resume is best-effort: if the run expired or its files were cleaned, the follow-up fails with a clear error and you just start a new run. Resume is available through CLI `--resume <runId>` and the `fusion_agents` tool's `resumeRunId` parameter.
+Runs live under `${TMPDIR}/rejudge/runs/<runId>/`, outside the project and Pi's own `/resume` list. They expire after about 24 hours and are bound to the original working directory. Resume is best-effort through CLI `--resume <runId>` or the `rejudge` tool's `resumeRunId` parameter.
 
 # Tasks
 

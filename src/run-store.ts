@@ -5,8 +5,8 @@ import type { ThinkingLevel } from "@earendil-works/pi-ai";
 import { VALID_THINKING_LEVELS } from "./config.ts";
 
 /**
- * SYN-029 run store. A persisted fusion run lives in the OS temp dir so a LATER, separate
- * invocation (a fresh CLI process) can resume the same panel + synth sessions. The session
+ * SYN-029 run store. A persisted review run lives in the OS temp dir so a later, separate
+ * invocation can resume the same reviewer and judge sessions. The session
  * JSONL is written and restored by the SDK's SessionManager; this module owns only the
  * run-level grouping the SDK doesn't know about: the runId, the per-run directory, a small
  * manifest (which file is which model, plus the run's config), and TTL garbage collection.
@@ -35,11 +35,11 @@ export interface RunSessionRef {
   file: string;
 }
 
-/** Current manifest format version. Bumped to 2 by CFG-030 (per-ref `level`, no `thinking` block). */
-const MANIFEST_VERSION = 2;
+/** Current manifest format version. Version 3 uses reviewer/judge role names. */
+const MANIFEST_VERSION = 3;
 
 export interface RunManifest {
-  /** Format version, so a future change stays backward-readable. CFG-030 made this 2. */
+  /** Format version, so incompatible ephemeral runs fail closed instead of resuming incorrectly. */
   version: typeof MANIFEST_VERSION;
   runId: string;
   /** Resolved cwd the run operated in — the resume guard (must match the resuming cwd). */
@@ -47,13 +47,13 @@ export interface RunManifest {
   createdAt: string;
   /** Whether the run used the full (write) tool set — re-applied on resume, never widened. */
   fullTools: boolean;
-  panel: RunSessionRef[];
-  synth: RunSessionRef;
+  reviewers: RunSessionRef[];
+  judge: RunSessionRef;
 }
 
-/** Root for all persisted runs, e.g. `/tmp/fusion-agents-sessions`. */
+/** Root for all persisted runs, e.g. `/tmp/rejudge/runs`. */
 export function runsRoot(): string {
-  return join(tmpdir(), "fusion-agents-sessions");
+  return join(tmpdir(), "rejudge", "runs");
 }
 
 /** The directory for one run. The SDK writes each session's JSONL into here. */
@@ -100,9 +100,9 @@ function isSessionRef(x: unknown): x is RunSessionRef {
 
 /**
  * Read a run's manifest, or undefined if missing / unreadable / malformed. Validates EVERY field
- * the resume path then uses unguarded (version, cwd, fullTools, panel/synth refs incl. their level)
- * — a malformed manifest must read as "no such run", never let resume run on bad data. A pre-CFG-030
- * manifest (version 1, no per-ref `level`) fails this and reads as expired; runs are ephemeral (24h).
+ * the resume path then uses unguarded (version, cwd, fullTools, reviewer/judge refs and levels)
+ * — a malformed or older manifest must read as "no such run", never let resume use stale role data.
+ * Runs are ephemeral, so incompatible versions simply read as expired.
  */
 export function readManifest(runId: string): RunManifest | undefined {
   try {
@@ -113,9 +113,9 @@ export function readManifest(runId: string): RunManifest | undefined {
       typeof m.runId === "string" &&
       typeof m.cwd === "string" &&
       typeof m.fullTools === "boolean" &&
-      Array.isArray(m.panel) &&
-      m.panel.every(isSessionRef) &&
-      isSessionRef(m.synth);
+      Array.isArray(m.reviewers) &&
+      m.reviewers.every(isSessionRef) &&
+      isSessionRef(m.judge);
     return valid ? m : undefined;
   } catch {
     return undefined;

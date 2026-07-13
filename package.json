@@ -1,5 +1,5 @@
 {
-  "name": "pi-fusion-agents",
+  "name": "@rejudge/pi",
   "private": true,
   "type": "module",
   "devDependencies": {
@@ -18,7 +18,7 @@
     "test": "vitest run",
     "test:unit": "PI_TEST_UNIT_ONLY=1 vitest run",
     "typecheck": "tsc --noEmit",
-    "build:cli": "bun build src/cli.ts --target=node --packages=external --outfile bin/fusion.js && chmod +x bin/fusion.js",
+    "build:cli": "bun build src/cli.ts --target=node --packages=external --outfile bin/rejudge.js && chmod +x bin/rejudge.js",
     "build:ext": "bun build src/index.ts --target=node --outfile dist/extension.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-ai --external @earendil-works/pi-tui --external typebox",
     "build": "bun run build:cli && bun run build:ext",
     "prepare": "bun run build"

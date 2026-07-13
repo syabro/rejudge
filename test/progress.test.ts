@@ -16,9 +16,9 @@ const THEME = { fg: (_c: string, s: string) => s, bold: (s: string) => s } as un
 /** Seed a running snapshot with the panel + judge started. */
 function seeded(): ProgressSnapshot {
   const s = createProgressState(["prov/panel-a", "prov/panel-b"], "prov/judge", "a title");
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/judge", role: "synth" });
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-a", role: "panel" });
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-b", role: "panel" });
+  applyEvent(s, { kind: "model_start", t: 0, model: "prov/judge", role: "judge" });
+  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-a", role: "reviewer" });
+  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-b", role: "reviewer" });
   return s;
 }
 
@@ -47,7 +47,7 @@ test("renderProgress clamps a long error-reason row to width", () => {
     kind: "model_end",
     t: 5000,
     model: "prov/panel-a",
-    role: "panel",
+    role: "reviewer",
     status: "error",
     durationMs: 5000,
     error: "boom ".repeat(60).trim(),
@@ -63,7 +63,7 @@ test("renderProgress clamps a long error-reason row to width", () => {
 test("renderProgress leaves lines untouched at unbounded width", () => {
   const s = seeded();
   const lines = renderProgress(s, THEME, 1000);
-  expect(lines.some((l) => l.includes("Fusion"))).toBe(true);
+  expect(lines.some((line) => line.includes("Rejudge"))).toBe(true);
 });
 
 // EXT-034: Ctrl+O (expanded) shows the full request, labeled, above the tree and the answer; the
@@ -75,9 +75,9 @@ test("expanded view shows the full request first; collapsed keeps it behind the 
     "short title",
     "REQ-LINE-1\nREQ-LINE-2",
   );
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/judge", role: "synth" });
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-a", role: "panel" });
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-b", role: "panel" });
+  applyEvent(s, { kind: "model_start", t: 0, model: "prov/judge", role: "judge" });
+  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-a", role: "reviewer" });
+  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-b", role: "reviewer" });
 
   // Collapsed: the clipped title + the expand hint; the full request stays hidden.
   const collapsed = renderProgress(s, THEME, 0, 80, false).join("\n");
@@ -98,8 +98,8 @@ test("expanded view shows the full request first; collapsed keeps it behind the 
   const idx = (needle: string) => lines.findIndex((l) => l.includes(needle));
   expect(idx("Request:")).toBeGreaterThanOrEqual(0);
   expect(idx("Request:")).toBeLessThan(idx("REQ-LINE-1"));
-  expect(idx("REQ-LINE-1")).toBeLessThan(idx("judge"));
-  expect(idx("judge")).toBeLessThan(idx("THE-ANSWER"));
+  expect(idx("REQ-LINE-1")).toBeLessThan(idx("judge (judge)"));
+  expect(idx("judge (judge)")).toBeLessThan(idx("THE-ANSWER"));
 });
 
 // Blank/undefined request must fall back to the title (no empty header line, no "Request:" label).
@@ -124,13 +124,13 @@ test("a long unbreakable request stays within width when expanded", () => {
 // During ask_panel, a panel model that already finished round 1 starts again on the same row.
 test("a completed panel row reopens during an ask_panel re-query", () => {
   const s = createProgressState(["prov/panel-a"], "prov/judge", "a title");
-  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-a", role: "panel" });
+  applyEvent(s, { kind: "model_start", t: 0, model: "prov/panel-a", role: "reviewer" });
   applyEvent(s, { kind: "activity", t: 100, model: "prov/panel-a", activity: "read", phase: "start", detail: "src/file.ts" });
-  applyEvent(s, { kind: "model_end", t: 1000, model: "prov/panel-a", role: "panel", status: "done", durationMs: 1000 });
+  applyEvent(s, { kind: "model_end", t: 1000, model: "prov/panel-a", role: "reviewer", status: "done", durationMs: 1000 });
 
   expect(renderProgress(s, THEME, 1500, 120).join("\n")).toContain("✓ done");
 
-  applyEvent(s, { kind: "model_start", t: 2000, model: "prov/panel-a", role: "panel" });
+  applyEvent(s, { kind: "model_start", t: 2000, model: "prov/panel-a", role: "reviewer" });
   applyEvent(s, { kind: "activity", t: 2500, model: "prov/panel-a", activity: "writing", phase: "start", detail: "checking again" });
 
   const running = renderProgress(s, THEME, 3000, 120).join("\n");
@@ -140,7 +140,7 @@ test("a completed panel row reopens during an ask_panel re-query", () => {
   expect(running).not.toContain("✓ done");
 
   applyEvent(s, { kind: "activity", t: 3200, model: "prov/panel-a", activity: "writing", phase: "end", durationMs: 700 });
-  applyEvent(s, { kind: "model_end", t: 4000, model: "prov/panel-a", role: "panel", status: "done", durationMs: 2000 });
+  applyEvent(s, { kind: "model_end", t: 4000, model: "prov/panel-a", role: "reviewer", status: "done", durationMs: 2000 });
 
   expect(renderProgress(s, THEME, 4500, 120).join("\n")).toContain("✓ done");
 });

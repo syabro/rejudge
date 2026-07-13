@@ -21,16 +21,16 @@ test("newRunId is sortable (timestamp first) and filename-safe", () => {
 test("writeManifest then readManifest round-trips", () => {
   const runId = newRunId();
   const manifest: RunManifest = {
-    version: 2,
+    version: 3,
     runId,
     cwd: "/some/project",
     createdAt: new Date(0).toISOString(),
     fullTools: false,
-    panel: [
+    reviewers: [
       { modelId: "prov/a", level: "xhigh", file: "/runs/a.jsonl" },
       { modelId: "prov/b", level: "high", file: "/runs/b.jsonl" },
     ],
-    synth: { modelId: "prov/judge", level: "medium", file: "/runs/judge.jsonl" },
+    judge: { modelId: "prov/judge", level: "medium", file: "/runs/judge.jsonl" },
   };
   try {
     writeManifest(manifest);

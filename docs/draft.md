@@ -1,109 +1,75 @@
-# pi-fusion-agents — decision draft
+# Rejudge — product direction
 
-This document records decisions and the near-term direction. Details that can be looked up later or decided after the first working run stay outside this draft.
+## Product boundary
 
-## What we are building
+Rejudge is an independent multi-model review layer for AI agents. Pi is the first native adapter, not the product identity. The same review engine is available through the Pi tool and a local CLI.
 
-Build a separate Pi package/extension:
+> **Independent review before your agent acts.**
 
-```text
-pi-fusion-agents
-```
+Rejudge runs separate tool-enabled reviews, lets a judge investigate material disagreements through `ask_panel`, and returns one answer with a resumable run ID.
 
-It adds one external Pi tool:
+## Terminology
 
 ```text
-fusion_agents
+Rejudge
+├── Panel
+│   ├── Reviewer 1
+│   ├── Reviewer 2
+│   └── Reviewer N
+├── Judge
+└── Review result
 ```
 
-`fusion_agents` is called explicitly with a question or instruction. The normal tool result contains final answer text only.
+- **reviewer** — one model in its own session, independently investigating the request.
+- **panel** — the reviewers collectively; it is not a machine-facing config key.
+- **judge** — the model that examines reviewer findings, investigates material disagreements, preserves relevant dissent, and produces the answer.
+- **review run** — one persisted execution that can be resumed by run ID.
+- **review result** — the answer consumed by the calling agent.
+- **ask_panel** — the judge's tool for re-querying reviewers in their existing sessions.
 
-The product idea is similar to OpenRouter Fusion: several models look at the same question, then their work is fused into one answer.
+`fusion` is only an internal description of combining reviewer analyses. It is not the product, CLI, Pi tool, workflow, config, or public category.
 
-## Accepted decisions
+## Current interfaces
 
-- Build this as a separate package/extension.
-- Package/folder name: `pi-fusion-agents`.
-- External tool name: `fusion_agents`.
-- Start with explicit invocation only. Auto-invocation can come later.
-- Inner agents receive the exact same task and output instructions.
-- Fusion diversity comes from different agents/models/tool-use trajectories while the input stays identical.
-- The caller can include output instructions, such as review severity buckets or a requested answer structure.
-- Inner agents and synthesis should preserve the requested output format when possible.
-- A separate synthesis call combines the inner agent outputs into one answer.
-- User-facing output is only the final answer text.
-- Build an unsafe POC first to get a working result quickly.
-- The unsafe POC uses three inner agents.
-- A fusion result requires complete technical success across the three panel agents and synthesis.
-- The project config lives at `<project>/.pi/fusion-agents.json`.
-- The project config stores full provider/model IDs, for example `anthropic/claude-sonnet-4-5`.
-- The first POC config lists exactly three panel model IDs and one synthesis model ID.
-- `fusion_agents` starts when a valid POC config is present.
-- Model selection for the first POC is the model list in the project config.
-- The first POC targets research/answer tasks.
-- Write and bash are available in the POC as full local capabilities.
-- Bash counts as full write capability and can modify or break the project/environment.
-- The first concept check runs in the current trusted project environment.
-- Build secure mode after that.
-- In secure mode, inner tools use the `fusion_sub_*` prefix.
-- In secure mode, agents can read and search the whole current project folder.
-- The project root is the access boundary.
-- `files` are “start here” hints; permissions come from the project boundary.
-- Writes in secure mode go only to scratch under `.pi/fusion-agents/<run-id>/<sub-id>/...`.
-- DeepSWE can be tried as a coding/SWE model.
+- Product and repository: **Rejudge** / `rejudge`
+- Package in this repository: `@rejudge/pi`
+- Pi display name: **Rejudge for Pi**
+- Pi tool: `rejudge`
+- CLI: `bin/rejudge.js`
+- General workflow: `/rejudge`
+- Current-change review: `/rejudge-diff`
+- Project config: `.rejudge/config.json`
+- Global config: `~/.config/rejudge/config.json`
 
-## Unsafe POC
+Configuration uses participant roles, not the collective panel name:
 
-Goal: quickly prove that `fusion_agents` works.
+```json
+{
+  "reviewers": [
+    "provider-a/model-x@xhigh",
+    "provider-b/model-y@xhigh"
+  ],
+  "judge": "provider-c/model-z@medium",
+  "debugLog": false
+}
+```
 
-The POC runs three inner agents on the exact same task and output instructions. When the three panel runs complete, a separate synthesis call returns one final answer.
-
-The input can include output instructions, for example `Return code review findings as P0/P1/P2/P3`.
-
-For the POC, inner agents can receive local coding tools: read/list/search, bash, and edit/write.
-
-This is a trusted local experiment. Production safety comes later in secure mode. Bash is treated as full write access, because shell commands, pipes, redirects, and local CLIs can modify or break the project/environment.
-
-Network access, if needed during the POC, goes through bash or local CLIs.
-
-## Secure mode later
-
-After the working POC, move from full local tools to custom tools:
+## Current review flow
 
 ```text
-fusion_sub_read
-fusion_sub_rg
-fusion_sub_list
-fusion_sub_write_scratch
+Caller
+  → Rejudge
+    → reviewers run separately
+    → judge examines their findings
+      ↔ ask_panel re-queries reviewer sessions when needed
+    → one answer + run ID
+  → caller continues
 ```
 
-Read rule: the whole current project folder is available, and the project root is the boundary.
+A fresh run starts a new panel. A follow-up with a run ID restores the reviewer and judge sessions instead of repeating the panel fan-out. Reviewers are read-only by default; the judge has only `ask_panel`.
 
-Write rule: writes go to scratch.
+## Positioning boundary
 
-## DeepSWE
+Rejudge promises an independent review process, not guaranteed correctness or truth from consensus. Initial reviews are generated in separate sessions, but model errors can still be correlated. The judge may combine compatible findings, reject the majority, retain dissent, return a conditional answer, or state that the available evidence is insufficient.
 
-DeepSWE can be tried as a coding/SWE model.
-
-If we reach a separate DeepSWE check, first look only at the tools it needs:
-
-```text
-file_editor
-execute_bash
-search
-finish
-```
-
-DeepSWE details stay outside this draft until a dedicated DeepSWE check.
-
-## After the first working POC
-
-After the first working POC, decide these deferred items: config shape beyond model IDs, adapter shape for local tools, evaluation and debug details, network implications, auto-invocation, and DeepSWE adapter details.
-
-## Near-term direction
-
-1. Build a minimal unsafe POC for `fusion_agents`.
-2. Run three inner agents on one question about the current project.
-3. Give them available local tools.
-4. Use a separate synthesis call to return one final answer text.
-5. After the demo, decide which tools are needed for secure mode.
+This naming pass does not add structured result contracts, instrumentation, evaluation infrastructure, new adapters, dynamic routing, policies, `inspect`, or a dedicated diff mode. Those remain separate product work.

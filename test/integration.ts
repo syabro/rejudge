@@ -1,7 +1,7 @@
 import { test } from "vitest";
 
 /**
- * Gate for integration tests — those that make a real model call (panel/synth/fuse on a
+ * Gate for integration tests — those that make a real reviewer/judge call on a
  * stub model) and therefore need credentials. Deterministic tests use plain `test` and run
  * anywhere; integration tests use {@link integrationTest} so a contributor without a key
  * still gets a green deterministic suite (the gated tests show as skipped, never failed).

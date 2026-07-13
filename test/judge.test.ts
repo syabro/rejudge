@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { buildSynthesisPrompt, synthesize, type PanelOutput } from "../src/synth.ts";
+import { buildJudgePrompt, runJudge, type ReviewerOutput } from "../src/judge.ts";
 import { makeAskPanelTool } from "../src/ask-panel-tool.ts";
 import { integrationTest } from "./integration.ts";
 
@@ -9,13 +9,13 @@ const STUB = "opencode-go/kimi-k2.6";
 // Deterministic (no model): the judge's prompt carries only the analyses plus the ask_panel guidance.
 // It must contain every panel output and the panel model ids (so the judge knows whom to re-query),
 // make consulting the default, and omit the "## Task" section.
-test("buildSynthesisPrompt gives the judge the analyses + ask_panel, not the task", () => {
-  const panel: PanelOutput[] = [
+test("buildJudgePrompt gives the judge the analyses + ask_panel, not the task", () => {
+  const panel: ReviewerOutput[] = [
     { modelId: "m1", text: "alpha-distinct-answer" },
     { modelId: "m2", text: "beta-distinct-answer" },
     { modelId: "m3", text: "gamma-distinct-answer" },
   ];
-  const built = buildSynthesisPrompt(panel);
+  const built = buildJudgePrompt(panel);
 
   for (const p of panel) {
     expect(built).toContain(p.text);
@@ -31,18 +31,18 @@ test("buildSynthesisPrompt gives the judge the analyses + ask_panel, not the tas
   expect(built).toContain("(m1, m2, m3)");
 });
 
-// Real run, no mocks: one real synth call fuses three (static) analyses into a single answer.
+// Real run, no mocks: one real judge call fuses three static analyses into a single answer.
 // Exact format preservation is model behavior, so the smoke test checks wiring and content only.
 // ask_panel is wired (empty here) to mirror production. The full three-panel fan-out is covered by
-// fusion.test.ts.
-integrationTest("synthesize fuses the analyses into one answer", async () => {
-  const panel: PanelOutput[] = [
+// review.test.ts.
+integrationTest("runJudge fuses the analyses into one answer", async () => {
+  const panel: ReviewerOutput[] = [
     { modelId: "m1", text: "RESULT: The capital of France is Paris." },
     { modelId: "m2", text: "RESULT: Paris is the capital of France." },
     { modelId: "m3", text: "RESULT: It's Paris." },
   ];
 
-  const result = await synthesize(STUB, panel, makeAskPanelTool([]));
+  const result = await runJudge(STUB, panel, makeAskPanelTool([]));
 
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {

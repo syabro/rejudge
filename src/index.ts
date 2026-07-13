@@ -6,9 +6,9 @@ import type {
 } from "@earendil-works/pi-coding-agent";
 import { Text } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
-import { resolveFusionConfig } from "./config.ts";
+import { resolveRejudgeConfig } from "./config.ts";
 import type { ActivitySink } from "./events.ts";
-import { formatFailure, fuse } from "./fusion.ts";
+import { formatFailure, runReview } from "./review.ts";
 import {
   applyEvent,
   createProgressState,
@@ -18,7 +18,7 @@ import {
 
 const parameters = Type.Object({
   question: Type.String({
-    description: "The question or instruction to run across the panel and fuse into one answer.",
+    description: "The question or instruction for the reviewers and judge.",
   }),
   title: Type.Optional(
     Type.String({
@@ -31,15 +31,15 @@ const parameters = Type.Object({
     Type.String({
       description:
         "Optional output/format instructions for the final answer (e.g. a requested structure" +
-        " or P0/P1/P2/P3 buckets). Honored by every panel agent and the final synthesis.",
+        " or P0/P1/P2/P3 buckets). Honored by every reviewer and the judge.",
     }),
   ),
   resumeRunId: Type.Optional(
     Type.String({
       minLength: 1,
       description:
-        "Resume a prior fusion run instead of starting a fresh panel. Use the run id returned" +
-        " by an earlier successful fusion_agents call.",
+        "Resume a prior review run instead of starting a fresh panel. Use the run id returned" +
+        " by an earlier successful rejudge call.",
     }),
   ),
 });
@@ -55,10 +55,10 @@ function progressTitle(question: string, title?: string): string {
 
 /**
  * Compose the caller's question and optional output instructions into the single
- * prompt that is fanned out to the panel and threaded into synthesis.
+ * prompt that is fanned out to the reviewers and carried into the judge step.
  *
  * The requested format is carried end-to-end simply by living in this prompt:
- * every panel agent receives it verbatim, and the synthesis step embeds the task
+ * every reviewer receives it verbatim, and the judge sees it through their analyses
  * and is told to obey its format. Blank/omitted instructions return the question
  * unchanged.
  */
@@ -77,36 +77,34 @@ function textContent(result: AgentToolResult<ProgressSnapshot>): string {
 }
 
 /**
- * Registers the single external tool `fusion_agents`.
+ * Registers the single external tool `rejudge`.
  *
- * Explicit invocation only; the tool result content is the fused answer plus the run id for
+ * Explicit invocation only; the tool result content is the review answer plus the run id for
  * follow-ups. While it runs, a live 3-level progress block (root → judge → panel models)
  * is streamed through
  * `onUpdate` and drawn by {@link renderProgress} — the engine writes nothing to the host's
  * stdout/stderr. The caller's optional output instructions are carried end-to-end to both
- * the panel agents and synthesis (see {@link buildInvocationPrompt}).
+ * the reviewers and judge (see {@link buildInvocationPrompt}).
  */
 export default function (pi: ExtensionAPI): void {
   pi.registerTool<typeof parameters, ProgressSnapshot>({
-    name: "fusion_agents",
-    label: "Fusion Agents",
+    name: "rejudge",
+    label: "Rejudge for Pi",
     description:
-      "Run the same question across a panel of models and fuse their answers into one. For follow-up questions, pass resumeRunId from a prior result.",
+      "Use Rejudge to independently review an important plan, change, or conclusion before proceeding. For follow-up questions, pass resumeRunId from a prior result.",
     parameters,
     // The tool draws its own multi-line block; don't wrap it in the default tool shell.
     renderShell: "self",
     async execute(_toolCallId, params, signal, onUpdate, ctx) {
-      // Gate: refuse to start on a missing/invalid config. Resolve the project's
-      // .pi/fusion-agents.json, else the user-global ~/.config one. A clear throw on
-      // neither surfaces as a tool error, not a fake answer.
-      const { config } = resolveFusionConfig(ctx.cwd);
+      // Gate: refuse to start on a missing/invalid project or user-global config.
+      const { config } = resolveRejudgeConfig(ctx.cwd);
       const prompt = buildInvocationPrompt(params.question, params.outputInstructions);
 
       // Live progress, scoped to this tool call (a second invocation starts clean). The tree
       // is seeded with every panel + judge row up front, "waiting…" until each model starts.
       const state = createProgressState(
-        config.panel.map((m) => m.id),
-        config.synth.id,
+        config.reviewers.map((model) => model.id),
+        config.judge.id,
         progressTitle(params.question, params.title),
         prompt,
       );
@@ -134,18 +132,18 @@ export default function (pi: ExtensionAPI): void {
         const resumeRunId = params.resumeRunId?.trim();
         if (params.resumeRunId !== undefined && !resumeRunId) {
           return {
-            content: [{ type: "text", text: "fusion_agents failed: resumeRunId must be a non-empty string" }],
+            content: [{ type: "text", text: "rejudge failed: resumeRunId must be a non-empty string" }],
             details: structuredClone(state),
           };
         }
 
-        const result = await fuse(config, prompt, { cwd: ctx.cwd, signal, activitySink: sink, resumeRunId });
+        const result = await runReview(config, prompt, { cwd: ctx.cwd, signal, activitySink: sink, resumeRunId });
         // Don't throw on failure — throwing makes the host discard the whole rendered block.
         // Return instead: the final snapshot stays in `details` so the block keeps its failed
         // (red/cancelled) rows, and the failure is surfaced as the content text (no fabricated
         // answer — it names the stage/model that broke).
         const text = result.isErr()
-          ? `fusion_agents failed: ${formatFailure(result.error)}`
+          ? `rejudge failed: ${formatFailure(result.error)}`
           : [
               result.value.answer,
               "",
@@ -166,7 +164,7 @@ export default function (pi: ExtensionAPI): void {
 
       // Width-aware: the component lays the tree out for the host's viewport on each render
       // (detail column trims to fit, no wrapping). Expanded (Ctrl+O) shows the full query in
-      // the header and appends the fused answer.
+      // the header and appends the review answer.
       return progressComponent(s, theme, options.expanded, text);
     },
   });

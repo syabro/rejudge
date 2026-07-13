@@ -1,20 +1,20 @@
 import { test, expect } from "vitest";
-import { fuse } from "../src/fusion.ts";
-import type { FusionConfig } from "../src/config.ts";
+import { runReview } from "../src/review.ts";
+import type { RejudgeConfig } from "../src/config.ts";
 import { integrationTest } from "./integration.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
-// Used for all 4 agents (3 panel + 1 synth) — this exercises the all-or-nothing
-// contract, not synthesis quality; the real 3+1 models run in the PNL-009 demo.
+// Used for all 4 agents (3 reviewers + 1 judge) — this exercises the all-or-nothing
+// contract, not answer quality; the real 3+1 models run in the PNL-009 demo.
 const STUB = "opencode-go/kimi-k2.6";
 // Reasoning level is irrelevant to the stub smoke; keep it minimal so the runs are fast.
 const SPEC = { id: STUB, level: "minimal" } as const;
-const GOOD: FusionConfig = { panel: [SPEC, SPEC, SPEC], synth: SPEC, debugLog: false };
+const GOOD: RejudgeConfig = { reviewers: [SPEC, SPEC, SPEC], judge: SPEC, debugLog: false };
 const PROMPT = "Reply with exactly the word: PONG. Nothing else.";
 
-// Real run, no mocks: all three panels AND synthesis complete → one final answer.
-integrationTest("fuse returns one final answer when all panels and synthesis succeed", async () => {
-  const result = await fuse(GOOD, PROMPT);
+// Real run, no mocks: all three reviewers and the judge complete → one final answer.
+integrationTest("runReview returns one final answer when the panel and judge succeed", async () => {
+  const result = await runReview(GOOD, PROMPT);
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     expect(result.value.answer.trim().length).toBeGreaterThan(0);
@@ -22,13 +22,13 @@ integrationTest("fuse returns one final answer when all panels and synthesis suc
   }
 }, 180_000);
 
-// A panel technical failure → err, no answer (synthesis never runs). The failure names
+// A panel technical failure → err, no answer (the judge never runs). The failure names
 // the panel stage and the offending model (PNL-017), not an abort.
-integrationTest("fuse fails with no answer when a panel agent fails", async () => {
-  const result = await fuse(
+integrationTest("runReview fails with no answer when a reviewer fails", async () => {
+  const result = await runReview(
     {
-      panel: [SPEC, { id: "opencode-go/not-a-real-model", level: "minimal" }, SPEC],
-      synth: SPEC,
+      reviewers: [SPEC, { id: "opencode-go/not-a-real-model", level: "minimal" }, SPEC],
+      judge: SPEC,
       debugLog: false,
     },
     PROMPT,
@@ -41,20 +41,20 @@ integrationTest("fuse fails with no answer when a panel agent fails", async () =
   }
 }, 180_000);
 
-// A synthesis technical failure → err even though all panels succeeded. The failure names
-// the synth stage and the offending model (PNL-017).
-integrationTest("fuse fails with no answer when synthesis fails", async () => {
-  const result = await fuse(
+// A judge technical failure → err even though all reviewers succeeded. The failure names
+// the judge stage and offending model.
+integrationTest("runReview fails with no answer when the judge fails", async () => {
+  const result = await runReview(
     {
-      panel: [SPEC, SPEC, SPEC],
-      synth: { id: "opencode-go/not-a-real-model", level: "minimal" },
+      reviewers: [SPEC, SPEC, SPEC],
+      judge: { id: "opencode-go/not-a-real-model", level: "minimal" },
       debugLog: false,
     },
     PROMPT,
   );
   expect(result.isErr()).toBe(true);
   if (result.isErr()) {
-    expect(result.error.stage).toBe("synth");
+    expect(result.error.stage).toBe("judge");
     expect(result.error.model).toBe("opencode-go/not-a-real-model");
     expect(result.error.aborted).toBe(false);
   }
@@ -63,8 +63,8 @@ integrationTest("fuse fails with no answer when synthesis fails", async () => {
 // Cancellation (PNL-016). Pre-aborted: every agent short-circuits before any model call,
 // so this is fast and deterministic — proves the signal is threaded end-to-end, and that
 // the failure is flagged as an abort (PNL-017), not blamed on a model fault.
-test("fuse honors an already-aborted signal and reports it as aborted", async () => {
-  const result = await fuse(GOOD, PROMPT, { signal: AbortSignal.abort() });
+test("runReview honors an already-aborted signal and reports it as aborted", async () => {
+  const result = await runReview(GOOD, PROMPT, { signal: AbortSignal.abort() });
   expect(result.isErr()).toBe(true);
   if (result.isErr()) {
     expect(result.error.stage).toBe("panel");
@@ -76,10 +76,10 @@ test("fuse honors an already-aborted signal and reports it as aborted", async ()
 
 // In-flight: abort shortly after start cancels the running agents (had the signal been
 // dropped, the run would complete and return ok) — the actual "stop burning credits".
-integrationTest("aborting mid-run cancels the fusion", async () => {
+integrationTest("aborting mid-run cancels the review", async () => {
   const ac = new AbortController();
   setTimeout(() => ac.abort(), 400);
-  const result = await fuse(GOOD, PROMPT, { signal: ac.signal });
+  const result = await runReview(GOOD, PROMPT, { signal: ac.signal });
   expect(result.isErr()).toBe(true);
   if (result.isErr()) expect(result.error.aborted).toBe(true);
 }, 180_000);

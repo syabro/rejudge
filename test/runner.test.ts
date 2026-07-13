@@ -3,7 +3,7 @@ import { createAgentSession, type AgentSession } from "@earendil-works/pi-coding
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { PANEL_TOOLS, READONLY_TOOLS, createInnerSession, resolveModel, runPanelAgent } from "../src/runner.ts";
+import { REVIEWER_TOOLS, READONLY_TOOLS, createInnerSession, resolveModel, runReviewer } from "../src/runner.ts";
 import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "../src/git-diff-tool.ts";
 import { ASK_PANEL_TOOL_NAME, makeAskPanelTool } from "../src/ask-panel-tool.ts";
 import { integrationTest } from "./integration.ts";
@@ -58,19 +58,19 @@ function fakeRunSession(turns: FakePromptTurn[]): FakeRunSession {
   return session;
 }
 
-// Real SDK, no model call: a session created with PANEL_TOOLS actually activates
+// Real SDK, no model call: a session created with REVIEWER_TOOLS actually activates
 // the full local tool set — read, the dedicated grep/find/ls search/list tools,
 // and edit/write/bash — so inner agents search/list with the dedicated tools
 // instead of shelling out through bash (TLS-003). Whether a model then *picks*
 // grep over bash is nondeterministic and left to the live demo, not asserted here.
-test("a session built from PANEL_TOOLS activates the dedicated grep/find/ls tools", async () => {
-  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
-  const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));
+test("a session built from REVIEWER_TOOLS activates the dedicated grep/find/ls tools", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
   const { session } = await createAgentSession({
     model: resolveModel(STUB),
     cwd,
     agentDir,
-    tools: [...PANEL_TOOLS],
+    tools: [...REVIEWER_TOOLS],
   });
   try {
     expect(session.getActiveToolNames()).toEqual(
@@ -84,10 +84,10 @@ test("a session built from PANEL_TOOLS activates the dedicated grep/find/ls tool
 // Real SDK, no model call: the custom read-only git_diff tool (TLS-026) is wired into a
 // session via customTools + its name in the allow-list, so it actually activates alongside
 // the read-only built-ins. This proves the SDK enables a custom tool only when both
-// registered AND allow-listed (the wiring runPanelAgent uses).
+// registered AND allow-listed (the wiring runReviewer uses).
 test("a session with git_diff in customTools + allow-list activates it", async () => {
-  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
-  const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));
+  const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
   const { session } = await createAgentSession({
     model: resolveModel(STUB),
     cwd,
@@ -102,14 +102,13 @@ test("a session with git_diff in customTools + allow-list activates it", async (
   }
 }, 30_000);
 
-// Real SDK, no model call: a synth/"judge" session (role "synth") activates exactly [ask_panel] —
-// its sole tool — and fullTools leaves that set unchanged. Asserted directly, independent of model
-// behavior.
-test("a synth/judge session exposes ask_panel and nothing else", async () => {
-  const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));
+// Real SDK, no model call: a judge session activates exactly [ask_panel] — its sole tool — and
+// fullTools leaves that set unchanged. Asserted directly, independent of model behavior.
+test("a judge session exposes ask_panel and nothing else", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
   const session = await createInnerSession(STUB, {
     cwd,
-    role: "synth",
+    role: "judge",
     fullTools: true, // proves the judge stays at [ask_panel] regardless
     askPanel: makeAskPanelTool([]),
   });
@@ -126,13 +125,13 @@ test("resolveModel rejects malformed and unknown model ids", () => {
   expect(() => resolveModel("opencode-go/not-a-real-model")).toThrow();
 });
 
-test("runPanelAgent retries one clean empty response in the same session", async () => {
+test("runReviewer retries one clean empty response in the same session", async () => {
   const session = fakeRunSession([
     { stopReason: "stop", text: "  " },
     { stopReason: "stop", text: "visible answer" },
   ]);
 
-  const result = await runPanelAgent("provider/model", "original prompt", { existingSession: session });
+  const result = await runReviewer("provider/model", "original prompt", { existingSession: session });
 
   expect(result.isOk()).toBe(true);
   expect(session.prompts).toHaveLength(2);
@@ -146,13 +145,13 @@ test("runPanelAgent retries one clean empty response in the same session", async
   }
 });
 
-test("runPanelAgent fails explicitly when the retry is still empty", async () => {
+test("runReviewer fails explicitly when the retry is still empty", async () => {
   const session = fakeRunSession([
     { stopReason: "stop", text: "" },
     { stopReason: "stop", text: "\t" },
   ]);
 
-  const result = await runPanelAgent("provider/model", "original prompt", { existingSession: session });
+  const result = await runReviewer("provider/model", "original prompt", { existingSession: session });
 
   expect(result.isErr()).toBe(true);
   expect(session.prompts).toHaveLength(2);
@@ -162,13 +161,13 @@ test("runPanelAgent fails explicitly when the retry is still empty", async () =>
   }
 });
 
-test("runPanelAgent reports a non-clean empty-output retry", async () => {
+test("runReviewer reports a non-clean empty-output retry", async () => {
   const session = fakeRunSession([
     { stopReason: "stop", text: "" },
     { stopReason: "length", errorMessage: "too long" },
   ]);
 
-  const result = await runPanelAgent("provider/model", "original prompt", { existingSession: session });
+  const result = await runReviewer("provider/model", "original prompt", { existingSession: session });
 
   expect(result.isErr()).toBe(true);
   expect(session.prompts).toHaveLength(2);
@@ -180,10 +179,10 @@ test("runPanelAgent reports a non-clean empty-output retry", async () => {
   }
 });
 
-test("runPanelAgent does not retry an initially non-clean response", async () => {
+test("runReviewer does not retry an initially non-clean response", async () => {
   const session = fakeRunSession([{ stopReason: "length", errorMessage: "too long" }]);
 
-  const result = await runPanelAgent("provider/model", "original prompt", { existingSession: session });
+  const result = await runReviewer("provider/model", "original prompt", { existingSession: session });
 
   expect(result.isErr()).toBe(true);
   expect(session.prompts).toHaveLength(1);
@@ -196,11 +195,11 @@ test("runPanelAgent does not retry an initially non-clean response", async () =>
 
 // Real run, no mocks: read-only is the DEFAULT (CLI-023). With no tool option the
 // agent's actual session is limited to exactly read/grep/find/ls — edit, write and
-// bash are absent, so a fusion used as a reviewer cannot change files or run shell
+// bash are absent, so a review cannot change files or run shell
 // in its cwd. createAgentSession({tools}) is an allowlist, so the active set is
 // exactly READONLY_TOOLS, nothing more.
-integrationTest("runPanelAgent defaults to read-only (read/grep/find/ls only)", async () => {
-  const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.");
+integrationTest("runReviewer defaults to read-only (read/grep/find/ls only)", async () => {
+  const result = await runReviewer(STUB, "Reply with exactly the word: PONG. Nothing else.");
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     try {
@@ -217,15 +216,15 @@ integrationTest("runPanelAgent defaults to read-only (read/grep/find/ls only)", 
 
 // Real run, no mocks: opting in with fullTools gives the full local set (the
 // read-only tools plus edit/write/bash), so writing is an explicit choice.
-integrationTest("runPanelAgent with fullTools gives the full local tool set", async () => {
-  const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.", {
+integrationTest("runReviewer with fullTools gives the full local tool set", async () => {
+  const result = await runReviewer(STUB, "Reply with exactly the word: PONG. Nothing else.", {
     fullTools: true,
   });
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     try {
       const names = [...result.value.session.getActiveToolNames()];
-      expect(names).toEqual(expect.arrayContaining([...PANEL_TOOLS, GIT_DIFF_TOOL_NAME]));
+      expect(names).toEqual(expect.arrayContaining([...REVIEWER_TOOLS, GIT_DIFF_TOOL_NAME]));
     } finally {
       result.value.session.dispose();
     }
@@ -233,8 +232,8 @@ integrationTest("runPanelAgent with fullTools gives the full local tool set", as
 }, 60_000);
 
 // Real run, no mocks: one agent runs end-to-end on a real model and returns text.
-integrationTest("runPanelAgent runs one model end-to-end and returns finished text", async () => {
-  const result = await runPanelAgent(STUB, "Reply with exactly the word: PONG. Nothing else.");
+integrationTest("runReviewer runs one model end-to-end and returns finished text", async () => {
+  const result = await runReviewer(STUB, "Reply with exactly the word: PONG. Nothing else.");
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     try {

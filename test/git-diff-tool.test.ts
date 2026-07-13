@@ -51,7 +51,7 @@ test("formatStat with only untracked files does not claim '0 files changed'", ()
 // --- real git smoke (no mocks, no model key) ---
 
 function makeRepo(): string {
-  const repo = mkdtempSync(join(tmpdir(), "pi-fusion-gitdiff-"));
+  const repo = mkdtempSync(join(tmpdir(), "rejudge-gitdiff-"));
   execFileSync("git", ["init", "-q"], { cwd: repo });
   writeFileSync(join(repo, "a.txt"), "line1\nline2\n");
   execFileSync("git", ["add", "a.txt"], { cwd: repo });
@@ -130,7 +130,7 @@ test("an unknown ref returns a clean message, not a throw", async () => {
 });
 
 test("not a git repository returns a clean message, not a throw", async () => {
-  const notRepo = mkdtempSync(join(tmpdir(), "pi-fusion-notgit-"));
+  const notRepo = mkdtempSync(join(tmpdir(), "rejudge-notgit-"));
   const out = await run(notRepo, { mode: "stat" });
   expect(out).toBe("Not a git repository.");
 });

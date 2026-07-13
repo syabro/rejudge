@@ -6,38 +6,61 @@ import {
 import { integrationTest } from "./integration.ts";
 import { buildInvocationPrompt } from "../src/index.ts";
 import { resolve, join } from "node:path";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { runDir } from "../src/run-store.ts";
 
-// Fastest reliable opencode-go model. The load/registration checks don't care
-// about its output; the end-to-end test below does assert on the formatted answer.
 const STUB = "opencode-go/kimi-k2.6";
+const packageManifest = JSON.parse(readFileSync(resolve("package.json"), "utf8")) as {
+  pi: { extensions: string[] };
+};
+const builtExtension = resolve(packageManifest.pi.extensions[0]);
 
-// Smoke test: load our extension through Pi's real extension loader (no model,
-// no mocks) and confirm the fusion_agents tool actually registers on load.
-// Empty agent dir + project has no .pi/extensions → only our extension loads.
-test("extension loads in Pi and registers the fusion_agents tool", async () => {
-  const extPath = resolve("src/index.ts");
-  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
+async function loadTool(cwd: string, agentDir: string) {
+  const loaded = await discoverAndLoadExtensions([resolve("src/index.ts")], cwd, agentDir);
+  expect(loaded.errors).toEqual([]);
+  return loaded.extensions
+    .flatMap((extension) => [...extension.tools.values()])
+    .find((tool) => tool.definition.name === "rejudge");
+}
 
-  const loaded = await discoverAndLoadExtensions([extPath], process.cwd(), agentDir);
+function writeConfig(cwd: string, reviewerCount: number): void {
+  mkdirSync(join(cwd, ".rejudge"), { recursive: true });
+  writeFileSync(
+    join(cwd, ".rejudge", "config.json"),
+    JSON.stringify({
+      reviewers: Array.from({ length: reviewerCount }, () => `${STUB}@minimal`),
+      judge: `${STUB}@minimal`,
+    }),
+  );
+}
+
+// Smoke test: load the source through Pi's real extension loader, with no model and no mocks.
+test("extension loads in Pi and registers the rejudge tool", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
+  const loaded = await discoverAndLoadExtensions([resolve("src/index.ts")], process.cwd(), agentDir);
 
   expect(loaded.errors).toEqual([]);
-  const toolNames = loaded.extensions.flatMap((e) => [...e.tools.keys()]);
-  expect(toolNames).toContain("fusion_agents");
+  const tools = loaded.extensions.flatMap((extension) => [...extension.tools.values()]);
+  const tool = tools.find((candidate) => candidate.definition.name === "rejudge");
+  expect(tool?.definition.label).toBe("Rejudge for Pi");
+  expect(tools.some((candidate) => candidate.definition.name === "fusion_agents")).toBe(false);
 });
 
-test("fusion_agents exposes resumeRunId as an optional parameter", async () => {
-  const extPath = resolve("src/index.ts");
-  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
-
-  const loaded = await discoverAndLoadExtensions([extPath], process.cwd(), agentDir);
+test.skipIf(!existsSync(builtExtension))("built Pi bundle registers the rejudge tool", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
+  const loaded = await discoverAndLoadExtensions([builtExtension], process.cwd(), agentDir);
 
   expect(loaded.errors).toEqual([]);
-  const tool = loaded.extensions
-    .flatMap((e) => [...e.tools.values()])
-    .find((t) => t.definition.name === "fusion_agents");
+  const tools = loaded.extensions.flatMap((extension) => [...extension.tools.values()]);
+  const tool = tools.find((candidate) => candidate.definition.name === "rejudge");
+  expect(tool?.definition.label).toBe("Rejudge for Pi");
+  expect(tools.some((candidate) => candidate.definition.name === "fusion_agents")).toBe(false);
+});
+
+test("rejudge exposes resumeRunId as an optional parameter", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
+  const tool = await loadTool(process.cwd(), agentDir);
   expect(tool).toBeDefined();
 
   const schema = tool!.definition.parameters as { properties?: Record<string, unknown> };
@@ -45,34 +68,23 @@ test("fusion_agents exposes resumeRunId as an optional parameter", async () => {
   expect(JSON.stringify(schema.properties!.resumeRunId)).toContain("minLength");
 });
 
-// Deterministic: output instructions are composed into the prompt when present,
-// and the question is returned unchanged when they're absent/blank.
 test("buildInvocationPrompt composes the question with output instructions", () => {
-  const q = "What is the capital of France?";
-  expect(buildInvocationPrompt(q)).toBe(q);
-  expect(buildInvocationPrompt(q, "   ")).toBe(q);
+  const question = "What is the capital of France?";
+  expect(buildInvocationPrompt(question)).toBe(question);
+  expect(buildInvocationPrompt(question, "   ")).toBe(question);
 
-  const composed = buildInvocationPrompt(q, "Begin your reply with RESULT:");
-  expect(composed).toContain(q);
+  const composed = buildInvocationPrompt(question, "Begin your reply with RESULT:");
+  expect(composed).toContain(question);
   expect(composed).toContain("Begin your reply with RESULT:");
   expect(composed).toContain("Output instructions");
 });
 
-test("fusion_agents forwards resumeRunId to the resume path", async () => {
-  const extPath = resolve("src/index.ts");
-  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
-  const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));
-  mkdirSync(join(cwd, ".pi"), { recursive: true });
-  writeFileSync(
-    join(cwd, ".pi", "fusion-agents.json"),
-    JSON.stringify({ panel: [`${STUB}@minimal`, `${STUB}@minimal`], synth: `${STUB}@minimal` }),
-  );
+test("rejudge forwards resumeRunId to the resume path", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
+  writeConfig(cwd, 2);
 
-  const loaded = await discoverAndLoadExtensions([extPath], cwd, agentDir);
-  expect(loaded.errors).toEqual([]);
-  const tool = loaded.extensions
-    .flatMap((e) => [...e.tools.values()])
-    .find((t) => t.definition.name === "fusion_agents");
+  const tool = await loadTool(cwd, agentDir);
   expect(tool).toBeDefined();
 
   const result = await tool!.definition.execute(
@@ -84,34 +96,21 @@ test("fusion_agents forwards resumeRunId to the resume path", async () => {
   );
 
   const text = result.content
-    .map((c) => (c.type === "text" ? c.text : ""))
+    .map((content) => (content.type === "text" ? content.text : ""))
     .join("");
-  expect(text).toMatch(/fusion_agents failed/i);
+  expect(text).toMatch(/rejudge failed/i);
   expect(text).toMatch(/resume/i);
   expect(text).toMatch(/not found|expired/i);
 });
 
-// Real end-to-end through Pi's loader and the real tool handler (no mocks): the tool
-// reaches the panel + synthesis and returns a fused answer. Exact output-instruction
-// obedience is covered deterministically above; a live cheap model can ignore formatting.
-integrationTest("fusion_agents runs end-to-end and returns a fused answer", async () => {
-  const extPath = resolve("src/index.ts");
-  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
-  const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));
-  mkdirSync(join(cwd, ".pi"), { recursive: true });
-  writeFileSync(
-    join(cwd, ".pi", "fusion-agents.json"),
-    JSON.stringify({ panel: [`${STUB}@minimal`, `${STUB}@minimal`, `${STUB}@minimal`], synth: `${STUB}@minimal` }),
-  );
+integrationTest("rejudge runs end-to-end and returns a reviewed answer", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
+  writeConfig(cwd, 3);
 
-  const loaded = await discoverAndLoadExtensions([extPath], cwd, agentDir);
-  expect(loaded.errors).toEqual([]);
-  const tool = loaded.extensions
-    .flatMap((e) => [...e.tools.values()])
-    .find((t) => t.definition.name === "fusion_agents");
+  const tool = await loadTool(cwd, agentDir);
   expect(tool).toBeDefined();
 
-  const ctx = { cwd } as unknown as ExtensionContext;
   const result = await tool!.definition.execute(
     "test-call",
     {
@@ -120,11 +119,11 @@ integrationTest("fusion_agents runs end-to-end and returns a fused answer", asyn
     },
     undefined,
     undefined,
-    ctx,
+    { cwd } as unknown as ExtensionContext,
   );
 
   const text = result.content
-    .map((c) => (c.type === "text" ? c.text : ""))
+    .map((content) => (content.type === "text" ? content.text : ""))
     .join("");
   expect(text).toMatch(/Paris/i);
   const runId = text.match(/Run ID: ([^\s.]+)/)?.[1];

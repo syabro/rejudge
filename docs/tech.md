@@ -10,20 +10,20 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 
 ## Agents
 - Native `@earendil-works/pi-coding-agent` SDK (`createAgentSession`), in-process. Not `pi -p`, not third-party (pi-subagents, oh-my-pi).
-- Keep panel sessions alive past synthesis (for later judge re-query).
+- Keep reviewer sessions alive through the judge step so `ask_panel` can re-query them.
 
 ## Runtime & layout
 - bun = dev only (deps + tests). No Bun APIs (`bun:*`, `Bun.*`) in code; runs on npm + plain Node.
 - Tests: Vitest.
-- Package: source in `src/`; `pi.extensions` points at the built bundle `dist/extension.js` (a `bun build` of `src/index.ts` with `neverthrow` inlined; pi SDK + typebox external/host-provided). Rebuild with `bun run build` (CLI + extension); `prepare` rebuilds on `bun install`. The extension is NOT loaded from `src/` directly — Pi 0.80's loader only resolves the pi SDK + typebox, not other `node_modules`, so a third-party import like `neverthrow` must be bundled in.
+- Package: `@rejudge/pi`; source in `src/`; `pi.extensions` points at `dist/extension.js` (a bundled build of `src/index.ts` with `neverthrow` inlined; Pi SDK + typebox external/host-provided). `bun run build` creates the extension and `bin/rejudge.js`; `prepare` rebuilds on `bun install`. Pi loads the bundle, not `src/`, because Pi 0.80's loader resolves the Pi SDK + typebox but not arbitrary project dependencies.
 - Provider: `OPENCODE_GO` (not `opencode`).
 
 ## Error handling
-- Expected failures are values, not exceptions: the fusion chain (`runPanelAgent` → `runPanel` → `synthesize` → `fuse`) returns a neverthrow `Result<T, E>` and never throws out of our code. SDK throws are caught at the `runPanelAgent` boundary and turned into `err`.
+- Expected failures are values, not exceptions: the review chain (`runReviewer` → `runPanel` → `runJudge` → `runReview`) returns a neverthrow `Result<T, E>` and never throws out of our code. SDK throws are caught at the `runReviewer` boundary and turned into `err`.
 - Runtime dep: `neverthrow` (pure ESM, zero deps). The "only @earendil-works/pi-coding-agent" rule is about agent packages — a Result utility is fine.
 
 ## Models (provider `opencode-go`)
-- Panel (3): `opencode-go/deepseek-v4-pro`, `opencode-go/mimo-v2.5-pro`, `opencode-go/minimax-m3`.
-- Synth: `opencode-go/glm-5.1`.
+- Reviewers (3): `opencode-go/deepseek-v4-pro`, `opencode-go/mimo-v2.5-pro`, `opencode-go/minimax-m3`.
+- Judge: `opencode-go/glm-5.1`.
 - Stub/smoke runs (speed only, content irrelevant): `opencode-go/kimi-k2.6` — fastest reliable (~1.0s median, 10/10 on a 10-ping benchmark).
 - Choosing a model: if you're not sure which model fits a task, ASK — don't guess. The labels above are scoped: `kimi-k2.6` as the stub/smoke pick means fast+reliable for a 10-ping latency test (content irrelevant), NOT fast or cheap for real agentic work — by the provider's request-rate limits it is actually one of the pricier models. Never assume a model's speed or cost without real data.

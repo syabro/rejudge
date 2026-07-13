@@ -15,10 +15,12 @@ coverage
 logs
 _.log
 report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
+.rejudge/logs/
+# abandoned pre-Rejudge logs; retained locally but never read
 .pi/fusion-logs/
 
-# local fusion config — environment-specific (which models / provider), never committed
-.pi/fusion-agents.json
+# local Rejudge config — environment-specific (which models / provider), never committed
+.rejudge/config.json
 
 # dotenv environment variable files
 .env

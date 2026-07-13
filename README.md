@@ -1,50 +1,61 @@
-# pi-fusion-agents
+# Rejudge
 
-A [Pi](https://pi.dev) extension that exposes one tool, `fusion_agents`: it fans an identical question out to a panel of 3 models, then fuses their answers with a 4th (synthesis) model into a single answer. The same engine ships as a local CLI (`bin/fusion.js`).
+**Independent review before your agent acts.**
+
+Rejudge is an independent multi-model review layer for AI agents. Separate tool-enabled reviewers investigate the same request, a judge can re-query them through `ask_panel`, and the caller receives one answer plus a resumable run ID.
+
+This repository ships the Pi adapter (`@rejudge/pi`) and a local CLI (`bin/rejudge.js`) over the same engine. Pi registers the native tool `rejudge`; other agents can invoke the CLI.
 
 ## Install
 
-```
+```bash
 bun install      # or: npm install
 ```
 
-bun is the dev package manager / script runner; the code itself runs on plain Node too.
+Bun is the development package manager and build runner; the built code runs on plain Node.
 
-## Commands
+## Development commands
 
-```
-bun run test         # Vitest — full suite (integration tests need a key, see below)
-bun run test:unit    # deterministic tests only — no key, ~1s
+```bash
+bun run test         # Vitest; integration tests need model credentials
+bun run test:unit    # deterministic tests only
 bun run typecheck    # tsc --noEmit
-bun run build:cli    # build the local CLI → ./bin/fusion.js (gitignored)
+bun run build        # CLI + Pi extension
+bun run build:cli    # bin/rejudge.js only
 ```
 
 ## CLI
 
+```bash
+bin/rejudge.js "your question"
+bin/rejudge.js -f prompt.txt
+bin/rejudge.js <<'EOF'
+Review this plan.
+EOF
+cmd | bin/rejudge.js
+bin/rejudge.js --resume <run-id> "follow-up question"
+bin/rejudge.js --unsafe "..."   # or --full; lets reviewers edit and run bash
+bin/rejudge.js --help
 ```
-bin/fusion.js "your question"     # the fused answer to stdout
-bin/fusion.js -f prompt.txt       # read the prompt from a file
-bin/fusion.js <<'EOF' … EOF       # or pipe/heredoc the prompt on stdin (no temp file)
-cmd | bin/fusion.js               # (same — stdin)
-bin/fusion.js --unsafe "..."      # (or --full) opt into write tools; default is read-only
-bin/fusion.js --help
-```
 
-The prompt comes from one source — a positional, else `-f`, else stdin (read only when there is neither). A bare terminal with no pipe prints usage instead of blocking; empty stdin is a usage error.
+A prompt comes from one source: a positional argument, else `-f`, else stdin. The answer goes to stdout; progress and the run ID go to stderr. Reviews are read-only by default.
 
-## Configuration & keys
+## Configuration and credentials
 
-Models are set in `.pi/fusion-agents.json` (project) or `~/.config/fusion-agents.json` (user-global) — a panel of ≥2 model IDs + 1 synth. Each ID carries its reasoning level as a required `@level` suffix (`minimal`/`low`/`medium`/`high`/`xhigh`); a model ID without one is a config error:
+Project config: `.rejudge/config.json`. Global fallback: `~/.config/rejudge/config.json` (or `$XDG_CONFIG_HOME/rejudge/config.json`). The project file wins when both exist.
 
 ```json
 {
-  "panel": [
+  "reviewers": [
     "opencode-go/deepseek-v4-pro@xhigh",
     "opencode-go/mimo-v2.5-pro@xhigh",
-    "opencode-go/minimax-m3@xhigh"
+    "openai-codex/gpt-5.4@high"
   ],
-  "synth": "opencode-go/glm-5.1@medium"
+  "judge": "openai-codex/gpt-5.5@medium",
+  "debugLog": false
 }
 ```
 
-The model API key lives in the `OPENCODE_API_KEY` environment variable (or Pi's stored `pi login` auth) — never baked into the code. Without a key the deterministic tests still run (`bun run test:unit`); the integration tests skip.
+Use at least two reviewers. Every model requires a lowercase reasoning suffix: `minimal`, `low`, `medium`, `high`, or `xhigh`.
+
+Set `OPENCODE_API_KEY` in the environment or use Pi's stored `pi login` authentication. Credentials are never stored in this repository.

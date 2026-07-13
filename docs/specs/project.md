@@ -2,16 +2,17 @@
 
 ## Setup
 
-`pi-fusion-agents` is a Node-first TypeScript Pi extension. bun is the dev package manager and script runner; the code and types have no dependency on bun, so it also runs under npm + plain Node (Node ≥ 23.6 for TS type-stripping). `README.md` is the one-page overview (what it is, the commands, where keys go); this section is the fuller reference.
+Rejudge is a Node-first TypeScript review engine with a Pi adapter (`@rejudge/pi`) and local CLI. Bun is the development package manager and build runner; the built code runs on plain Node. `README.md` is the one-page overview.
 
 - Install: `bun install` (or `npm install`)
-- Test: `npm test` / `bun run test` — runs **Vitest** (`vitest run`)
-- Unit only: `npm run test:unit` — the deterministic tests, no model calls, no key (~1s)
+- Test: `npm test` / `bun run test` — full Vitest suite
+- Unit only: `npm run test:unit` — deterministic tests, no model calls
 - Typecheck: `npm run typecheck` (`tsc --noEmit`)
+- Build: `npm run build` / `bun run build` — `bin/rejudge.js` plus `dist/extension.js`
 
-Tests are split into **deterministic** (parsing, config loading, prompt building — run anywhere) and **integration** (real model calls via a stub model — need credentials). `npm test` runs both; integration tests are skipped (not failed) unless `OPENCODE_API_KEY` is set, so a contributor without a key still gets a green run. Set `PI_TEST_INTEGRATION=1` to run integration when Pi auth comes from `pi login` instead of the env var, or `PI_TEST_UNIT_ONLY=1` (what `test:unit` does) to force the deterministic-only run even with a key.
+Tests are split into deterministic checks and integration tests that make real model calls. Integration tests run when `OPENCODE_API_KEY` is set or `PI_TEST_INTEGRATION=1`; `PI_TEST_UNIT_ONLY=1` forces the deterministic suite.
 
-Source lives in `src/`; the extension entry is `src/index.ts`, declared in `package.json` under `pi.extensions`. It is a distributable package — installed into a target project via Pi's package mechanism (`pi install` / settings `packages`), where it operates on that project.
+Source lives in `src/`. Pi loads the bundled `dist/extension.js` declared under `pi.extensions`; the local CLI is built from `src/cli.ts`. Configuration lives in `.rejudge/config.json`, with `~/.config/rejudge/config.json` as the global fallback.
 
 # Tasks
 
@@ -36,7 +37,7 @@ Source lives in `src/`; the extension entry is `src/index.ts`, declared in `pack
   - `npm run test:unit` (`PI_TEST_UNIT_ONLY=1`) runs the deterministic suite only — 33 tests, ~1s, no key; the integration tests show as skipped, never failed. `npm test` with a key runs all 45.
   - New deterministic test loads the committed `.pi/fusion-agents.json` and guards its shape (3 panel + non-empty synth + `debugLog`); model-ID validity stays an integration concern.
 
-- [ ] PRJ-053 Rename product surfaces to Rejudge
+- [x] PRJ-053 Rename product surfaces to Rejudge
   Rejudge has one host-neutral identity across the package, CLI, Pi tool, configuration, workflows, documentation, and tests.
 
   Replace the public `pi-fusion-agents` / `fusion` identity with Rejudge. The package becomes `@rejudge/pi`, the CLI artifact and command become `bin/rejudge.js` / `rejudge`, the Pi tool becomes `rejudge` with label `Rejudge for Pi`, and the workflows become `/rejudge` and `/rejudge-diff`.
@@ -58,6 +59,12 @@ Source lives in `src/`; the extension entry is `src/index.ts`, declared in `pack
   - old config schemas fail clearly, and old public CLI/tool/workflow names are not exposed as aliases
   - unit tests, typecheck, build, CLI smoke testing through `bin/rejudge.js`, and real Pi loading of the `rejudge` tool pass
   - no core contract, adapter, instrumentation, evaluation, `inspect`, resume redesign, stable reviewer-ID work, or diff-mode behavior is added
+
+  **Implemented:**
+  - Renamed the package, CLI artifact and usage, Pi tool and label, skills, configuration, persistence paths, runtime roles, whole-run code, tests, and current manuals to Rejudge terminology.
+  - Migrated the project and global config plus installed skill links and Pi package path without compatibility aliases; existing logs and resumable runs remain untouched.
+  - Preserved `ask_panel` targeting, review behavior, the existing skill edits, and historical task journals; `PROJECT-AND-NAMING-BRIEF.md` remains untouched.
+  - Verified 87 deterministic tests passing (14 integration tests skipped), typecheck, both builds, a real `bin/rejudge.js` run, fresh Pi loading of the `rejudge` tool, and a final Rejudge review with no actionable findings.
 
 - [x] PRJ-021 Fix onboarding: dead justfile reference and no README
   AGENTS.md's first line says "read justfile", which doesn't exist, and there's no README. Remove the dead pointer and add a short README (what it is, the two commands, where keys go).

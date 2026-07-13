@@ -4,7 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ASK_PANEL_TOOL_NAME, makeAskPanelTool } from "../src/ask-panel-tool.ts";
-import { READONLY_TOOLS, resolveModel, type PanelAgentResult } from "../src/runner.ts";
+import { READONLY_TOOLS, resolveModel, type ReviewerResult } from "../src/runner.ts";
 import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "../src/git-diff-tool.ts";
 import { runPanel } from "../src/panel.ts";
 import type { ProgressEvent } from "../src/events.ts";
@@ -26,7 +26,7 @@ function resultText(result: { content: { type: string }[] }): string {
 function fakePanelSession(
   promptBody: (ctx: { messages: Record<string, unknown>[]; emit: (event: unknown) => void }) => Promise<void> | void,
   options: { text?: string; onAbort?: () => void } = {},
-): PanelAgentResult["session"] {
+): ReviewerResult["session"] {
   const messages: Record<string, unknown>[] = [{ role: "assistant", stopReason: "stop" }];
   let subscriber: ((event: unknown) => void) | undefined;
   return {
@@ -46,7 +46,7 @@ function fakePanelSession(
     abort() {
       options.onAbort?.();
     },
-  } as unknown as PanelAgentResult["session"];
+  } as unknown as ReviewerResult["session"];
 }
 
 // Deterministic (no session touched, no model): an unknown model id short-circuits before any
@@ -55,8 +55,8 @@ function fakePanelSession(
 // the runner/Pi/models (the not-found branch never reads the session).
 test("ask_panel returns an error listing valid models for an unknown model", async () => {
   const panel = [
-    { modelId: "provider/alpha", text: "a", session: {} as PanelAgentResult["session"] },
-    { modelId: "provider/beta", text: "b", session: {} as PanelAgentResult["session"] },
+    { modelId: "provider/alpha", text: "a", session: {} as ReviewerResult["session"] },
+    { modelId: "provider/beta", text: "b", session: {} as ReviewerResult["session"] },
   ];
   const tool = makeAskPanelTool(panel);
 
@@ -98,16 +98,16 @@ test("ask_panel emits panel progress while re-querying a live session", async ()
   );
 
   expect(resultText(result)).toContain("follow-up answer");
-  expect(events[0]).toMatchObject({ kind: "model_start", model: "provider/alpha", role: "panel" });
+  expect(events[0]).toMatchObject({ kind: "model_start", model: "provider/alpha", role: "reviewer" });
   expect(events).toContainEqual(expect.objectContaining({ kind: "activity", model: "provider/alpha", activity: "writing", phase: "start" }));
   const activityEnd = events.findIndex((event) => event.kind === "activity" && event.phase === "end");
   const modelEnd = events.findIndex((event) => event.kind === "model_end");
   expect(activityEnd).toBeGreaterThan(0);
   expect(modelEnd).toBeGreaterThan(activityEnd);
-  expect(events[modelEnd]).toMatchObject({ kind: "model_end", model: "provider/alpha", role: "panel", status: "done" });
+  expect(events[modelEnd]).toMatchObject({ kind: "model_end", model: "provider/alpha", role: "reviewer", status: "done" });
 });
 
-// If the synth turn was already cancelled, ask_panel must not start a new model call or show a
+// If the judge turn was already cancelled, ask_panel must not start a new model call or show a
 // ghost row.
 test("ask_panel does not start a re-query when the signal is already aborted", async () => {
   let prompted = false;
@@ -211,10 +211,10 @@ test("ask_panel marks a non-clean re-query stop reason as an error", async () =>
 
 // Real SDK, no model call: the ask_panel custom tool, wired the way the judge wires it
 // (customTools + its name in the allow-list), actually activates in a session. This proves the
-// askPanel threading shape the synth/"judge" agent relies on.
+// askPanel threading shape the judge relies on.
 test("a session with ask_panel in customTools + allow-list activates it", async () => {
-  const agentDir = mkdtempSync(join(tmpdir(), "pi-fusion-agentdir-"));
-  const cwd = mkdtempSync(join(tmpdir(), "pi-fusion-proj-"));
+  const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
   const askPanel = makeAskPanelTool([]);
   const { session } = await createAgentSession({
     model: resolveModel(STUB),

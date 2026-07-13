@@ -1,60 +1,60 @@
 # Panel — mdtask
 
-## Panel agent runner
+## Reviewer runner
 
-The reusable unit behind the panel: `runPanelAgent(modelId, prompt, { cwd?, signal? })` runs one agent end-to-end on a single `"provider/model"` id (e.g. `opencode-go/kimi-k2.6`) and returns its finished answer text.
+The reusable unit behind the panel is `runReviewer(modelId, prompt, { cwd?, signal? })`: one reviewer in its own session on one `provider/model`, returning finished review text plus the live session.
 
-- Tools: read/grep/find/ls by default (edit/write/bash with `fullTools`), plus `git_diff` and `web_search` when the host offers it. No other host extensions load, so their handlers can't fire on inner agents (no host notifier flashing, no re-entering `fusion_agents`).
+- Tools: read/grep/find/ls by default (edit/write/bash with `fullTools`), plus `git_diff` and `web_search` when the host offers it. Other host extensions do not load, so reviewers cannot re-enter `rejudge`.
 - The session is in-memory — nothing is written to the host's resume list.
 - Failure is loud, never silent: a malformed/unknown model id, a model/tool/runtime error, or an incomplete run (any stop reason other than a clean `stop`) returns a clear error instead of a partial answer. If a clean run has no visible assistant text, the runner retries once in the same session and still never uses hidden thinking as the answer; an empty or failed retry is a clear error.
-- On success the agent's session is returned alive; the caller disposes it (kept open so a later synthesis/judge step can re-query the same agent).
+- On success the reviewer session stays alive so the judge can re-query it through `ask_panel`; the caller disposes it after the judge finishes.
 
 ## Panel fan-out
 
 `runPanel(models, prompt, { cwd?, signal? })` runs the whole panel: it dispatches the byte-identical prompt to every model concurrently — each as its own independent agent (own session, own tool-use path) — and collects one finished result per model.
 
-- Every agent receives the exact same `prompt`; diversity comes only from the model and the path it takes, never from the input. (The one sanctioned exception is the testing-only CLI flag `--prompt-add-N`, which appends a per-panel suffix to deliberately force divergence — see `cli.md`. It is never used in the product / the `fusion_agents` tool.)
-- Returns one result per model in input order, each with its session left alive for a later synthesis/judge step (the caller disposes them).
+- Every reviewer receives the exact same `prompt`; diversity comes from the model and its tool-use path. The testing-only `--prompt-add-N` flag can deliberately force divergence; the `rejudge` tool never uses it.
+- Returns one result per reviewer in config order, with sessions left alive for the judge.
 - Failure is loud and failure-driven: the first panel-agent failure aborts the shared panel signal, cancelling siblings that are still running; successful sessions are disposed, and the first failing model/error is surfaced (no partial-panel result).
 
-## Fusion (all-or-nothing)
+## Review run (all-or-nothing)
 
-`fuse(config, prompt, { cwd?, signal?, fullTools? })` runs the whole flow — panel fan-out then one synthesis call — and returns a neverthrow `Result<string, FusionFailure>` (it never throws):
+`runReview(config, prompt, { cwd?, signal?, fullTools? })` runs the panel and judge, returning `Result<ReviewSuccess, ReviewFailure>` without throwing:
 
-- `ok(answer)` only when every panel **and** synthesis complete without a technical (model/tool/runtime) error. The value is the single final text; intermediate panel outputs are never surfaced.
-- `err(failure)` on any technical failure. There is still no partial path: synthesis is never attempted on an incomplete panel, and there is no partial-panel result. The `failure` carries which `stage` broke (`"panel"` | `"synth"`), the `model` id, the `error` text, and `aborted` (true for a deliberate cancel rather than a model fault). `formatFailure(failure)` renders it as a one-line `<stage> (<model>) failed: <error>` (or `… aborted`) for CLI/tool output.
+- `ok({ answer, runId })` only when the full panel and judge complete technically. Intermediate reviewer outputs stay internal.
+- `err(failure)` on panel, judge, or resume failure. There is no partial-panel path. The failure carries `stage` (`panel` | `judge` | `resume`), model/run ID, error text, and `aborted`.
 
-"Success" means technical completion, not answer quality. The synthesis stage itself (output-instruction threading, format preservation) is described under Synthesis in `synth.md`.
+Success means technical completion, not answer quality. Judge behavior is described in `judge.md`.
 
-**Cancellation.** Pass an `AbortSignal` as `signal` (the `fusion_agents` tool forwards the one it gets from Pi). It threads down to every panel agent and the synthesis agent; aborting it stops the in-flight agents (and short-circuits any not yet started), so a cancelled run returns `err(failure)` with `aborted: true` instead of leaving agents running and burning credits.
+**Cancellation.** The Pi `rejudge` tool and CLI thread an `AbortSignal` through every reviewer and the judge. Aborting stops in-flight work and returns a failure with `aborted: true`.
 
 ## Demo
 
-A reproducible end-to-end run on a question about this project; configure a `.pi/fusion-agents.json` (panel `deepseek-v4-pro`, `mimo-v2.5-pro`, `minimax-m3` + synth `glm-5.1`, all `opencode-go`; see `config.md`). From the repo root:
+Configure `.rejudge/config.json`, then run from the repository root:
 
-    bun src/cli.ts "explain what pi-fusion-agents does and how its all-or-nothing fusion works"
+    bun src/cli.ts "explain what Rejudge does and how its all-or-nothing review works"
 
-The panel agents read the repo to answer, synthesis fuses them, and the single final answer goes to stdout (progress to stderr). All panels and synthesis must complete; any technical failure exits non-zero — never a partial answer.
+Reviewers inspect the repository, the judge produces one answer on stdout, and progress goes to stderr. Any technical failure exits non-zero; there is no partial answer.
 
 ## Activity log
 
-The engine writes nothing to stdout/stderr on its own. While a fusion runs it emits structured progress events to a caller-supplied sink (`activitySink`): a model's start and end (with its status and duration), each step's start and end (every tool call, plus the `thinking`/`writing` phases — the end carries the step's duration), the panel/synth stage times, the total run time, and diagnostics. With no sink the engine stays silent; each consumer renders the events its own way.
+The engine writes nothing to stdout/stderr on its own. It emits structured progress events to an `activitySink`: model lifecycle, tool/thinking/writing steps, panel/judge stage timing, total time, and diagnostics. With no sink it stays silent.
 
-The CLI (and demo) render them to **stderr** as a plain append log — a line per step as it finishes (with its duration), then per-model, per-stage, and total times. The panel agents run concurrently, so their lines interleave, told apart by the model name. stderr keeps the log off stdout, where the fused answer goes.
+The CLI renders these events to stderr. Reviewers run concurrently, so their lines interleave by model name; stdout remains reserved for the answer.
 
     19:41:13 deepseek-v4-pro thinking 11s
-    19:41:13 deepseek-v4-pro read src/fusion.ts 00s
+    19:41:13 deepseek-v4-pro read src/review.ts 00s
     19:44:33 deepseek-v4-pro done in 3m31s
     panel stage done in 10m02s
-    fusion done in 10m57s
+    rejudge done in 10m57s
 
 A step line carries the tool's params (a read's path, a `web_search` query) after the step name. Durations are `NNs` under a minute, `NmNNs` at or past one.
 
-The `fusion_agents` Pi tool renders the same events as a live in-place block instead — see `extension.md`.
+The Pi `rejudge` tool renders the same events as a live in-place block; see `extension.md`.
 
 ## Debug log
 
-For after-the-fact analysis of what bloats the context window or slows a run, set `"debugLog": true` in `.pi/fusion-agents.json` (default off). Each run then writes one JSONL file under `.pi/fusion-logs/<timestamp>.jsonl` (gitignored; the path is printed to stderr at the start of the run). Every inner agent (panel + synthesis) appends records to the same file, one JSON object per line:
+Set `"debugLog": true` in `.rejudge/config.json` to write one JSONL file under `.rejudge/logs/<timestamp>.jsonl`. Every reviewer and the judge append records to the same file:
 
     {"t":1718620862123,"model":"deepseek-v4-pro","kind":"thinking","chars":4213,"lines":88,"content":"…"}
     {"t":1718620864501,"model":"deepseek-v4-pro","kind":"tool_result","tool":"bash","toolCallId":"…","isError":false,"chars":51200,"lines":900,"content":"…(truncated)…"}
