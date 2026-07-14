@@ -1,6 +1,6 @@
 # Public release — mdtask
 
-The first public release is Rejudge 0.1.0 on GitHub and npm. One unscoped npm package, `rejudge`, contains the CLI, Pi extension, and both public workflows.
+The first public release is Rejudge 0.1.0 on GitHub and npm. One unscoped npm package, `rejudge`, contains the CLI, Pi extension, and both public workflows. Its manifest exposes the executable and declares the bundled Pi extension and skills, so every interface comes from the same installed artifact.
 
 Existing launch gates are tracked separately and are not duplicated here:
 - `EXT-052` — report Esc cancellation as a user cancellation
@@ -24,7 +24,7 @@ Technical completion does not verify the result. Separate initial sessions provi
 
 # Tasks
 
-- [ ] REL-054 Package Rejudge 0.1.0 for npm		#release
+- [x] REL-054 Package Rejudge 0.1.0 for npm		#release
   The single `rejudge` package installs the CLI, Pi extension, and both public workflows together.
 
   Add the MIT license and complete the package metadata, public file list, executable mapping, runtime requirements, and build lifecycle. Publish one unscoped package instead of creating separate CLI, Pi, or workflow packages.
@@ -42,10 +42,11 @@ Technical completion does not verify the result. Separate initial sessions provi
   - installing the packed tarball in an empty project makes `rejudge --help` work, includes a loadable Pi extension, and provides both workflows
   - package metadata and public instructions use `rejudge` without an npm scope or split package
 
-  **Implemented so far:**
-  - Added the MIT license, release metadata, runtime requirements, public-file boundary, and build lifecycle.
-  - The current tarball installs without Bun, exposes `rejudge --help`, and loads the declared Pi extension.
-  - The npm bin entry works through the package manager's generated executable link.
+  **Implemented:**
+  - The unscoped `rejudge@0.1.0` manifest exposes the CLI, bundled Pi extension, and both public workflows as one package.
+  - The seven-file tarball contains only the license, README, manifest, built entry points, and two workflow definitions.
+  - A clean installation with lifecycle scripts disabled runs `rejudge --help`, loads the Pi extension, and discovers `rejudge` and `rejudge-diff`.
+  - The installed artifact runs on Node without Bun or source files.
 
 - [x] REL-055 Sanitize the repository for public visibility		#release
   The public repository contains only intentional project material and no local credentials, machine state, or unpublished planning files.

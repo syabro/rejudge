@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@rejudge/pi",
+      "name": "rejudge",
       "dependencies": {
         "neverthrow": "^8.2.0",
       },

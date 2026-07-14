@@ -1,7 +1,7 @@
 {
-  "name": "@rejudge/pi",
+  "name": "rejudge",
   "version": "0.1.0",
-  "description": "Independent multi-model review for AI agents, with a Pi extension and CLI.",
+  "description": "Independent multi-model review for AI agents, with a CLI, Pi extension, and review workflows.",
   "type": "module",
   "license": "MIT",
   "repository": {
@@ -26,7 +26,8 @@
     "bin/rejudge.js",
     "dist/extension.js",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "docs/skills"
   ],
   "bin": {
     "rejudge": "bin/rejudge.js"
@@ -46,6 +47,9 @@
   "pi": {
     "extensions": [
       "./dist/extension.js"
+    ],
+    "skills": [
+      "./docs/skills"
     ]
   },
   "dependencies": {

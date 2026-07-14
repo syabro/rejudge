@@ -14,10 +14,19 @@ const THEME = { fg: (_color: string, text: string) => text, bold: (text: string)
 test("package and CLI expose the Rejudge names", () => {
   const pkg = JSON.parse(readFileSync(resolve("package.json"), "utf8")) as {
     name: string;
+    files: string[];
+    bin: { rejudge: string };
+    pi: { extensions: string[]; skills: string[] };
+    publishConfig: { access: string };
     scripts: Record<string, string>;
   };
 
-  expect(pkg.name).toBe("@rejudge/pi");
+  expect(pkg.name).toBe("rejudge");
+  expect(pkg.files).toEqual(expect.arrayContaining(["bin/rejudge.js", "dist/extension.js", "docs/skills"]));
+  expect(pkg.bin.rejudge).toBe("bin/rejudge.js");
+  expect(pkg.pi.extensions).toEqual(["./dist/extension.js"]);
+  expect(pkg.pi.skills).toEqual(["./docs/skills"]);
+  expect(pkg.publishConfig.access).toBe("public");
   expect(pkg.scripts["build:cli"]).toContain("bin/rejudge.js");
   expect(USAGE).toMatch(/^usage: rejudge /);
 });
