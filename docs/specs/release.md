@@ -6,6 +6,10 @@ Existing launch gates are tracked separately and are not duplicated here:
 - `EXT-052` — report Esc cancellation as a user cancellation
 - `SYN-042` — route duplicate model choices through stable role identities
 
+## Packaged interface smoke tests
+
+Run `bun run smoke:package -- <cli|pi|all>` with `OPENCODE_API_KEY` available to test a fresh tarball through real CLI or Pi model calls in a disposable Node 22.19 Docker container. Use `--no-key` to verify installation and the handled authentication failure without forwarding credentials; the default `all` target also proves CLI startup and Pi resource discovery. The runner accepts only allowlisted runtime credentials and never mounts the project source tree into the test environment.
+
 ## Public repository hygiene
 
 The public source tree excludes private planning, local Rejudge and Pi state, editor state, generated bundles, caches, and environment files. Public workflow examples call the installed `rejudge` command instead of an author's checkout. Release preparation scans both the candidate source tree and complete Git history with the default Gitleaks rules; its only exception is the exact synthetic marker used by the resume integration test.
@@ -69,7 +73,7 @@ Technical completion does not verify the result. Separate initial sessions provi
   - Default Gitleaks scans pass for the candidate public tree and all Git refs; only the exact synthetic resume-test marker is exempted.
   - The previously requested progress-row spacing is already present in commit `c565a12`.
 
-- [ ] REL-056 Verify packaged interfaces with extensible Docker smoke tests		#release
+- [x] REL-056 Verify packaged interfaces with extensible Docker smoke tests		#release
   Docker smoke tests prove that the packed `rejudge` artifact works through CLI and Pi in a clean environment.
 
   Replace one-off portability checks with a repeatable target-based smoke runner. It builds one tarball, installs it in a disposable Node 22.19 container with isolated user and Pi state, and runs independent interface targets against the installed artifact rather than the source checkout.
@@ -95,6 +99,12 @@ Technical completion does not verify the result. Separate initial sessions provi
   - live targets receive only allowlisted runtime credential variables and neither persist nor print their values
   - no-key checks prove package installation and Pi discovery and return a clear authentication error for a model call
   - neither target depends on an author-specific path, source checkout, public npm publication, or `pc.local`
+
+  **Implemented:**
+  - One command runs independent `cli`, `pi`, or combined package checks in a disposable Node 22.19 Docker environment.
+  - Live CLI checks complete ordinary and working-tree diff reviews through the installed command, while the Pi check loads both workflows and completes a call through the installed extension.
+  - Runtime credentials are restricted to an explicit allowlist and excluded from package installation, captured output, and persistent test files.
+  - The combined no-key mode proves clean installation, CLI startup, Pi package discovery, and a handled authentication failure without credentials.
 
 - [ ] REL-057 Write and verify the Pi and CLI quickstart		#release
   A stranger can install, configure, and run Rejudge through Pi or the CLI without private setup knowledge.

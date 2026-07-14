@@ -7,6 +7,7 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 - Smoke tests only — real runs, no mocks/stubs of models, Pi, or the agent runner. No smoke test = no guarantee.
 - Config: tested with real config files (real input → accept/reject).
 - A working model is required to test anything past config.
+- Packaged interfaces use one extensible Docker smoke runner: `bun run smoke:package -- <cli|pi|all>` performs live checks with allowlisted runtime credentials. `--no-key` verifies installation and the handled authentication failure without credentials; the default `all` target also proves CLI startup and Pi discovery. Every target receives the same freshly packed tarball and isolated Node 22.19 environment; the container never mounts the source checkout.
 
 ## Agents
 - Native `@earendil-works/pi-coding-agent` SDK (`createAgentSession`), in-process. Not `pi -p`, not third-party (pi-subagents, oh-my-pi).
