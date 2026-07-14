@@ -4,7 +4,7 @@
 
 Rejudge is an independent multi-model review layer for AI agents. Separate tool-enabled reviewers investigate the same request, a judge can re-query them through `ask_panel`, and the caller receives one answer plus a resumable run ID.
 
-This repository ships the Pi adapter (`@rejudge/pi`) and a local CLI (`bin/rejudge.js`) over the same engine. Pi registers the native tool `rejudge`; other agents can invoke the CLI.
+The public release is one npm package, `rejudge`, containing the CLI, the Pi adapter, and the `/rejudge` and `/rejudge-diff` workflows over the same engine. Pi registers the native tool `rejudge`; other agents can invoke the CLI.
 
 ## Before you run it
 

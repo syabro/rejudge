@@ -4,7 +4,7 @@ The `rejudge` Pi extension tool: registration, invocation, results, and live pro
 
 ## The tool
 
-The `@rejudge/pi` package loads `dist/extension.js` through the `pi.extensions` manifest. The bundle inlines third-party dependencies while the Pi SDK and typebox remain host-provided. Build it with `bun run build:ext` or `bun run build`; `bun install` rebuilds it through `prepare`. It registers one explicit tool, `rejudge`, displayed as **Rejudge for Pi**, with:
+The `rejudge` package loads `dist/extension.js` through the `pi.extensions` manifest. The bundle inlines third-party dependencies while the Pi SDK and typebox remain host-provided. Build it with `bun run build:ext` or `bun run build`; `bun install` rebuilds it through `prepare`. It registers one explicit tool, `rejudge`, displayed as **Rejudge for Pi**, with:
 
 - `question` (required) — the question or instruction for the reviewers.
 - `outputInstructions` (optional) — the desired output format (e.g. a requested structure, or P0/P1/P2/P3 buckets).

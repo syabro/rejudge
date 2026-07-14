@@ -16,7 +16,7 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 ## Runtime & layout
 - bun = dev only (deps + tests). No Bun APIs (`bun:*`, `Bun.*`) in code; runs on npm + plain Node.
 - Tests: Vitest.
-- Package: `@rejudge/pi`; source in `src/`; `pi.extensions` points at `dist/extension.js` (a bundled build of `src/index.ts` with `neverthrow` inlined; Pi SDK + typebox external/host-provided). `bun run build` creates the extension and `bin/rejudge.js`; `prepare` rebuilds on `bun install`. Pi loads the bundle, not `src/`, because Pi 0.80's loader resolves the Pi SDK + typebox but not arbitrary project dependencies.
+- Package: one unscoped npm package, `rejudge`, containing the CLI, Pi extension, and both public workflows. Source lives in `src/`; `pi.extensions` points at `dist/extension.js` (a bundled build of `src/index.ts` with `neverthrow` inlined; Pi SDK + typebox external/host-provided). `bun run build` creates the extension and `bin/rejudge.js`; `prepare` rebuilds on `bun install`. Pi loads the bundle, not `src/`, because Pi 0.80's loader resolves the Pi SDK + typebox but not arbitrary project dependencies.
 - Provider: `OPENCODE_GO` (not `opencode`).
 
 ## Error handling

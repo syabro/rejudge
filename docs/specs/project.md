@@ -2,7 +2,7 @@
 
 ## Setup
 
-Rejudge is a Node-first TypeScript review engine with a Pi adapter (`@rejudge/pi`) and local CLI. Bun is the development package manager and build runner; the built code runs on plain Node. `README.md` is the one-page overview.
+Rejudge is a Node-first TypeScript review engine distributed as one npm package, `rejudge`, containing the local CLI, Pi adapter, and both public workflows. Bun is the development package manager and build runner; the built code runs on plain Node. `README.md` is the one-page overview.
 
 - Install: `bun install` (or `npm install`)
 - Test: `npm test` / `bun run test` — full Vitest suite
@@ -40,7 +40,7 @@ Source lives in `src/`. Pi loads the bundled `dist/extension.js` declared under 
 - [x] PRJ-053 Rename product surfaces to Rejudge
   Rejudge has one host-neutral identity across the package, CLI, Pi tool, configuration, workflows, documentation, and tests.
 
-  Replace the public `pi-fusion-agents` / `fusion` identity with Rejudge. The package becomes `@rejudge/pi`, the CLI artifact and command become `bin/rejudge.js` / `rejudge`, the Pi tool becomes `rejudge` with label `Rejudge for Pi`, and the workflows become `/rejudge` and `/rejudge-diff`.
+  Replace the public `pi-fusion-agents` / `fusion` identity with Rejudge. The package takes the Rejudge name, with the final npm package name and contents owned by `REL-054`; the CLI artifact and command become `bin/rejudge.js` / `rejudge`, the Pi tool becomes `rejudge` with label `Rejudge for Pi`, and the workflows become `/rejudge` and `/rejudge-diff`.
 
   Use `reviewer`, `panel`, and `judge` consistently. Machine-facing configuration uses `reviewers` and `judge`; per-model runtime roles use `reviewer` and `judge`; `panel` names the reviewers collectively or the collective stage. Whole-run code and types use review terminology: move `src/fusion.ts` to `src/review.ts` and `src/synth.ts` to `src/judge.ts`, with matching test and spec renames. `fusion` may remain only as a private name for the judge's result-combination operation. `ask_panel` and its current targeting contract stay unchanged; stable reviewer identifiers remain the scope of SYN-042.
 

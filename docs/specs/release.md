@@ -1,6 +1,6 @@
 # Public release — mdtask
 
-The first public release is Rejudge 0.1.0 on GitHub and npm, with both the Pi extension and CLI supported.
+The first public release is Rejudge 0.1.0 on GitHub and npm. One unscoped npm package, `rejudge`, contains the CLI, Pi extension, and both public workflows.
 
 Existing launch gates are tracked separately and are not duplicated here:
 - `EXT-052` — report Esc cancellation as a user cancellation
@@ -25,28 +25,27 @@ Technical completion does not verify the result. Separate initial sessions provi
 # Tasks
 
 - [ ] REL-054 Package Rejudge 0.1.0 for npm		#release
-  `@rejudge/pi` installs as a public package and exposes both the Pi extension and the `rejudge` CLI.
+  The single `rejudge` package installs the CLI, Pi extension, and both public workflows together.
 
-  Add the MIT license and complete the package metadata, public file list, executable mapping, runtime requirements, and build lifecycle. Confirm that the `@rejudge` npm scope can publish a public package.
+  Add the MIT license and complete the package metadata, public file list, executable mapping, runtime requirements, and build lifecycle. Publish one unscoped package instead of creating separate CLI, Pi, or workflow packages.
 
   User decisions:
   - release under the MIT license
   - publish through both GitHub and npm
   - use version 0.1.0
+  - publish one unscoped npm package named `rejudge`; keep the CLI, Pi extension, and both workflows together
 
   DoD:
   - the repository contains the intended MIT `LICENSE`
-  - the package declares version, description, license, repository, runtime requirements, public files, and the `rejudge` executable
-  - `npm pack` contains the required CLI and Pi bundles but excludes tests, local configuration, logs, benchmarks, and private working files
-  - installing the packed tarball in an empty project makes `rejudge --help` work and includes a loadable Pi extension
-  - the publishing account can publish public packages under `@rejudge`
+  - the package declares the `rejudge` name, version, description, license, repository, runtime requirements, public files, and executable
+  - `npm pack` contains the CLI, Pi bundle, and both workflows but excludes tests, local configuration, logs, benchmarks, and private working files
+  - installing the packed tarball in an empty project makes `rejudge --help` work, includes a loadable Pi extension, and provides both workflows
+  - package metadata and public instructions use `rejudge` without an npm scope or split package
 
   **Implemented so far:**
-  - Added the MIT license and complete public metadata for `@rejudge/pi@0.1.0`.
-  - The five-file npm tarball installs without Bun, exposes `rejudge --help`, and loads the declared Pi extension.
+  - Added the MIT license, release metadata, runtime requirements, public-file boundary, and build lifecycle.
+  - The current tarball installs without Bun, exposes `rejudge --help`, and loads the declared Pi extension.
   - The npm bin entry works through the package manager's generated executable link.
-
-  **Blocked:** npm authentication returns `E401`, so publish permission for `@rejudge` cannot be confirmed. The package is not published and this task remains open.
 
 - [x] REL-055 Sanitize the repository for public visibility		#release
   The public repository contains only intentional project material and no local credentials, machine state, or unpublished planning files.
@@ -70,28 +69,33 @@ Technical completion does not verify the result. Separate initial sessions provi
   - The previously requested progress-row spacing is already present in commit `c565a12`.
 
 - [ ] REL-056 Make the Rejudge workflows portable		#release
-  `/rejudge` and `/rejudge-diff` work from another user’s installation instead of relying on this machine’s checkout path.
+  The `/rejudge` and `/rejudge-diff` workflows ship inside the same `rejudge` package and work from any installation.
 
-  Replace fixed local paths with a portable way to locate the installed CLI, and document how to install both workflows.
+  Remove author-specific paths, make both workflows invoke the installed `rejudge` command, and document how Pi discovers the workflows from the package.
 
-  User decision: publish both workflows as supported public interfaces.
+  User decisions:
+  - publish both workflows as supported public interfaces
+  - ship both workflows with the CLI and Pi extension in the single `rejudge` package
 
   DoD:
   - neither workflow contains an author-specific absolute path
-  - both workflows locate and invoke the installed Rejudge CLI
-  - a clean user profile can install and run each workflow using only the public instructions
+  - both workflows ship in the `rejudge` package and invoke its installed CLI
+  - a clean user profile can install one package and run each workflow using only the public instructions
   - workflow failures explain missing Rejudge installation or authentication clearly
 
 - [ ] REL-057 Write and verify the Pi and CLI quickstart		#release
   A stranger can install, configure, and run Rejudge through Pi or the CLI without private setup knowledge.
 
-  Document supported Node, Bun, and Pi versions; npm and source installation; authentication; model configuration; Pi loading; workflow installation; the first CLI run; the first Pi tool call; and common setup failures.
+  Document supported Node, Bun, and Pi versions; installation of the single `rejudge` package from npm and source; authentication; model configuration; Pi loading; workflow discovery; the first CLI run; the first Pi tool call; and common setup failures.
 
-  User decision: the first public release supports both Pi and CLI.
+  User decisions:
+  - the first public release supports both Pi and CLI
+  - all public installation paths use the single `rejudge` package
 
   DoD:
   - README contains one copy-paste path from an empty machine to a successful CLI review
   - README contains one copy-paste path from an empty machine to a loaded Pi `rejudge` tool
+  - both paths install `rejudge`, and the same package provides `/rejudge` and `/rejudge-diff`
   - config and authentication examples contain no private values
   - every documented command is verified in an isolated home directory or clean environment
   - expected successful output and common failure messages are shown
@@ -134,12 +138,12 @@ Technical completion does not verify the result. Separate initial sessions provi
 
   User decisions:
   - release through public GitHub and npm
-  - publish Pi and CLI together
+  - publish the CLI, Pi extension, and both workflows together as the single `rejudge` package
   - benchmark evidence is not required for this release
 
   DoD:
   - the public GitHub repository is accessible and its default branch points to the reviewed release commit
   - tag and GitHub release `v0.1.0` point to that commit
-  - `npm view @rejudge/pi@0.1.0` succeeds and a clean registry installation works
+  - `npm view rejudge@0.1.0` succeeds and a clean registry installation provides the CLI, Pi extension, and both workflows
   - the public README links and installation commands work
   - `EXT-052` and `SYN-042` are complete

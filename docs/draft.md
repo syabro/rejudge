@@ -32,7 +32,7 @@ Rejudge
 ## Current interfaces
 
 - Product and repository: **Rejudge** / `rejudge`
-- Package in this repository: `@rejudge/pi`
+- Public npm package: `rejudge` — one package for the CLI, Pi adapter, and both workflows
 - Pi display name: **Rejudge for Pi**
 - Pi tool: `rejudge`
 - CLI: `bin/rejudge.js`
