@@ -69,20 +69,32 @@ Technical completion does not verify the result. Separate initial sessions provi
   - Default Gitleaks scans pass for the candidate public tree and all Git refs; only the exact synthetic resume-test marker is exempted.
   - The previously requested progress-row spacing is already present in commit `c565a12`.
 
-- [ ] REL-056 Make the Rejudge workflows portable		#release
-  The `/rejudge` and `/rejudge-diff` workflows ship inside the same `rejudge` package and work from any installation.
+- [ ] REL-056 Verify packaged interfaces with extensible Docker smoke tests		#release
+  Docker smoke tests prove that the packed `rejudge` artifact works through CLI and Pi in a clean environment.
 
-  Remove author-specific paths, make both workflows invoke the installed `rejudge` command, and document how Pi discovers the workflows from the package.
+  Replace one-off portability checks with a repeatable target-based smoke runner. It builds one tarball, installs it in a disposable Node 22.19 container with isolated user and Pi state, and runs independent interface targets against the installed artifact rather than the source checkout.
+
+  The initial targets are:
+  - `cli` — find `rejudge` through the container `PATH`, run a real review, and run a real diff review in a temporary Git repository
+  - `pi` — use Pi's real package and resource loading, discover the extension plus `rejudge` and `rejudge-diff`, and complete a real `rejudge` tool call
+
+  Live smoke tests receive provider credentials through an explicit runtime environment allowlist, initially `OPENCODE_API_KEY`. Credentials are never copied into the image, tarball, files, or logs. A no-key mode keeps package and resource checks deterministic and verifies the missing-authentication failure; `REL-059` owns later CI wiring.
 
   User decisions:
   - publish both workflows as supported public interfaces
-  - ship both workflows with the CLI and Pi extension in the single `rejudge` package
+  - ship the CLI, Pi extension, and both workflows in the single `rejudge` package
+  - run the clean-environment checks locally through Docker on OrbStack; `pc.local` is not required
+  - make the smoke runner extensible by interface, with `cli`, `pi`, and `all` targets first
+  - pass provider keys into live containers through an explicit environment allowlist, starting with `OPENCODE_API_KEY`, instead of storing credentials
 
   DoD:
-  - neither workflow contains an author-specific absolute path
-  - both workflows ship in the `rejudge` package and invoke its installed CLI
-  - a clean user profile can install one package and run each workflow using only the public instructions
-  - workflow failures explain missing Rejudge installation or authentication clearly
+  - one project command can run `cli`, `pi`, or `all` against a newly packed tarball in a disposable Node 22.19 container
+  - shared build, install, isolated-profile, config, and cleanup work is reused across targets; adding another interface requires only its target-specific checks
+  - the `cli` target completes ordinary and diff reviews from outside the repository using the installed command
+  - the `pi` target loads the installed package's extension and both workflows, registers `rejudge`, and completes a real tool call
+  - live targets receive only allowlisted runtime credential variables and neither persist nor print their values
+  - no-key checks prove package installation and Pi discovery and return a clear authentication error for a model call
+  - neither target depends on an author-specific path, source checkout, public npm publication, or `pc.local`
 
 - [ ] REL-057 Write and verify the Pi and CLI quickstart		#release
   A stranger can install, configure, and run Rejudge through Pi or the CLI without private setup knowledge.
