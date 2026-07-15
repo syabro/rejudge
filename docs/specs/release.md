@@ -168,16 +168,20 @@ Technical completion does not verify the result. Separate initial sessions provi
 - [ ] REL-060 Publish Rejudge 0.1.0		#release
   The same verified release is available from GitHub and npm.
 
-  Do not start this task until the release tasks above and existing gates `EXT-052` and `SYN-042` are complete. Create the public GitHub repository, push the reviewed tree, tag the release, publish npm interactively, and verify both installation paths.
+  Start after the release tasks above except post-release CI task `REL-059`, with gates `EXT-052` and `SYN-042` complete. Build one immutable tarball, verify that exact file through Docker, create the public GitHub repository, publish the same tarball to npm interactively, verify registry installation through CLI and Pi, then tag the artifact-producing commit.
 
   User decisions:
   - release through public GitHub and npm
   - publish the CLI, Pi extension, and both workflows together as the single `rejudge` package
   - benchmark evidence is not required for this release
+  - local tarball smoke is prepublication evidence only; final release verification must install the published package from npm without source files
+  - `REL-059` is post-release work and does not block version 0.1.0
 
   DoD:
-  - the public GitHub repository is accessible and its default branch points to the reviewed release commit
-  - tag and GitHub release `v0.1.0` point to that commit
-  - `npm view rejudge@0.1.0` succeeds and a clean registry installation provides the CLI, Pi extension, and both workflows
-  - the public README links and installation commands work
+  - one recorded `rejudge-0.1.0.tgz` passes no-key and live CLI/Pi Docker smoke, and that exact tarball is published without rebuilding
+  - the public GitHub repository is accessible and its default branch contains the reviewed release commit
+  - tag and GitHub release `v0.1.0` point to the source commit that produced the published tarball
+  - `npm view rejudge@0.1.0` matches the recorded artifact identity
+  - clean Docker registry installation, with no source or tarball mount, provides the CLI, Pi extension, and both workflows and completes live CLI/Pi checks
+  - the public README links and exact installation commands work
   - `EXT-052` and `SYN-042` are complete

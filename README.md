@@ -176,4 +176,5 @@ bun run build                    # CLI + Pi extension
 bun run build:cli                # bin/rejudge.js only
 bun run smoke:package -- all     # live packaged CLI and Pi checks in Docker
 bun run smoke:package -- all --no-key
+bun run smoke:package -- all --tarball /tmp/rejudge-release-0.1.0/rejudge-0.1.0.tgz
 ```

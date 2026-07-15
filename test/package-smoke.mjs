@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   access,
   mkdir,
   mkdtemp,
   readFile,
   readdir,
+  realpath,
   rm,
   writeFile,
 } from "node:fs/promises";
@@ -42,12 +44,13 @@ const EXPECTED_PACKAGE_FILES = [
   "package.json",
 ];
 
-const USAGE = `usage: bun run smoke:package -- [cli|pi|all] [--no-key]
+const USAGE = `usage: bun run smoke:package -- [cli|pi|all] [--tarball <path>] [--no-key]
 
-  cli       test the installed CLI, including ordinary and diff reviews
-  pi        test Pi package discovery, resource loading, and the rejudge tool
-  all       run cli then pi (default)
-  --no-key  skip live answers and require a handled missing-authentication failure`;
+  cli             test the installed CLI, including ordinary and diff reviews
+  pi              test Pi package discovery, resource loading, and the rejudge tool
+  all             run cli then pi (default)
+  --tarball PATH  test this exact prebuilt tarball instead of building a temporary one
+  --no-key        skip live answers and require a handled missing-authentication failure`;
 
 function withoutCredentials(env) {
   const clean = { ...env };
@@ -89,11 +92,17 @@ function outputTail(text, length = 4000) {
   return redactCredentials(text.slice(-length));
 }
 
+async function sha512File(path) {
+  const body = await readFile(path);
+  return `sha512-${createHash("sha512").update(body).digest("base64")}`;
+}
+
 function parseOptions(argv) {
   const args = [...argv];
   let container = false;
   let noKey = false;
   let help = false;
+  let tarball;
   let target;
 
   if (args[0] === "--container") {
@@ -101,7 +110,8 @@ function parseOptions(argv) {
     args.shift();
   }
 
-  for (const arg of args) {
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
     if (arg === "--") {
       continue;
     }
@@ -110,6 +120,17 @@ function parseOptions(argv) {
         throw new Error("--no-key given more than once");
       }
       noKey = true;
+      continue;
+    }
+    if (arg === "--tarball" || arg.startsWith("--tarball=")) {
+      if (tarball !== undefined) {
+        throw new Error("--tarball given more than once");
+      }
+      const value = arg === "--tarball" ? args[++index] : arg.slice("--tarball=".length);
+      if (!value || (arg === "--tarball" && value.startsWith("-"))) {
+        throw new Error("--tarball needs a path");
+      }
+      tarball = value;
       continue;
     }
     if (arg === "--help" || arg === "-h") {
@@ -126,7 +147,11 @@ function parseOptions(argv) {
     throw new Error(`unknown argument: ${arg}`);
   }
 
-  return { container, noKey, help, target: target ?? "all" };
+  if (container && tarball !== undefined) {
+    throw new Error("--tarball is a host-only option");
+  }
+
+  return { container, noKey, help, tarball, target: target ?? "all" };
 }
 
 function runProcess(command, args, options = {}) {
@@ -212,37 +237,47 @@ async function runHost(options) {
     throw new Error("live smoke requires OPENCODE_API_KEY; use --no-key for deterministic checks");
   }
 
+  const manifest = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8"));
   const hostTemp = await mkdtemp(join(tmpdir(), "rejudge-package-smoke-"));
   const buildContext = join(hostTemp, "docker-context");
   const cleanEnv = withoutCredentials(process.env);
   const dockerCleanEnv = dockerClientEnvironment(false);
   const containerName = `rejudge-package-smoke-${process.pid}-${Date.now()}`;
   let dockerStarted = false;
+  let tarball;
 
   try {
     await mkdir(buildContext);
 
-    console.log("[smoke] building public artifacts");
-    await runChecked("bun", ["run", "build"], {
-      cwd: ROOT,
-      env: cleanEnv,
-      timeoutMs: SETUP_TIMEOUT_MS,
-    });
+    if (options.tarball) {
+      tarball = await realpath(resolve(process.cwd(), options.tarball));
+      await access(tarball);
+      console.log(`[smoke] using prebuilt tarball ${tarball}`);
+    } else {
+      console.log("[smoke] building public artifacts");
+      await runChecked("bun", ["run", "build"], {
+        cwd: ROOT,
+        env: cleanEnv,
+        timeoutMs: SETUP_TIMEOUT_MS,
+      });
 
-    console.log("[smoke] packing npm artifact without lifecycle scripts");
-    const packed = await runChecked(
-      "npm",
-      ["pack", "--json", "--ignore-scripts", "--pack-destination", hostTemp],
-      { cwd: ROOT, env: cleanEnv, timeoutMs: SETUP_TIMEOUT_MS },
-    );
-    const report = JSON.parse(packed.stdout);
-    assert.equal(Array.isArray(report) && report.length === 1, true, "npm pack must return one artifact");
+      console.log("[smoke] packing npm artifact without lifecycle scripts");
+      const packed = await runChecked(
+        "npm",
+        ["pack", "--json", "--ignore-scripts", "--pack-destination", hostTemp],
+        { cwd: ROOT, env: cleanEnv, timeoutMs: SETUP_TIMEOUT_MS },
+      );
+      const report = JSON.parse(packed.stdout);
+      assert.equal(Array.isArray(report) && report.length === 1, true, "npm pack must return one artifact");
 
-    const files = report[0].files.map((file) => file.path).sort();
-    assert.deepEqual(files, [...EXPECTED_PACKAGE_FILES].sort(), "npm tarball file list changed");
+      const files = report[0].files.map((file) => file.path).sort();
+      assert.deepEqual(files, [...EXPECTED_PACKAGE_FILES].sort(), "npm tarball file list changed");
 
-    const tarball = join(hostTemp, report[0].filename);
-    await access(tarball);
+      tarball = join(hostTemp, report[0].filename);
+      await access(tarball);
+    }
+
+    const initialDigest = await sha512File(tarball);
 
     console.log("[smoke] preparing Node 22.19 Docker image");
     await runChecked(
@@ -262,6 +297,10 @@ async function runHost(options) {
       "XDG_CONFIG_HOME=/tmp/rejudge-xdg",
       "--env",
       "PI_CODING_AGENT_DIR=/tmp/rejudge-agent",
+      "--env",
+      `REJUDGE_SMOKE_PACKAGE_NAME=${manifest.name}`,
+      "--env",
+      `REJUDGE_SMOKE_PACKAGE_VERSION=${manifest.version}`,
     ];
     if (!options.noKey) {
       for (const name of CREDENTIAL_ENV) {
@@ -311,6 +350,8 @@ async function runHost(options) {
       throw new Error(`Docker smoke exited ${result.code ?? result.signal ?? "without a status"}`);
     }
 
+    assert.equal(await sha512File(tarball), initialDigest, "tarball changed while smoke was running");
+    console.log(`[smoke] tarball sha512 ${initialDigest}`);
     console.log(`[smoke] ${options.target} target passed`);
   } finally {
     if (dockerStarted) {
@@ -361,7 +402,10 @@ async function installPackedArtifact(noKey) {
 
   const packageRoot = "/smoke/node_modules/rejudge";
   const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
-  assert.equal(manifest.name, "rejudge");
+  assert.ok(process.env.REJUDGE_SMOKE_PACKAGE_NAME, "expected package name is required");
+  assert.ok(process.env.REJUDGE_SMOKE_PACKAGE_VERSION, "expected package version is required");
+  assert.equal(manifest.name, process.env.REJUDGE_SMOKE_PACKAGE_NAME);
+  assert.equal(manifest.version, process.env.REJUDGE_SMOKE_PACKAGE_VERSION);
 
   const runtimeEnv = {
     ...process.env,
@@ -370,7 +414,7 @@ async function installPackedArtifact(noKey) {
   const resolvedBin = await runChecked("sh", ["-c", "command -v rejudge"], { env: runtimeEnv });
   assert.equal(resolvedBin.stdout.trim(), "/smoke/node_modules/.bin/rejudge");
 
-  console.log("[smoke] installed tarball and resolved bare rejudge from PATH");
+  console.log(`[smoke] installed ${manifest.name}@${manifest.version} tarball and resolved bare rejudge from PATH`);
   return { agentDir, packageRoot, runtimeEnv };
 }
 
