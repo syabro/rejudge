@@ -34,56 +34,146 @@ A CLI review created with `--unsafe` or `--full` gives every reviewer `edit`, `w
 
 Technical success means the required reviewers and judge completed, not that the result is correct. The initial reviews run in separate sessions, but their errors can still be correlated. Rejudge does not promise guaranteed correctness, truth from consensus, or measured improvement over a strong single-model review. Treat the result as advice and verify consequential claims.
 
-## Install
+## Requirements
+
+- Node.js 22.19.0 or newer.
+- npm for the public package installation.
+- An API key or Pi login accepted by every configured model provider. The examples below use OpenCode Go and `OPENCODE_API_KEY`.
+- Pi for the Pi quickstart.
+
+The npm package contains prebuilt CLI and extension files, so installing and using it does not require Bun. Building from source requires Bun.
+
+Release checks run the packed artifact in Node 22.19.0 Docker containers. Source development is tested with Node 24.14.0, npm 11.14.1, and Bun 1.3.13. The Pi package path is tested with Pi 0.80.6.
+
+## Configure Rejudge
+
+Create a config in the project that reviewers should inspect:
 
 ```bash
-bun install      # or: npm install
+mkdir -p .rejudge
+cat > .rejudge/config.json <<'EOF'
+{
+  "reviewers": [
+    "opencode-go/deepseek-v4-pro@high",
+    "opencode-go/mimo-v2.5-pro@high",
+    "opencode-go/minimax-m3@high"
+  ],
+  "judge": "opencode-go/glm-5.1@high",
+  "debugLog": false
+}
+EOF
+
+export OPENCODE_API_KEY="<your OpenCode key>"
 ```
 
-Bun is the development package manager and build runner; the built code runs on plain Node.
+A project config wins over the global fallback at `~/.config/rejudge/config.json` or `$XDG_CONFIG_HOME/rejudge/config.json`. Rejudge requires at least two reviewers. Every model must include one lowercase reasoning suffix: `minimal`, `low`, `medium`, `high`, or `xhigh`.
+
+## CLI quickstart
+
+Install the public package globally:
+
+```bash
+npm install -g rejudge@0.1.0
+rejudge --help
+```
+
+Run Rejudge from the project containing `.rejudge/config.json`:
+
+```bash
+rejudge <<'EOF'
+Review this project and identify the two most important risks.
+EOF
+```
+
+The review answer goes to stdout. Configuration, progress, and the resumable run ID go to stderr. An interactive terminal shows both streams together in this shape; they remain separate when redirected:
+
+```text
+config: .../.rejudge/config.json
+reviewers: ... | judge: ...
+read-only: inner agents limited to read/grep/find/ls
+...
+<review answer>
+run saved as <run-id> — follow up: rejudge --resume <run-id> "<question>"
+```
+
+Other prompt forms:
+
+```bash
+rejudge "review this decision"
+rejudge -f prompt.txt
+cmd | rejudge
+rejudge --resume <run-id> "follow-up question"
+rejudge --unsafe "..."   # also --full; lets reviewers edit and run shell commands
+```
+
+Reviews are read-only by default. `--unsafe` and `--full` remove that boundary for reviewers and should be used only when file changes and shell access are intended.
+
+## Pi quickstart
+
+Install Pi if it is not already available, then install the same Rejudge package through Pi:
+
+```bash
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.80.6
+pi install npm:rejudge@0.1.0
+pi list
+```
+
+Keep `OPENCODE_API_KEY` exported in the shell, enter the project containing `.rejudge/config.json`, and start Pi:
+
+```bash
+pi
+```
+
+Invoke the packaged workflow inside Pi:
+
+```text
+/skill:rejudge Review this project and identify the two most important risks.
+```
+
+Pi loads the native `rejudge` tool plus the `rejudge` and `rejudge-diff` skills from the package. A successful tool result shows the Rejudge progress block followed by an answer and a resumable ID:
+
+```text
+Rejudge Review this project...
+  ...
+Run ID: <run-id>. Follow up with resumeRunId: "<run-id>".
+```
+
+Use `/skill:rejudge-diff` for a review of the current working-tree diff. Restart Pi after package installation if it was already running.
+
+## Install from source
+
+Source installation needs Git, Node, npm, and Bun:
+
+```bash
+git clone https://github.com/max-prtsr/rejudge.git
+cd rejudge
+bun install
+bun run build
+npm install -g --ignore-scripts .
+pi install "$PWD"
+```
+
+The npm command exposes the CLI globally. The Pi command registers the same local package's extension and skills. Rebuild after changing `src/`.
+
+## Common setup failures
+
+- **Unsupported Node version:** install Node 22.19.0 or newer, then reinstall Rejudge.
+- **`rejudge: command not found`:** confirm `npm install -g rejudge@0.1.0` succeeded and that the `bin` directory under `npm prefix -g` is on `PATH`.
+- **`rejudge: no config found`:** create `.rejudge/config.json` in the current project or a global config in the XDG path shown above.
+- **Authentication failure:** export `OPENCODE_API_KEY` in the same shell that launches `rejudge` or Pi. For CLI runs, read the final stderr line; inside Pi, read the Rejudge tool result. It identifies the failed stage and usually contains `API key`, `authentication`, `credentials`, or `unauthorized`.
+- **Pi does not show Rejudge:** run `pi list`, confirm `npm:rejudge@0.1.0` is installed, then restart Pi. The package should provide the `rejudge` tool and both skills.
+- **A model or stage fails:** read the final stderr reason from the CLI or the Rejudge tool result inside Pi. Check the configured model ID, provider access, rate limits, and network before retrying.
 
 ## Development commands
 
-```bash
-bun run test         # Vitest; integration tests need model credentials
-bun run test:unit    # deterministic tests only
-bun run typecheck    # tsc --noEmit
-bun run build        # CLI + Pi extension
-bun run build:cli    # bin/rejudge.js only
-```
-
-## CLI
+Docker is required only for the package smoke checks, not for installing or using Rejudge.
 
 ```bash
-bin/rejudge.js "your question"
-bin/rejudge.js -f prompt.txt
-bin/rejudge.js <<'EOF'
-Review this plan.
-EOF
-cmd | bin/rejudge.js
-bin/rejudge.js --resume <run-id> "follow-up question"
-bin/rejudge.js --unsafe "..."   # or --full; lets reviewers edit and run bash
-bin/rejudge.js --help
+bun run test                     # full Vitest suite; live tests need credentials
+bun run test:unit                # deterministic tests only
+bun run typecheck                # tsc --noEmit
+bun run build                    # CLI + Pi extension
+bun run build:cli                # bin/rejudge.js only
+bun run smoke:package -- all     # live packaged CLI and Pi checks in Docker
+bun run smoke:package -- all --no-key
 ```
-
-A prompt comes from one source: a positional argument, else `-f`, else stdin. The answer goes to stdout; progress and the run ID go to stderr. Reviews are read-only by default.
-
-## Configuration and credentials
-
-Project config: `.rejudge/config.json`. Global fallback: `~/.config/rejudge/config.json` (or `$XDG_CONFIG_HOME/rejudge/config.json`). The project file wins when both exist.
-
-```json
-{
-  "reviewers": [
-    "opencode-go/deepseek-v4-pro@xhigh",
-    "opencode-go/mimo-v2.5-pro@xhigh",
-    "openai-codex/gpt-5.4@high"
-  ],
-  "judge": "openai-codex/gpt-5.5@medium",
-  "debugLog": false
-}
-```
-
-Use at least two reviewers. Every model requires a lowercase reasoning suffix: `minimal`, `low`, `medium`, `high`, or `xhigh`.
-
-Set `OPENCODE_API_KEY` in the environment or use Pi's stored `pi login` authentication. Credentials are never stored in this repository.

@@ -6,6 +6,10 @@ Existing launch gates are tracked separately and are not duplicated here:
 - `EXT-052` — report Esc cancellation as a user cancellation
 - `SYN-042` — route duplicate model choices through stable role identities
 
+## Install and first run
+
+Install the CLI with `npm install -g rejudge@0.1.0`, create `.rejudge/config.json` in the project to review, export the required provider credential, and run `rejudge`. For Pi, install the same package with `pi install npm:rejudge@0.1.0`, then invoke `/skill:rejudge` or `/skill:rejudge-diff`; the package supplies the native tool and both workflows.
+
 ## Packaged interface smoke tests
 
 Run `bun run smoke:package -- <cli|pi|all>` with `OPENCODE_API_KEY` available to test a fresh tarball through real CLI or Pi model calls in a disposable Node 22.19 Docker container. Use `--no-key` to verify installation and the handled authentication failure without forwarding credentials; the default `all` target also proves CLI startup and Pi resource discovery. The runner accepts only allowlisted runtime credentials and never mounts the project source tree into the test environment.
@@ -106,7 +110,7 @@ Technical completion does not verify the result. Separate initial sessions provi
   - Runtime credentials are restricted to an explicit allowlist and excluded from package installation, captured output, and persistent test files.
   - The combined no-key mode proves clean installation, CLI startup, Pi package discovery, and a handled authentication failure without credentials.
 
-- [ ] REL-057 Write and verify the Pi and CLI quickstart		#release
+- [x] REL-057 Write and verify the Pi and CLI quickstart		#release
   A stranger can install, configure, and run Rejudge through Pi or the CLI without private setup knowledge.
 
   Document supported Node, Bun, and Pi versions; installation of the single `rejudge` package from npm and source; authentication; model configuration; Pi loading; workflow discovery; the first CLI run; the first Pi tool call; and common setup failures.
@@ -114,14 +118,21 @@ Technical completion does not verify the result. Separate initial sessions provi
   User decisions:
   - the first public release supports both Pi and CLI
   - all public installation paths use the single `rejudge` package
+  - public npm installation must be verified by the release smoke against the published package; a local tarball is only prepublication evidence
 
   DoD:
   - README contains one copy-paste path from an empty machine to a successful CLI review
   - README contains one copy-paste path from an empty machine to a loaded Pi `rejudge` tool
   - both paths install `rejudge`, and the same package provides `/rejudge` and `/rejudge-diff`
   - config and authentication examples contain no private values
-  - every documented command is verified in an isolated home directory or clean environment
+  - source and packed-artifact commands are verified in isolated environments; REL-060 must verify the exact npm and Pi registry commands before release completion
   - expected successful output and common failure messages are shown
+
+  **Implemented:**
+  - The README gives separate copy-paste CLI and Pi paths using the single versioned `rejudge` package and one shared provider configuration.
+  - Requirements distinguish prebuilt npm use from source builds, and the guide shows stable success output plus CLI- and Pi-specific failure locations.
+  - Source installation, global CLI exposure, local Pi package loading, the documented model configuration, and packed CLI/Pi behavior were verified in isolated environments.
+  - The guide names the final public registry commands without claiming they have run; REL-060 owns their mandatory no-source registry smoke.
 
 - [x] REL-058 Publish the data, cost, and safety contract		#release
   Users understand what leaves their machine, what a review may cost, and what permissions Rejudge receives before running it.

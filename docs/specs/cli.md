@@ -2,41 +2,59 @@
 
 ## Rejudge CLI
 
-The local CLI runs the same review engine as the Pi `rejudge` tool: separate reviewers investigate the request, the judge returns one answer, and stderr includes a resumable run ID.
+The public `rejudge` command and the Pi `rejudge` tool run the same review engine: separate reviewers investigate the request, the judge returns one answer, and the result includes a resumable run ID.
 
-Build it (dev-only; bun is just the build tool, the bin runs on plain Node):
+Install the prebuilt public command with Node 22.19.0 or newer:
 
 ```
+npm install -g rejudge@0.1.0
+```
+
+Run it from the project whose files and config should be visible to reviewers:
+
+```
+rejudge "your question here"     # prompt as a positional argument
+rejudge -f prompt.txt            # read the prompt from a file
+rejudge <<'EOF' … EOF            # or use a heredoc/pipe
+cmd | rejudge
+rejudge --resume <run-id> "..."  # continue a saved review
+rejudge --unsafe "..."           # let reviewers edit/write/run shell commands
+rejudge --help
+```
+
+The prompt comes from exactly one source: a positional question, else `-f <file>`, else stdin. A bare terminal with no prompt prints usage instead of blocking; empty stdin and an empty prompt file are errors. `-f -` means a file literally named `-`, not stdin.
+
+The review answer goes to stdout. Configuration, progress, diagnostics, and the run ID go to stderr. Exit status is `0` on success and non-zero on failure, with a readable reason.
+
+Reviews are read-only by default. Reviewers get `read`/`grep`/`find`/`ls` plus read-only review tools; the judge gets only `ask_panel`. `--unsafe` and `--full` opt reviewers into editing and shell access.
+
+Config resolves from `<cwd>/.rejudge/config.json`, then `~/.config/rejudge/config.json` (XDG-aware). See `config.md`. Provider credentials stay in environment variables such as `OPENCODE_API_KEY` or Pi's stored authentication; the CLI does not store them.
+
+## Packaged workflows
+
+Pi installs the same package with:
+
+```
+pi install npm:rejudge@0.1.0
+```
+
+The package manifest loads the bundled extension and recursively discovers `rejudge` and `rejudge-diff`. Inside Pi, `/skill:rejudge` uses the native tool; `/skill:rejudge-diff` reviews the selected Git diff through that tool. No checkout links are required. Outside Pi, a harness that loads the packaged skills uses the installed `rejudge` command.
+
+## Source development
+
+Bun is only the source build runner; built and published code runs on Node:
+
+```
+bun install
 bun run build:cli      # → ./bin/rejudge.js (gitignored)
+bun run build:ext      # → ./dist/extension.js (gitignored)
 ```
 
-Run it:
-
-```
-bin/rejudge.js "your question here"     # prompt as a positional argument
-bin/rejudge.js -f prompt.txt            # or read the prompt from a file
-bin/rejudge.js <<'EOF' … EOF            # or pipe/heredoc the prompt on stdin
-cmd | bin/rejudge.js                    # (same — stdin) no temp file needed
-bin/rejudge.js --resume <run-id> "..."  # continue a saved review
-bin/rejudge.js --unsafe "..."           # let reviewers edit/write/run bash
-bin/rejudge.js --help
-```
-
-The prompt comes from exactly one source. Precedence: a positional question, else `-f <file>`, else stdin — stdin is read only when there is no positional and no `-f`. A long multi-line prompt is best handed over by heredoc/pipe (no throwaway file). On a bare terminal with no pipe and no prompt, the CLI prints usage and exits instead of blocking on stdin; empty stdin is a usage error, like an empty `-f` file. (`-f -` is a file literally named `-`, not a stdin alias.)
-
-The review answer goes to stdout; progress, diagnostics, and the run ID go to stderr. Exit status is `0` on success and non-zero on failure, with a readable reason.
-
-**Read-only by default.** Reviewers get `read`/`grep`/`find`/`ls` plus read-only review tools; the judge gets only `ask_panel`. Pass `--unsafe` (or `--full`) only when reviewers should be allowed to edit files or run shell commands.
-
-Config resolves from `<cwd>/.rejudge/config.json`, then `~/.config/rejudge/config.json` (XDG-aware). See `config.md`.
-
-Key: the model API key lives in the `OPENCODE_API_KEY` environment variable (or Pi's stored auth) — Pi reads it directly; the CLI never handles or bakes in a key.
-
-Note: the built bin resolves its dependencies from this repo's `node_modules`, so it's for local use from within the repo tree — not a portable/published artifact.
+Install the source package globally with `npm install -g --ignore-scripts .`, and register the local Pi package with `pi install "$PWD"` after building.
 
 ### Testing knob: `--prompt-add-N` (force panel divergence)
 
-A testing-only flag, **not a product feature** and never exposed by the `rejudge` tool. The panel normally gets a byte-identical prompt; `--prompt-add-N "<text>"` appends text to reviewer `N` only, deliberately forcing divergence for judge/`ask_panel` scenarios.
+A testing-only flag, not a product feature and never exposed by the Pi tool. The panel normally gets a byte-identical prompt; `--prompt-add-N "<text>"` appends text to reviewer `N` only, deliberately forcing divergence for judge/`ask_panel` scenarios.
 
 ```
 bin/rejudge.js --prompt-add-1 "argue strongly for option A" \
@@ -45,22 +63,6 @@ bin/rejudge.js --prompt-add-3=… <<'EOF' … EOF
 ```
 
 It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit the reviewer count. It cannot be combined with `--resume`, because resume does not re-run the panel. The judge input is unchanged. The flag is omitted from `--help`.
-
-## `/rejudge` skill
-
-`docs/skills/rejudge/SKILL.md` invokes the Pi tool when available and otherwise runs `bin/rejudge.js` in the foreground, read-only. Install it as a directory link:
-
-```bash
-ln -s "$PWD/docs/skills/rejudge" ~/.claude/skills/rejudge
-```
-
-## `/rejudge-diff` skill
-
-`docs/skills/rejudge-diff/SKILL.md` reviews the working-tree diff against a ref (default `HEAD`) through the same panel and `git_diff`. Install it as:
-
-```bash
-ln -s "$PWD/docs/skills/rejudge-diff" ~/.claude/skills/rejudge-diff
-```
 
 # Tasks
 
