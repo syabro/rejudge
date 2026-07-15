@@ -6,11 +6,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/max-prtsr/rejudge.git"
+    "url": "git+https://github.com/syabro/rejudge.git"
   },
-  "homepage": "https://github.com/max-prtsr/rejudge#readme",
+  "homepage": "https://github.com/syabro/rejudge#readme",
   "bugs": {
-    "url": "https://github.com/max-prtsr/rejudge/issues"
+    "url": "https://github.com/syabro/rejudge/issues"
   },
   "keywords": [
     "pi-package",

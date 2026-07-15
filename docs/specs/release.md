@@ -1,6 +1,6 @@
 # Public release — mdtask
 
-Rejudge 0.1.0 is public on [GitHub](https://github.com/max-prtsr/rejudge/releases/tag/v0.1.0) and [npm](https://www.npmjs.com/package/rejudge). One unscoped npm package, `rejudge`, contains the CLI, Pi extension, and both public workflows. Its manifest exposes the executable and declares the bundled Pi extension and skills, so every interface comes from the same installed artifact.
+Rejudge 0.1.0 is public on [GitHub](https://github.com/syabro/rejudge/releases/tag/v0.1.0) and [npm](https://www.npmjs.com/package/rejudge). One unscoped npm package, `rejudge`, contains the CLI, Pi extension, and both public workflows. Its manifest exposes the executable and declares the bundled Pi extension and skills, so every interface comes from the same installed artifact.
 
 Existing launch gates are tracked separately and are not duplicated here:
 - `EXT-052` — report Esc cancellation as a user cancellation

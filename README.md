@@ -145,7 +145,7 @@ Use `/skill:rejudge-diff` for a review of the current working-tree diff. Restart
 Source installation needs Git, Node, npm, and Bun:
 
 ```bash
-git clone https://github.com/max-prtsr/rejudge.git
+git clone https://github.com/syabro/rejudge.git
 cd rejudge
 bun install
 bun run build
