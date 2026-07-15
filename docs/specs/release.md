@@ -1,6 +1,6 @@
 # Public release — mdtask
 
-The first public release is Rejudge 0.1.0 on GitHub and npm. One unscoped npm package, `rejudge`, contains the CLI, Pi extension, and both public workflows. Its manifest exposes the executable and declares the bundled Pi extension and skills, so every interface comes from the same installed artifact.
+Rejudge 0.1.0 is public on [GitHub](https://github.com/max-prtsr/rejudge/releases/tag/v0.1.0) and [npm](https://www.npmjs.com/package/rejudge). One unscoped npm package, `rejudge`, contains the CLI, Pi extension, and both public workflows. Its manifest exposes the executable and declares the bundled Pi extension and skills, so every interface comes from the same installed artifact.
 
 Existing launch gates are tracked separately and are not duplicated here:
 - `EXT-052` — report Esc cancellation as a user cancellation
@@ -12,7 +12,7 @@ Install the CLI with `npm install -g rejudge@0.1.0`, create `.rejudge/config.jso
 
 ## Packaged interface smoke tests
 
-Run `bun run smoke:package -- <cli|pi|all>` with `OPENCODE_API_KEY` available to test a fresh tarball through real CLI or Pi model calls in a disposable Node 22.19 Docker container. Use `--no-key` to verify installation and the handled authentication failure without forwarding credentials; the default `all` target also proves CLI startup and Pi resource discovery. The runner accepts only allowlisted runtime credentials and never mounts the project source tree into the test environment.
+Run `bun run smoke:package -- <cli|pi|all>` with `OPENCODE_API_KEY` available to test a fresh tarball through real CLI or Pi model calls in a disposable Node 22.19 Docker container. `--tarball <path>` verifies one immutable artifact without rebuilding it; `--source npm` installs the manifest's exact published version through global npm and isolated Pi state without mounting any product artifact. Use `--no-key` to verify installation and the handled authentication failure without forwarding credentials. The runner accepts only allowlisted runtime credentials and never mounts the project source tree.
 
 ## Public repository hygiene
 
@@ -165,7 +165,7 @@ Technical completion does not verify the result. Separate initial sessions provi
   - CI uses declared runtime versions and no private credentials
   - the release commit has a green CI result
 
-- [ ] REL-060 Publish Rejudge 0.1.0		#release
+- [x] REL-060 Publish Rejudge 0.1.0		#release
   The same verified release is available from GitHub and npm.
 
   Start after the release tasks above except post-release CI task `REL-059`, with gates `EXT-052` and `SYN-042` complete. Build one immutable tarball, verify that exact file through Docker, create the public GitHub repository, publish the same tarball to npm interactively, verify registry installation through CLI and Pi, then tag the artifact-producing commit.
@@ -185,3 +185,9 @@ Technical completion does not verify the result. Separate initial sessions provi
   - clean Docker registry installation, with no source or tarball mount, provides the CLI, Pi extension, and both workflows and completes live CLI/Pi checks
   - the public README links and exact installation commands work
   - `EXT-052` and `SYN-042` are complete
+
+  **Implemented:**
+  - The public GitHub repository exposes the reviewed source, while tag and release `v0.1.0` point to the artifact-producing commit.
+  - npm serves the exact seven-file `rejudge@0.1.0` tarball verified before publication, with matching shasum and integrity metadata.
+  - Clean Docker registry installs passed no-key discovery, live CLI and diff reviews, and a live Pi package/tool call without source or tarball mounts.
+  - The published package provides the global CLI, Pi extension, and both workflows through the README installation commands; CI remains nonblocking post-release work in REL-059.

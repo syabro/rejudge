@@ -13,7 +13,7 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const RUNNER_PATH = fileURLToPath(import.meta.url);
@@ -30,6 +30,8 @@ const DOCKER_CLIENT_ENV = [
   "XDG_CONFIG_HOME",
 ];
 const TARGETS = ["cli", "pi"];
+const SOURCES = ["tarball", "npm"];
+const PI_PACKAGE = "@earendil-works/pi-coding-agent@0.80.6";
 const MODEL = "opencode-go/kimi-k2.6@minimal";
 const PROCESS_TIMEOUT_MS = 6 * 60_000;
 const SETUP_TIMEOUT_MS = 10 * 60_000;
@@ -44,13 +46,15 @@ const EXPECTED_PACKAGE_FILES = [
   "package.json",
 ];
 
-const USAGE = `usage: bun run smoke:package -- [cli|pi|all] [--tarball <path>] [--no-key]
+const USAGE = `usage: bun run smoke:package -- [cli|pi|all] [--source tarball|npm] [--tarball <path>] [--no-key]
 
-  cli             test the installed CLI, including ordinary and diff reviews
-  pi              test Pi package discovery, resource loading, and the rejudge tool
-  all             run cli then pi (default)
-  --tarball PATH  test this exact prebuilt tarball instead of building a temporary one
-  --no-key        skip live answers and require a handled missing-authentication failure`;
+  cli               test the installed CLI, including ordinary and diff reviews
+  pi                test Pi package discovery, resource loading, and the rejudge tool
+  all               run cli then pi (default)
+  --source tarball  install a tarball in Docker (default)
+  --source npm      install the manifest's exact version from public npm
+  --tarball PATH    use this prebuilt tarball instead of building a temporary one
+  --no-key          skip live answers and require a handled missing-authentication failure`;
 
 function withoutCredentials(env) {
   const clean = { ...env };
@@ -102,6 +106,8 @@ function parseOptions(argv) {
   let container = false;
   let noKey = false;
   let help = false;
+  let source = "tarball";
+  let sourceGiven = false;
   let tarball;
   let target;
 
@@ -120,6 +126,18 @@ function parseOptions(argv) {
         throw new Error("--no-key given more than once");
       }
       noKey = true;
+      continue;
+    }
+    if (arg === "--source" || arg.startsWith("--source=")) {
+      if (sourceGiven) {
+        throw new Error("--source given more than once");
+      }
+      const value = arg === "--source" ? args[++index] : arg.slice("--source=".length);
+      if (!value || !SOURCES.includes(value)) {
+        throw new Error(`--source must be one of: ${SOURCES.join(", ")}`);
+      }
+      source = value;
+      sourceGiven = true;
       continue;
     }
     if (arg === "--tarball" || arg.startsWith("--tarball=")) {
@@ -147,11 +165,14 @@ function parseOptions(argv) {
     throw new Error(`unknown argument: ${arg}`);
   }
 
+  if (source === "npm" && tarball !== undefined) {
+    throw new Error("--tarball cannot be combined with --source npm");
+  }
   if (container && tarball !== undefined) {
     throw new Error("--tarball is a host-only option");
   }
 
-  return { container, noKey, help, tarball, target: target ?? "all" };
+  return { container, noKey, help, source, tarball, target: target ?? "all" };
 }
 
 function runProcess(command, args, options = {}) {
@@ -249,7 +270,9 @@ async function runHost(options) {
   try {
     await mkdir(buildContext);
 
-    if (options.tarball) {
+    if (options.source === "npm") {
+      console.log(`[smoke] using public npm package ${manifest.name}@${manifest.version}`);
+    } else if (options.tarball) {
       tarball = await realpath(resolve(process.cwd(), options.tarball));
       await access(tarball);
       console.log(`[smoke] using prebuilt tarball ${tarball}`);
@@ -277,7 +300,7 @@ async function runHost(options) {
       await access(tarball);
     }
 
-    const initialDigest = await sha512File(tarball);
+    const initialDigest = tarball ? await sha512File(tarball) : undefined;
 
     console.log("[smoke] preparing Node 22.19 Docker image");
     await runChecked(
@@ -307,9 +330,10 @@ async function runHost(options) {
         dockerArgs.push("--env", name);
       }
     }
+    if (tarball) {
+      dockerArgs.push("--mount", `type=bind,src=${tarball},dst=/artifact/rejudge.tgz,readonly`);
+    }
     dockerArgs.push(
-      "--mount",
-      `type=bind,src=${tarball},dst=/artifact/rejudge.tgz,readonly`,
       "--mount",
       `type=bind,src=${RUNNER_PATH},dst=/smoke/package-smoke.mjs,readonly`,
       "--workdir",
@@ -319,12 +343,15 @@ async function runHost(options) {
       "/smoke/package-smoke.mjs",
       "--container",
       options.target,
+      "--source",
+      options.source,
     );
     if (options.noKey) {
       dockerArgs.push("--no-key");
     }
 
-    console.log(`[smoke] running ${options.target} target${options.noKey ? " without credentials" : " live"}`);
+    const mode = options.noKey ? "without credentials" : "live";
+    console.log(`[smoke] running ${options.target} target from ${options.source} ${mode}`);
     dockerStarted = true;
     const dockerEnv = dockerClientEnvironment(!options.noKey);
     const result = await runProcess("docker", dockerArgs, {
@@ -350,9 +377,11 @@ async function runHost(options) {
       throw new Error(`Docker smoke exited ${result.code ?? result.signal ?? "without a status"}`);
     }
 
-    assert.equal(await sha512File(tarball), initialDigest, "tarball changed while smoke was running");
-    console.log(`[smoke] tarball sha512 ${initialDigest}`);
-    console.log(`[smoke] ${options.target} target passed`);
+    if (tarball && initialDigest) {
+      assert.equal(await sha512File(tarball), initialDigest, "tarball changed while smoke was running");
+      console.log(`[smoke] tarball sha512 ${initialDigest}`);
+    }
+    console.log(`[smoke] ${options.target} target from ${options.source} passed`);
   } finally {
     if (dockerStarted) {
       await runProcess("docker", ["rm", "--force", containerName], {
@@ -365,18 +394,28 @@ async function runHost(options) {
   }
 }
 
-async function installPackedArtifact(noKey) {
+async function prepareContainer(options) {
   const home = process.env.HOME;
   const xdg = process.env.XDG_CONFIG_HOME;
   const agentDir = process.env.PI_CODING_AGENT_DIR;
+  const packageName = process.env.REJUDGE_SMOKE_PACKAGE_NAME;
+  const packageVersion = process.env.REJUDGE_SMOKE_PACKAGE_VERSION;
   assert.ok(home && xdg && agentDir, "isolated HOME, XDG_CONFIG_HOME, and PI_CODING_AGENT_DIR are required");
+  assert.ok(packageName && packageVersion, "expected package name and version are required");
 
-  if (noKey) {
+  if (options.noKey) {
     for (const name of CREDENTIAL_ENV) {
       assert.equal(process.env[name], undefined, `${name} must be absent in --no-key mode`);
     }
     await assertEmptyDirectory(xdg, "XDG config directory");
     await assertEmptyDirectory(agentDir, "Pi agent directory");
+  }
+
+  const context = { agentDir, packageName, packageVersion, source: options.source };
+  if (options.source === "npm") {
+    await assert.rejects(access("/artifact/rejudge.tgz"), (error) => error?.code === "ENOENT");
+    console.log(`[smoke] no tarball mounted; registry source is ${packageName}@${packageVersion}`);
+    return context;
   }
 
   await writeFile(
@@ -400,12 +439,10 @@ async function installPackedArtifact(noKey) {
     },
   );
 
-  const packageRoot = "/smoke/node_modules/rejudge";
+  const packageRoot = join("/smoke/node_modules", packageName);
   const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
-  assert.ok(process.env.REJUDGE_SMOKE_PACKAGE_NAME, "expected package name is required");
-  assert.ok(process.env.REJUDGE_SMOKE_PACKAGE_VERSION, "expected package version is required");
-  assert.equal(manifest.name, process.env.REJUDGE_SMOKE_PACKAGE_NAME);
-  assert.equal(manifest.version, process.env.REJUDGE_SMOKE_PACKAGE_VERSION);
+  assert.equal(manifest.name, packageName);
+  assert.equal(manifest.version, packageVersion);
 
   const runtimeEnv = {
     ...process.env,
@@ -415,11 +452,93 @@ async function installPackedArtifact(noKey) {
   assert.equal(resolvedBin.stdout.trim(), "/smoke/node_modules/.bin/rejudge");
 
   console.log(`[smoke] installed ${manifest.name}@${manifest.version} tarball and resolved bare rejudge from PATH`);
-  return { agentDir, packageRoot, runtimeEnv };
+  return {
+    ...context,
+    cliRuntimeEnv: runtimeEnv,
+    piPackageRoot: packageRoot,
+    piPackageSource: packageRoot,
+  };
+}
+
+async function readExpectedManifest(packageRoot, context) {
+  const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
+  assert.equal(manifest.name, context.packageName);
+  assert.equal(manifest.version, context.packageVersion);
+}
+
+function registrySpec(context) {
+  return `${context.packageName}@${context.packageVersion}`;
+}
+
+async function installRegistryCli(context) {
+  const installEnv = withoutCredentials(process.env);
+  await runChecked("npm", ["install", "-g", registrySpec(context)], {
+    env: installEnv,
+    timeoutMs: SETUP_TIMEOUT_MS,
+  });
+
+  const globalRoot = (await runChecked("npm", ["root", "-g"], { env: installEnv })).stdout.trim();
+  const packageRoot = await realpath(join(globalRoot, context.packageName));
+  assert.equal(packageRoot.startsWith(`${globalRoot}/`), true, "CLI package must live under the global npm root");
+  assert.equal(packageRoot.startsWith("/smoke/"), false, "CLI package resolved from smoke workspace");
+  await readExpectedManifest(packageRoot, context);
+
+  const runtimeEnv = { ...process.env };
+  const resolvedBin = (await runChecked("sh", ["-c", "command -v rejudge"], { env: runtimeEnv })).stdout.trim();
+  const realBin = await realpath(resolvedBin);
+  assert.equal(realBin.startsWith(`${packageRoot}/`), true, "bare rejudge must resolve into the registry package");
+
+  context.cliRuntimeEnv = runtimeEnv;
+  context.cliPackageRoot = packageRoot;
+  console.log(`[smoke] npm installed ${registrySpec(context)} for CLI at ${packageRoot}`);
+}
+
+async function importGlobalPiSdk(installEnv) {
+  const globalRoot = (await runChecked("npm", ["root", "-g"], { env: installEnv })).stdout.trim();
+  const piRoot = await realpath(join(globalRoot, "@earendil-works/pi-coding-agent"));
+  const sdkEntry = await realpath(join(piRoot, "dist/index.js"));
+  assert.equal(sdkEntry.startsWith(`${piRoot}/`), true, "Pi SDK must resolve from its global npm install");
+  return { piRoot, sdk: await import(pathToFileURL(sdkEntry).href) };
+}
+
+async function installRegistryPi(context) {
+  const installEnv = withoutCredentials(process.env);
+  await runChecked("npm", ["install", "-g", "--ignore-scripts", PI_PACKAGE], {
+    env: installEnv,
+    timeoutMs: SETUP_TIMEOUT_MS,
+  });
+
+  const packageSource = `npm:${registrySpec(context)}`;
+  await runChecked("pi", ["install", packageSource], {
+    env: installEnv,
+    timeoutMs: SETUP_TIMEOUT_MS,
+  });
+
+  const settingsPath = join(context.agentDir, "settings.json");
+  const persisted = JSON.parse(await readFile(settingsPath, "utf8"));
+  assert.deepEqual(persisted.packages, [packageSource], "Pi must persist only the exact npm package source");
+
+  const packageRoot = await realpath(join(context.agentDir, "npm/node_modules", context.packageName));
+  const expectedRoot = join(context.agentDir, "npm/node_modules");
+  assert.equal(packageRoot.startsWith(`${expectedRoot}/`), true, "Pi package must live under isolated npm state");
+  assert.equal(packageRoot.startsWith("/smoke/"), false, "Pi package resolved from smoke workspace");
+  await readExpectedManifest(packageRoot, context);
+
+  const { piRoot, sdk } = await importGlobalPiSdk(installEnv);
+  context.piPackageRoot = packageRoot;
+  context.piPackageSource = packageSource;
+  context.piSdk = sdk;
+  console.log(`[smoke] Pi installed ${packageSource} at ${packageRoot} using SDK ${piRoot}`);
 }
 
 async function runCliTarget(context, live) {
-  const help = await runChecked("rejudge", ["--help"], { env: context.runtimeEnv });
+  if (context.source === "npm") {
+    await installRegistryCli(context);
+  }
+  const runtimeEnv = context.cliRuntimeEnv;
+  assert.ok(runtimeEnv, "CLI runtime environment is required");
+
+  const help = await runChecked("rejudge", ["--help"], { env: runtimeEnv });
   assert.match(help.stdout, /^usage: rejudge /);
   console.log("[smoke] cli help passed");
 
@@ -432,7 +551,7 @@ async function runCliTarget(context, live) {
   await writeSmokeConfig(ordinaryCwd);
   const ordinary = await runChecked("rejudge", [], {
     cwd: ordinaryCwd,
-    env: context.runtimeEnv,
+    env: runtimeEnv,
     input: "Calculate 2 + 2. End with the exact line CLI_SMOKE_OK: 4\n",
     timeoutMs: PROCESS_TIMEOUT_MS,
   });
@@ -441,7 +560,7 @@ async function runCliTarget(context, live) {
 
   const diffCwd = "/tmp/rejudge-diff";
   await mkdir(diffCwd, { recursive: true });
-  const gitEnv = withoutCredentials(context.runtimeEnv);
+  const gitEnv = withoutCredentials(runtimeEnv);
   await runChecked("git", ["init", "--quiet", "--initial-branch=main"], { cwd: diffCwd, env: gitEnv });
   await runChecked("git", ["config", "user.name", "Rejudge Smoke"], { cwd: diffCwd, env: gitEnv });
   await runChecked("git", ["config", "user.email", "smoke@rejudge.invalid"], { cwd: diffCwd, env: gitEnv });
@@ -453,7 +572,7 @@ async function runCliTarget(context, live) {
 
   const diffReview = await runChecked("rejudge", [], {
     cwd: diffCwd,
-    env: context.runtimeEnv,
+    env: runtimeEnv,
     input:
       "Review the working-tree diff against HEAD using git_diff. End with a final plain-text line " +
       "in the form DIFF_SMOKE_OK: VALUE, replacing VALUE with the raw new releaseMode string. " +
@@ -464,42 +583,55 @@ async function runCliTarget(context, live) {
   console.log("[smoke] live cli diff review passed");
 }
 
+function assertRegistrySourceInfo(sourceInfo, context, label) {
+  if (context.source !== "npm") {
+    return;
+  }
+  assert.equal(sourceInfo.source, context.piPackageSource, `${label} source`);
+  assert.equal(sourceInfo.scope, "user", `${label} scope`);
+  assert.equal(sourceInfo.origin, "package", `${label} origin`);
+  assert.equal(sourceInfo.path.startsWith(context.piPackageRoot), true, `${label} path`);
+}
+
 async function runPiTarget(context, live) {
   const cwd = "/tmp/rejudge-pi";
   await mkdir(cwd, { recursive: true });
   await writeSmokeConfig(cwd);
 
-  const {
-    DefaultPackageManager,
-    DefaultResourceLoader,
-    SettingsManager,
-  } = await import("@earendil-works/pi-coding-agent");
+  if (context.source === "npm") {
+    await installRegistryPi(context);
+  }
+  const packageRoot = context.piPackageRoot;
+  const packageSource = context.piPackageSource;
+  assert.ok(packageRoot && packageSource, "Pi package root and source are required");
 
-  const settingsManager = SettingsManager.inMemory({ packages: [context.packageRoot] });
-  const packageManager = new DefaultPackageManager({
-    cwd,
-    agentDir: context.agentDir,
-    settingsManager,
-  });
+  const sdk = context.piSdk ?? await import("@earendil-works/pi-coding-agent");
+  const { DefaultPackageManager, DefaultResourceLoader, SettingsManager } = sdk;
+  const settingsManager = context.source === "npm"
+    ? SettingsManager.create(cwd, context.agentDir, { projectTrusted: true })
+    : SettingsManager.inMemory({ packages: [packageSource] });
+  if (context.source === "npm") {
+    await settingsManager.reload();
+    assert.deepEqual(settingsManager.getGlobalSettings().packages, [packageSource]);
+  }
+
+  const packageManager = new DefaultPackageManager({ cwd, agentDir: context.agentDir, settingsManager });
   const resolved = await packageManager.resolve();
   const packageExtensions = resolved.extensions.filter(
-    (resource) => resource.enabled && resource.path.startsWith(context.packageRoot),
+    (resource) => resource.enabled && resource.path.startsWith(packageRoot),
   );
   const packageSkills = resolved.skills.filter(
-    (resource) => resource.enabled && resource.path.startsWith(context.packageRoot),
+    (resource) => resource.enabled && resource.path.startsWith(packageRoot),
   );
 
-  assert.deepEqual(
-    packageExtensions.map((resource) => resource.path),
-    [join(context.packageRoot, "dist/extension.js")],
-  );
+  assert.deepEqual(packageExtensions.map((resource) => resource.path), [join(packageRoot, "dist/extension.js")]);
   assert.deepEqual(
     packageSkills.map((resource) => resource.path).sort(),
-    [
-      join(context.packageRoot, "docs/skills/rejudge-diff/SKILL.md"),
-      join(context.packageRoot, "docs/skills/rejudge/SKILL.md"),
-    ].sort(),
+    [join(packageRoot, "docs/skills/rejudge-diff/SKILL.md"), join(packageRoot, "docs/skills/rejudge/SKILL.md")].sort(),
   );
+  for (const resource of [...packageExtensions, ...packageSkills]) {
+    assertRegistrySourceInfo({ ...resource.metadata, path: resource.path }, context, "resolved Pi resource");
+  }
 
   const loader = new DefaultResourceLoader({
     cwd,
@@ -513,19 +645,25 @@ async function runPiTarget(context, live) {
 
   const extensions = loader.getExtensions();
   assert.deepEqual(extensions.errors, []);
-  const tools = extensions.extensions.flatMap((extension) => [...extension.tools.values()]);
-  const tool = tools.find((candidate) => candidate.definition.name === "rejudge");
+  const packageExtension = extensions.extensions.find((extension) => extension.path.startsWith(packageRoot));
+  assert.ok(packageExtension, "installed Pi extension must load from the package root");
+  assertRegistrySourceInfo(packageExtension.sourceInfo, context, "loaded extension");
+
+  const tool = [...packageExtension.tools.values()].find((candidate) => candidate.definition.name === "rejudge");
   assert.ok(tool, "installed Pi extension must register rejudge");
+  assertRegistrySourceInfo(tool.sourceInfo, context, "registered tool");
 
   const loadedSkills = loader.getSkills();
-  const skills = loadedSkills.skills.filter((skill) => skill.filePath.startsWith(context.packageRoot));
+  const skills = loadedSkills.skills.filter((skill) => skill.filePath.startsWith(packageRoot));
   assert.deepEqual(skills.map((skill) => skill.name).sort(), ["rejudge", "rejudge-diff"]);
+  for (const skill of skills) {
+    assertRegistrySourceInfo(skill.sourceInfo, context, `loaded skill ${skill.name}`);
+  }
   assert.deepEqual(
-    loadedSkills.diagnostics.filter((diagnostic) =>
-      String(diagnostic.path ?? "").startsWith(context.packageRoot),
-    ),
+    loadedSkills.diagnostics.filter((diagnostic) => String(diagnostic.path ?? "").startsWith(packageRoot)),
     [],
   );
+  context.piTool = tool;
   console.log("[smoke] Pi package, extension, tool, and skills discovery passed");
 
   if (!live) {
@@ -552,15 +690,32 @@ async function runPiTarget(context, live) {
 
 async function runNoKeyProbe(context) {
   for (const name of CREDENTIAL_ENV) {
-    assert.equal(context.runtimeEnv[name], undefined, `${name} must be absent from the model process`);
+    assert.equal(process.env[name], undefined, `${name} must be absent from the model process`);
   }
 
   const cwd = "/tmp/rejudge-no-key";
   await mkdir(cwd, { recursive: true });
   await writeSmokeConfig(cwd);
+
+  if (!context.cliRuntimeEnv) {
+    assert.ok(context.piTool, "Pi tool is required when the CLI target was not installed");
+    const result = await context.piTool.definition.execute(
+      "package-smoke-no-key",
+      { question: "Return NO_KEY_PROBE_OK." },
+      AbortSignal.timeout(PROCESS_TIMEOUT_MS),
+      undefined,
+      { cwd },
+    );
+    const text = result.content.filter((content) => content.type === "text").map((content) => content.text).join("\n");
+    assert.match(text, /rejudge failed:/i, "missing-authentication failure was not handled by the Pi tool");
+    assert.match(text, /api[ -]?key|authentication|credentials|unauthorized/i, "Pi failure did not explain authentication");
+    console.log("[smoke] no-key Pi authentication failure passed");
+    return;
+  }
+
   const result = await runProcess("rejudge", [], {
     cwd,
-    env: context.runtimeEnv,
+    env: context.cliRuntimeEnv,
     input: "Return NO_KEY_PROBE_OK.\n",
     timeoutMs: PROCESS_TIMEOUT_MS,
   });
@@ -575,11 +730,11 @@ async function runNoKeyProbe(context) {
     /api[ -]?key|authentication|credentials|unauthorized/i,
     "missing-authentication failure did not explain the credential problem",
   );
-  console.log("[smoke] no-key authentication failure passed");
+  console.log("[smoke] no-key CLI authentication failure passed");
 }
 
 async function runContainer(options) {
-  const context = await installPackedArtifact(options.noKey);
+  const context = await prepareContainer(options);
   const selected = options.target === "all" ? TARGETS : [options.target];
   const handlers = { cli: runCliTarget, pi: runPiTarget };
 
