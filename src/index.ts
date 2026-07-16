@@ -15,6 +15,7 @@ import {
   progressComponent,
   type ProgressSnapshot,
 } from "./progress.ts";
+import { reviewMode } from "./review-mode.ts";
 
 const parameters = Type.Object({
   question: Type.String({
@@ -69,7 +70,7 @@ export function buildInvocationPrompt(question: string, outputInstructions?: str
 }
 
 /** Join a tool result's text content into one string. */
-function textContent(result: AgentToolResult<ProgressSnapshot>): string {
+function textContent(result: AgentToolResult<ProgressSnapshot | undefined>): string {
   return result.content
     .filter((c): c is Extract<typeof c, { type: "text" }> => c.type === "text")
     .map((c) => c.text)
@@ -87,7 +88,7 @@ function textContent(result: AgentToolResult<ProgressSnapshot>): string {
  * the reviewers and judge (see {@link buildInvocationPrompt}).
  */
 export default function (pi: ExtensionAPI): void {
-  pi.registerTool<typeof parameters, ProgressSnapshot>({
+  pi.registerTool<typeof parameters, ProgressSnapshot | undefined>({
     name: "rejudge",
     label: "Rejudge for Pi",
     description:
@@ -99,6 +100,13 @@ export default function (pi: ExtensionAPI): void {
       // Gate: refuse to start on a missing/invalid project or user-global config.
       const { config } = resolveRejudgeConfig(ctx.cwd);
       const prompt = buildInvocationPrompt(params.question, params.outputInstructions);
+      const resumeRunId = params.resumeRunId?.trim();
+      if (params.resumeRunId !== undefined && !resumeRunId) {
+        return {
+          content: [{ type: "text", text: "rejudge failed: resumeRunId must be a non-empty string" }],
+          details: undefined,
+        };
+      }
 
       // Live progress, scoped to this tool call (a second invocation starts clean). The tree
       // is seeded with every panel + judge row up front, "waiting…" until each model starts.
@@ -107,6 +115,7 @@ export default function (pi: ExtensionAPI): void {
         config.judge.id,
         progressTitle(params.question, params.title),
         prompt,
+        reviewMode(resumeRunId),
       );
 
       // Each update carries an immutable clone in `details` (a late render must never see
@@ -117,6 +126,7 @@ export default function (pi: ExtensionAPI): void {
         applyEvent(state, event);
         pushUpdate();
       };
+      pushUpdate();
 
       // Refresh once a second so the live clock advances even during a long step with no
       // events. unref so the timer never keeps the host process alive.
@@ -129,14 +139,6 @@ export default function (pi: ExtensionAPI): void {
         // Thread the cancel signal end-to-end: aborting stops every in-flight agent.
         // Read-only by default (no `fullTools`) — the tool is a Q&A/review surface, so a
         // calling agent can't get edit/write/bash behind the user's back.
-        const resumeRunId = params.resumeRunId?.trim();
-        if (params.resumeRunId !== undefined && !resumeRunId) {
-          return {
-            content: [{ type: "text", text: "rejudge failed: resumeRunId must be a non-empty string" }],
-            details: structuredClone(state),
-          };
-        }
-
         const result = await runReview(config, prompt, { cwd: ctx.cwd, signal, activitySink: sink, resumeRunId });
         // Don't throw on failure — throwing makes the host discard the whole rendered block.
         // Return instead: the final snapshot stays in `details` so the block keeps its failed

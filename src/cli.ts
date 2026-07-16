@@ -15,6 +15,7 @@ import { parseCliArgs, USAGE } from "./cli-args.ts";
 import { resolveRejudgeConfig } from "./config.ts";
 import { formatFailure, runReview } from "./review.ts";
 import { createStderrSink } from "./stderr-sink.ts";
+import { formatReviewMode, reviewMode } from "./review-mode.ts";
 
 function msg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -111,6 +112,7 @@ async function main(): Promise<number> {
       }
     }
   }
+  console.error(formatReviewMode(reviewMode(args.resume)));
   if (args.resume) {
     // On resume the tool policy comes from the saved run's manifest, not these flags — so don't
     // print the read-only/unsafe label (it would misreport).

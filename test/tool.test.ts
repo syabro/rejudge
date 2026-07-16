@@ -80,6 +80,31 @@ test("buildInvocationPrompt composes the question with output instructions", () 
   expect(composed).toContain("Output instructions");
 });
 
+test("rejudge rejects a blank resumeRunId before publishing progress", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
+  writeConfig(cwd, 2);
+
+  const tool = await loadTool(cwd, agentDir);
+  expect(tool).toBeDefined();
+
+  const updates: ProgressSnapshot[] = [];
+  const result = await tool!.definition.execute(
+    "test-call",
+    { question: "follow up", resumeRunId: "   " },
+    undefined,
+    (update) => {
+      if (update.details) updates.push(update.details as ProgressSnapshot);
+    },
+    { cwd } as unknown as ExtensionContext,
+  );
+
+  const text = result.content.map((content) => (content.type === "text" ? content.text : "")).join("");
+  expect(text).toMatch(/resumeRunId must be a non-empty string/);
+  expect(result.details).toBeUndefined();
+  expect(updates).toEqual([]);
+});
+
 test("rejudge returns user cancellation as its own model-visible result", async () => {
   const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
   const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
@@ -95,11 +120,14 @@ test("rejudge returns user cancellation as its own model-visible result", async 
   const tool = await loadTool(cwd, agentDir);
   expect(tool).toBeDefined();
 
+  const updates: ProgressSnapshot[] = [];
   const result = await tool!.definition.execute(
     "test-call",
     { question: "review this" },
     AbortSignal.abort(),
-    undefined,
+    (update) => {
+      if (update.details) updates.push(update.details as ProgressSnapshot);
+    },
     { cwd } as unknown as ExtensionContext,
   );
 
@@ -110,6 +138,9 @@ test("rejudge returns user cancellation as its own model-visible result", async 
 
   expect(text).toBe("Rejudge cancelled by user.");
   expect(text).not.toMatch(/rejudge failed/i);
+  expect(updates[0]?.mode).toEqual({ kind: "fresh" });
+  expect(updates[0]?.models).toEqual([]);
+  expect(snapshot.mode).toEqual({ kind: "fresh" });
   expect(snapshot.status).toBe("cancelled");
   expect(snapshot.models).toHaveLength(2);
   expect(snapshot.models.every((model) => model.role === "reviewer")).toBe(true);
@@ -124,11 +155,15 @@ test("rejudge forwards resumeRunId to the resume path", async () => {
   const tool = await loadTool(cwd, agentDir);
   expect(tool).toBeDefined();
 
+  const runId = "2020-01-01T00-00-00-000Z-gone12";
+  const updates: ProgressSnapshot[] = [];
   const result = await tool!.definition.execute(
     "test-call",
-    { question: "follow up", resumeRunId: "2020-01-01T00-00-00-000Z-gone12" },
+    { question: "follow up", resumeRunId: runId },
     undefined,
-    undefined,
+    (update) => {
+      if (update.details) updates.push(update.details as ProgressSnapshot);
+    },
     { cwd } as unknown as ExtensionContext,
   );
 
@@ -138,6 +173,10 @@ test("rejudge forwards resumeRunId to the resume path", async () => {
   expect(text).toMatch(/rejudge failed/i);
   expect(text).toMatch(/resume/i);
   expect(text).toMatch(/not found|expired/i);
+  expect(updates[0]?.mode).toEqual({ kind: "resumed", runId });
+  expect(updates[0]?.models).toEqual([]);
+  const snapshot = result.details as ProgressSnapshot;
+  expect(snapshot.mode).toEqual({ kind: "resumed", runId });
 });
 
 integrationTest("rejudge runs end-to-end and returns a reviewed answer", async () => {

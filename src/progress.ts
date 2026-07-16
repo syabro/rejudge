@@ -9,6 +9,7 @@ import {
   formatDur,
   shortModel,
 } from "./events.ts";
+import { formatReviewMode, reviewMode, type ReviewMode } from "./review-mode.ts";
 
 /**
  * The live-progress model and renderer for the `rejudge` tool block: a snapshot built
@@ -52,6 +53,8 @@ export interface ProgressSnapshot {
   startedAt: number;
   endedAt?: number;
   status: ModelStatus;
+  /** Whether this invocation started a new panel or restored a specific prior run. Absent on legacy snapshots. */
+  mode?: ReviewMode;
   /** Short title shown in the header (`Rejudge <title>`); what this run is about. */
   title?: string;
   /** Full request sent to the panel (`buildInvocationPrompt(question, outputInstructions)`),
@@ -72,10 +75,12 @@ export function createProgressState(
   judgeModel: string,
   title?: string,
   request?: string,
+  mode: ReviewMode = reviewMode(),
 ): ProgressSnapshot {
   return {
     startedAt: Date.now(),
     status: "running",
+    mode,
     title,
     request,
     reviewerModels: [...reviewerModels],
@@ -268,6 +273,7 @@ interface Row {
  * Draw the live 3-level progress tree as lines, fit to `width` columns:
  *
  *     Rejudge
+ *     Mode: resumed — 2026-07-16T00-00-00-000Z-run123
  *     review the runner change (ctrl+o to expand)
  *       glm-5.1 (judge)        0. thinking   12s  …keep it concise
  *         ⎿ deepseek-v4-pro    2. read       03s  src/runner.ts
@@ -275,8 +281,9 @@ interface Row {
  *     Total 41s
  *
  * Line 1 is bold `Rejudge`, colored by status (green done, red fail, dim cancel, neutral running).
- * Line 2 is the query: collapsed → a clipped title + the dimmed ctrl+o hint (shown above); expanded
- * (Ctrl+O) → the full request under a dim `Request:` label, falling back to the title when blank. The
+ * The shared mode label follows it, then the query: collapsed → a clipped title + the dimmed ctrl+o
+ * hint (shown above); expanded (Ctrl+O) → the full request under a dim `Request:` label, falling back
+ * to the title when blank. The
  * tree is root → judge → reviewers, the status cell aligned to one shared column across the judge
  * (level 2) and reviewers (level 3). A running row's dimmed detail is trimmed to whatever width is
  * left on the line, so it never wraps. The overall time lives on a dimmed `Total <time>` line at the
@@ -293,8 +300,11 @@ export function renderProgress(
 
   // Header line 1: bold "Rejudge", colored by status (the time lives on the Total line).
   const lines = [tintRow(theme, s.status, theme.bold("Rejudge"))];
+  if (s.mode) {
+    lines.push(formatReviewMode(s.mode));
+  }
 
-  // Header line 2: the query. Collapsed → one clipped title line + a dimmed expand hint; expanded
+  // The next header lines hold the query. Collapsed → one clipped title line + a dimmed expand hint; expanded
   // (Ctrl+O) → the full request (what was sent to the panel), wrapped, under a dim "Request:" label,
   // falling back to the title when there's no request. Clip/wrap the plain text so a long query
   // never wraps by accident; the trailing clampLines still guards an unbreakable long token.

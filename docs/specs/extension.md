@@ -25,14 +25,17 @@ This is accepted for the current trusted use case. Reviewers are read-only by de
 
 While `rejudge` runs inside Pi it shows a live block, refreshed every second, as a three-level tree — Rejudge → judge → reviewers — with a total at the bottom:
 
-    Rejudge review the runner change
+    Rejudge
+    Mode: resumed — 2026-07-16T00-00-00-000Z-run123
+    review the runner change (ctrl+o to expand)
       gpt-5.5 (judge)       0. thinking   12s  …checking the disagreement
         ⎿ deepseek-v4-pro   2. read       03s  src/runner.ts
         ⎿ mimo-v2.5-pro      ✓  done (46s | 4 tools)
         ⎿ gpt-5.4           waiting…
     Total 1m18s
 
-- **Header** `Rejudge <title>` uses the `title` parameter or the first question line. It is neutral while running, green when done, red on failure, and dim on cancel.
+- **Header** `Rejudge` is neutral while running, green when done, red on failure, and dim on cancel. The `title` parameter or first question line appears below the mode.
+- **Mode** is visible from the first render: `Mode: fresh — new panel` or `Mode: resumed — <runId>`. It remains in the final success, failure, or cancellation block. The CLI prints the same line before model work starts.
 - **Judge** sits above the panel; reviewers hang under it (`⎿`). Status cells share one aligned column.
 - **A running model** reads `nn. tool  time  detail`: a dimmed step number (tools so far), the step (`thinking`/`writing`/the tool name), the step's duration (live while it runs, frozen between steps so the gap shows the previous step, not a blank), then a dimmed detail — the tool's params (a read's path, `git_diff`'s mode, a `web_search` query) or the live tail of the streamed thinking/writing text. The detail trims to the terminal width (keeping its end), so the block fits the window and never wraps, and it reflows on resize. Before the first step the cell is empty.
 - **A finished model** reads `✓  done (time | N tools)` in green; a broken one `✗ <reason> (…)` in red; one cancelled by an abort `⊘ cancelled (…)` in dim.
@@ -137,7 +140,7 @@ While `rejudge` runs inside Pi it shows a live block, refreshed every second, as
   - The final progress snapshot remains visible with cancelled reviewer rows and the total duration.
   - Deterministic tests cover the Pi tool result, late-abort attribution, and cancelled-row rendering.
 
-- [ ] EXT-061 Show whether Rejudge started fresh or resumed
+- [x] EXT-061 Show whether Rejudge started fresh or resumed
   The Pi live block and CLI progress make it immediately clear whether a review started a new panel or restored an earlier run.
 
   Fresh and resumed invocations currently look the same while running. A follow-up can therefore appear to reuse the previous judge context even when the calling agent omitted `resumeRunId` or `--resume` and started a new panel instead.
@@ -154,3 +157,8 @@ While `rejudge` runs inside Pi it shows a live block, refreshed every second, as
   - CLI progress reports the same actual mode before model work starts
   - the indicator is derived from the invocation’s real resume parameter, not its title or request text
   - deterministic tests cover fresh and resumed output in both interfaces
+
+  **Implemented:**
+  - Pi shows the actual fresh or resumed mode before model work and keeps it in every final progress block; resumed mode names the restored run ID.
+  - CLI prints the same mode line after preflight validation and before starting or resuming review work.
+  - Invalid blank resume IDs publish no misleading snapshot, while older saved Pi results without mode still render safely.

@@ -8,6 +8,7 @@ import {
   renderProgress,
   type ProgressSnapshot,
 } from "../src/progress.ts";
+import { reviewMode } from "../src/review-mode.ts";
 
 // A no-op theme: returns the text unstyled, so visibleWidth measures the plain content. Enough to
 // exercise the layout/width logic without a real terminal theme.
@@ -21,6 +22,37 @@ function seeded(): ProgressSnapshot {
   applyEvent(s, { kind: "model_start", t: 0, roleKey: "panel-2", model: "prov/panel-b", role: "reviewer" });
   return s;
 }
+
+test("progress identifies fresh and resumed runs throughout their lifecycle", () => {
+  const fresh = createProgressState(["prov/panel-a"], "prov/judge", "fresh review");
+  expect(renderProgress(fresh, THEME, fresh.startedAt).join("\n")).toContain("Mode: fresh — new panel");
+
+  const runId = "2026-07-16T00-00-00-000Z-resume";
+  for (const status of ["done", "error", "cancelled"] as const) {
+    const resumed = createProgressState(
+      ["prov/panel-a"],
+      "prov/judge",
+      "follow up",
+      undefined,
+      reviewMode(runId),
+    );
+    const first = renderProgress(resumed, THEME, resumed.startedAt).join("\n");
+    expect(first).toContain(`Mode: resumed — ${runId}`);
+
+    applyEvent(resumed, { kind: "total", t: resumed.startedAt + 1000, durationMs: 1000, status });
+    const final = renderProgress(resumed, THEME, resumed.startedAt + 1000).join("\n");
+    expect(final).toContain(`Mode: resumed — ${runId}`);
+  }
+});
+
+test("legacy progress snapshots without mode still render", () => {
+  const legacy = { ...createProgressState(["prov/panel-a"], "prov/judge", "old result") } as Partial<ProgressSnapshot>;
+  delete legacy.mode;
+
+  const rendered = renderProgress(legacy as ProgressSnapshot, THEME, legacy.startedAt).join("\n");
+  expect(rendered).toContain("Rejudge");
+  expect(rendered).not.toContain("Mode:");
+});
 
 // The bug that crashed the host (pi-tui throws when any rendered line exceeds the terminal width):
 // the expanded fused answer is wrapped only at spaces, so an unbreakable long token overflowed.

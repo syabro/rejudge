@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { existsSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -118,6 +118,49 @@ test("--prompt-add-N rejects a 0 index, a missing value, and a duplicate", () =>
 
 test("-f without a value is an error, not a throw", () => {
   expect(parseCliArgs(["-f"]).kind).toBe("error");
+});
+
+const SOURCE_CLI = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+
+test("source CLI reports fresh and resumed mode before starting review work", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-cli-mode-"));
+  mkdirSync(join(cwd, ".rejudge"), { recursive: true });
+  writeFileSync(
+    join(cwd, ".rejudge", "config.json"),
+    JSON.stringify({
+      reviewers: ["missing/reviewer-a@minimal", "missing/reviewer-b@minimal"],
+      judge: "missing/judge@minimal",
+    }),
+  );
+
+  const env: NodeJS.ProcessEnv = { ...process.env, HOME: join(cwd, "home"), XDG_CONFIG_HOME: join(cwd, "xdg") };
+  delete env.OPENCODE_API_KEY;
+
+  try {
+    const fresh = spawnSync("bun", [SOURCE_CLI, "review this"], { cwd, env, encoding: "utf8", timeout: 10_000 });
+    expect(fresh.status).toBe(1);
+    const freshMode = "Mode: fresh — new panel";
+    const freshRunning = "running Rejudge on real models";
+    expect(fresh.stderr).toContain(freshMode);
+    expect(fresh.stderr.indexOf(freshMode)).toBeLessThan(fresh.stderr.indexOf(freshRunning));
+    expect(fresh.stderr.indexOf(freshRunning)).toBeLessThan(fresh.stderr.lastIndexOf("rejudge:"));
+
+    const runId = "2020-01-01T00-00-00-000Z-gone12";
+    const resumed = spawnSync("bun", [SOURCE_CLI, "--resume", runId, "follow up"], {
+      cwd,
+      env,
+      encoding: "utf8",
+      timeout: 10_000,
+    });
+    expect(resumed.status).toBe(1);
+    const resumedMode = `Mode: resumed — ${runId}`;
+    const resumedRunning = `resuming run ${runId}`;
+    expect(resumed.stderr).toContain(resumedMode);
+    expect(resumed.stderr.indexOf(resumedMode)).toBeLessThan(resumed.stderr.indexOf(resumedRunning));
+    expect(resumed.stderr.indexOf(resumedRunning)).toBeLessThan(resumed.stderr.lastIndexOf("rejudge:"));
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
 });
 
 // Real-bin smoke test for the stdin guard: empty stdin must fail (exit 1, the single
