@@ -136,3 +136,21 @@ While `rejudge` runs inside Pi it shows a live block, refreshed every second, as
   - Cancellation is attributed to the outcome that actually aborted, so a later Esc cannot hide a technical model or tool failure.
   - The final progress snapshot remains visible with cancelled reviewer rows and the total duration.
   - Deterministic tests cover the Pi tool result, late-abort attribution, and cancelled-row rendering.
+
+- [ ] EXT-061 Show whether Rejudge started fresh or resumed
+  The Pi live block and CLI progress make it immediately clear whether a review started a new panel or restored an earlier run.
+
+  Fresh and resumed invocations currently look the same while running. A follow-up can therefore appear to reuse the previous judge context even when the calling agent omitted `resumeRunId` or `--resume` and started a new panel instead.
+
+  Show the actual mode from the beginning of the run. A resumed invocation must identify the prior run whose judge and panel sessions were restored; a fresh invocation must clearly say that it started without previous context.
+
+  User decisions:
+  - cover both the Pi tool UI and CLI progress
+  - identify the previous run, not only show a generic `resumed` label
+
+  DoD:
+  - the Pi live block shows `fresh` or `resumed` from its first render
+  - a resumed Pi run shows the restored run ID, and the indicator remains visible in the final success, failure, or cancellation snapshot
+  - CLI progress reports the same actual mode before model work starts
+  - the indicator is derived from the invocation’s real resume parameter, not its title or request text
+  - deterministic tests cover fresh and resumed output in both interfaces
