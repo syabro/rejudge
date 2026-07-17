@@ -181,3 +181,19 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   - Successful retry output is returned as the answer while keeping the session alive for normal caller disposal.
   - Empty retry output fails with `empty-output-after-retry`; non-clean retry output reports the retry stop reason and error.
   - Deterministic tests cover retry success, still-empty retry failure, non-clean retry failure, and no retry on an initially non-clean stop.
+
+- [ ] PNL-062 Retry every model error in the same SDK session		#bug !high
+  Every assistant response with `stopReason: "error"` is retried before Rejudge reports a model failure.
+
+  The retry continues the same `AgentSession` and uses the SDK retry limit, backoff, and cancellation. Rejudge does not filter errors by provider, status code, or message text. It does not restart the reviewer, judge, or panel and does not create another user turn.
+
+  If all attempts fail, Rejudge returns the last error and applies the existing panel fail-fast behavior. Pi and CLI show each attempt, delay, recovery, and final failure.
+
+  DoD:
+  - every `stopReason: "error"` enters the same retry path regardless of its text or source
+  - retries continue the same SDK session up to the configured limit
+  - cancellation stops the active attempt or backoff
+  - completed tool calls remain in session context and are not restarted by Rejudge
+  - exhausted retries return the last error and cancel sibling panel work
+  - Pi and CLI show retry progress
+  - deterministic SDK tests cover unrelated error texts, recovery, exhaustion, cancellation, and an error after a completed tool call
