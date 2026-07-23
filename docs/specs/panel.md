@@ -197,3 +197,16 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   - exhausted retries return the last error and cancel sibling panel work
   - Pi and CLI show retry progress
   - deterministic SDK tests cover unrelated error texts, recovery, exhaustion, cancellation, and an error after a completed tool call
+
+- [ ] PNL-063 Prevent concurrent same-session prompts in `ask_panel`		#bug !high
+  Judge follow-ups reliably reach their reviewers when one call contains several questions for the same live session.
+
+  `ask_panel` currently starts every query in parallel. When several queries target one reviewer, they simultaneously prompt the same session. The first starts; the others fail with `Agent is already processing`, so questions are lost.
+
+  Every query must reach its intended reviewer without overlapping prompts to the same session. Queries targeting different reviewer sessions should retain their current parallel execution.
+
+  DoD:
+  - all questions targeting one reviewer are delivered and their answers returned to the judge
+  - one `ask_panel` call cannot cause `Agent is already processing` by concurrently prompting the same session
+  - queries targeting different reviewers can still run in parallel
+  - tests cover duplicate reviewer roles and a mixture of same-reviewer and different-reviewer queries
