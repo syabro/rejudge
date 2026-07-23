@@ -12,9 +12,9 @@ import type { ReviewerResult } from "./runner.ts";
  * session keeps that author's round-1 context, so it answers the follow-up remembering what it
  * already said.
  *
- * A single call takes a batch of `{ role, question }` queries and runs them in parallel, so the
- * judge re-queries every reviewer it wants in one shot without paying for serial
- * round-trips; it may also target just one. Stable role keys keep duplicate model choices distinct.
+ * A single call takes a batch of `{ role, question }` queries. Different reviewers run in parallel;
+ * repeated queries to one reviewer run sequentially in input order because one live session cannot
+ * process concurrent prompts. Stable role keys keep duplicate model choices distinct.
  * Delegating the deep re-verification back to the authors
  * this way is what lets the judge be a cheaper model than the panel.
  *
@@ -163,9 +163,8 @@ export function makeAskPanelTool(
       {
         minItems: 1,
         description:
-          "One entry per author to re-query. Send every author you want in a SINGLE call — re-querying " +
-          "all of them at once is the normal move; include just one entry if that's all you need. " +
-          "Entries run in parallel.",
+          "Every follow-up to ask. Send all reviewers in a SINGLE call. Different reviewers run in " +
+          "parallel; repeated queries to one reviewer run sequentially in input order.",
       },
     ),
   });
@@ -175,15 +174,30 @@ export function makeAskPanelTool(
     label: "ask panel",
     description:
       "Re-query one or more analyses' authors for a second round (cross-examine a disagreement or " +
-      `pressure a disputed point). Pass every author you want in one call; they run in parallel. Valid roles: ${roles.join(", ")}.`,
+      "pressure a disputed point). Pass every follow-up in one call. Different authors run in parallel; " +
+      `repeated queries to one author run sequentially. Valid roles: ${roles.join(", ")}.`,
     parameters,
     async execute(_toolCallId, params, signal) {
       // runOne never throws, so Promise.all never rejects; the outer guard is belt-and-suspenders so
       // even a synchronous mishap becomes tool-error text, never a throw out of the fusion chain.
       try {
-        const answers = await Promise.all(
-          params.queries.map((query) => runOne(query.role, query.question, signal)),
-        );
+        const answers = new Array<string>(params.queries.length);
+        const queriesByRole = new Map<string, { index: number; question: string }[]>();
+        params.queries.forEach((query, index) => {
+          const queued = queriesByRole.get(query.role);
+          if (queued) {
+            queued.push({ index, question: query.question });
+          } else {
+            queriesByRole.set(query.role, [{ index, question: query.question }]);
+          }
+        });
+
+        await Promise.all([...queriesByRole.entries()].map(async ([role, queries]) => {
+          for (const query of queries) {
+            answers[query.index] = await runOne(role, query.question, signal);
+          }
+        }));
+
         return {
           content: [{ type: "text" as const, text: answers.join("\n\n") }],
           details: { roles: params.queries.map((query) => query.role) },

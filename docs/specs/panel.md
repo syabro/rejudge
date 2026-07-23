@@ -28,6 +28,10 @@ Success means technical completion, not answer quality. Judge behavior is descri
 
 **Cancellation.** The Pi `rejudge` tool and CLI thread an `AbortSignal` through every reviewer and the judge. Aborting stops in-flight work and returns a failure with `aborted: true`.
 
+## Judge follow-ups
+
+During synthesis, the judge can use `ask_panel` to send follow-up questions to the reviewers' live sessions. Send all follow-ups in one call: different reviewers answer in parallel, while repeated questions for one reviewer run sequentially in input order. Answer blocks return in the original query order.
+
 ## Demo
 
 Configure `.rejudge/config.json`, then run from the repository root:
@@ -198,7 +202,7 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   - Pi and CLI show retry progress
   - deterministic SDK tests cover unrelated error texts, recovery, exhaustion, cancellation, and an error after a completed tool call
 
-- [ ] PNL-063 Prevent concurrent same-session prompts in `ask_panel`		#bug !high
+- [x] PNL-063 Prevent concurrent same-session prompts in `ask_panel`		#bug !high
   Judge follow-ups reliably reach their reviewers when one call contains several questions for the same live session.
 
   `ask_panel` currently starts every query in parallel. When several queries target one reviewer, they simultaneously prompt the same session. The first starts; the others fail with `Agent is already processing`, so questions are lost.
@@ -210,3 +214,9 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   - one `ask_panel` call cannot cause `Agent is already processing` by concurrently prompting the same session
   - queries targeting different reviewers can still run in parallel
   - tests cover duplicate reviewer roles and a mixture of same-reviewer and different-reviewer queries
+
+  **Implemented:**
+  - Repeated follow-ups to one reviewer run one at a time in input order.
+  - Different reviewer sessions continue in parallel, while answer blocks keep their original query order.
+  - The `ask_panel` contract explains how repeated and distinct reviewer queries are scheduled.
+  - Deterministic and live-session checks cover repeated roles, mixed roles, output order, and two clean follow-up turns.

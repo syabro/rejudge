@@ -24,11 +24,12 @@ function resultText(result: { content: { type: string }[] }): string {
 }
 
 function fakePanelSession(
-  promptBody: (ctx: { messages: Record<string, unknown>[]; emit: (event: unknown) => void }) => Promise<void> | void,
-  options: { text?: string; onAbort?: () => void } = {},
+  promptBody: (ctx: { question: string; messages: Record<string, unknown>[]; emit: (event: unknown) => void }) => Promise<void> | void,
+  options: { text?: string | ((question: string) => string); onAbort?: () => void } = {},
 ): ReviewerResult["session"] {
   const messages: Record<string, unknown>[] = [{ role: "assistant", stopReason: "stop" }];
   let subscriber: ((event: unknown) => void) | undefined;
+  let lastQuestion = "";
   return {
     state: { messages },
     subscribe(cb: (event: never) => void) {
@@ -37,11 +38,12 @@ function fakePanelSession(
         subscriber = undefined;
       };
     },
-    async prompt() {
-      await promptBody({ messages, emit: (event) => subscriber?.(event) });
+    async prompt(question: string) {
+      lastQuestion = question;
+      await promptBody({ question, messages, emit: (event) => subscriber?.(event) });
     },
     getLastAssistantText() {
-      return options.text ?? "follow-up answer";
+      return typeof options.text === "function" ? options.text(lastQuestion) : options.text ?? "follow-up answer";
     },
     abort() {
       options.onAbort?.();
@@ -97,6 +99,68 @@ test("ask_panel targets a stable panel role when model ids are duplicated", asyn
 
   expect(prompts).toEqual([0, 1]);
   expect(resultText(result)).toContain("panel-2 (provider/shared)");
+});
+
+test("ask_panel serializes repeated reviewer queries while distinct reviewers run in parallel", async () => {
+  const started: string[] = [];
+  let panelOneActive = false;
+  let releaseFirst!: () => void;
+  let markFirstStarted!: () => void;
+  let markSecondReviewerStarted!: () => void;
+  const firstGate = new Promise<void>((resolve) => { releaseFirst = resolve; });
+  const firstStarted = new Promise<void>((resolve) => { markFirstStarted = resolve; });
+  const secondReviewerStarted = new Promise<void>((resolve) => { markSecondReviewerStarted = resolve; });
+
+  const panelOne = fakePanelSession(async ({ question, messages }) => {
+    if (panelOneActive) {
+      throw new Error("Agent is already processing");
+    }
+    panelOneActive = true;
+    started.push(`panel-1:${question}`);
+    try {
+      if (question === "q1") {
+        markFirstStarted();
+        await firstGate;
+      }
+      messages.push({ role: "assistant", stopReason: "stop" });
+    } finally {
+      panelOneActive = false;
+    }
+  }, { text: (question) => `${question} answer` });
+
+  const panelTwo = fakePanelSession(({ question, messages }) => {
+    started.push(`panel-2:${question}`);
+    markSecondReviewerStarted();
+    messages.push({ role: "assistant", stopReason: "stop" });
+  }, { text: (question) => `${question} answer` });
+
+  const tool = makeAskPanelTool([
+    { roleKey: "panel-1", modelId: "provider/alpha", text: "a", session: panelOne },
+    { roleKey: "panel-2", modelId: "provider/beta", text: "b", session: panelTwo },
+  ]);
+
+  const execution = tool.execute(
+    "call-1",
+    { queries: [
+      { role: "panel-1", question: "q1" },
+      { role: "panel-2", question: "q2" },
+      { role: "panel-1", question: "q3" },
+    ] },
+    undefined,
+    undefined,
+    { cwd: process.cwd() } as never,
+  );
+
+  await Promise.all([firstStarted, secondReviewerStarted]);
+  expect(started).toEqual(["panel-1:q1", "panel-2:q2"]);
+
+  releaseFirst();
+  const result = await execution;
+  const text = resultText(result);
+  expect(started).toEqual(["panel-1:q1", "panel-2:q2", "panel-1:q3"]);
+  expect(text).not.toContain("Agent is already processing");
+  expect(text.indexOf("q1 answer")).toBeLessThan(text.indexOf("q2 answer"));
+  expect(text.indexOf("q2 answer")).toBeLessThan(text.indexOf("q3 answer"));
 });
 
 // Re-query progress carries the same stable role key as the target session.
@@ -254,11 +318,9 @@ test("a session with ask_panel in customTools + allow-list activates it", async 
   }
 }, 30_000);
 
-// Real run, no mocks: the heart of SYN-011 — a panel agent's session stays ALIVE after round 1
-// and is re-promptable for a second round. Run a real one-model panel, then re-query that live
-// session via ask_panel and assert it did NEW work: the message log grew by a fresh assistant
-// turn that completed cleanly, and the tool returned its text.
-integrationTest("ask_panel re-queries a live panel session for a second round", async () => {
+// Real run, no mocks: one ask_panel call can queue multiple prompts for the same live reviewer
+// session. Each prompt produces a clean new assistant turn and both answers reach the judge.
+integrationTest("ask_panel serializes repeated follow-ups to one live panel session", async () => {
   const panelResult = await runPanel([{ id: STUB, level: "minimal" }], "Reply with exactly the word: PONG. Nothing else.");
   expect(panelResult.isOk()).toBe(true);
   if (!panelResult.isOk()) return;
@@ -273,24 +335,25 @@ integrationTest("ask_panel re-queries a live panel session for a second round", 
   try {
     const result = await tool.execute(
       "call-1",
-      { queries: [{ role: "panel-1", question: "Now reply with exactly the word: PING. Nothing else." }] },
+      { queries: [
+        { role: "panel-1", question: "Now reply with exactly the word: PING. Nothing else." },
+        { role: "panel-1", question: "Now reply with exactly the word: PANG. Nothing else." },
+      ] },
       new AbortController().signal,
       undefined,
       { cwd: process.cwd() } as never,
     );
 
-    // The tool surfaced the panel's follow-up answer.
-    expect(resultText(result).trim().length).toBeGreaterThan(0);
+    const text = resultText(result);
+    expect(text.split("### panel-1")).toHaveLength(3);
+    expect(text).not.toContain("Agent is already processing");
+    expect(text).not.toContain("did not answer cleanly");
 
-    // The same session did new work: more messages, a fresh assistant turn, ended cleanly.
     const after = session.state.messages;
     expect(after.length).toBeGreaterThan(messagesBefore);
-    expect(after.filter((m) => m.role === "assistant").length).toBeGreaterThan(assistantsBefore);
-
-    const lastAssistant = [...after]
-      .reverse()
-      .find((m): m is Extract<typeof m, { role: "assistant" }> => m.role === "assistant");
-    expect(lastAssistant?.stopReason).toBe("stop");
+    const assistantsAfter = after.filter((m): m is Extract<typeof m, { role: "assistant" }> => m.role === "assistant");
+    expect(assistantsAfter).toHaveLength(assistantsBefore + 2);
+    expect(assistantsAfter.slice(-2).map((message) => message.stopReason)).toEqual(["stop", "stop"]);
   } finally {
     for (const r of panel) r.session.dispose();
   }
