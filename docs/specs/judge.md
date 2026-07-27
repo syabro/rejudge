@@ -130,3 +130,25 @@ Runs live under `${TMPDIR}/rejudge/runs/<runId>/`, outside the project and Pi's 
   - `resume` requires a concrete prior run id.
   - Existing review launchers pass the selected mode to the Pi tool or CLI without reimplementing resume behavior.
   - User-visible output includes enough run id/context to make a later follow-up possible.
+
+- [ ] SYN-064 Keep `ask_panel` failures out of reviewer progress rows		#bug !high
+  Live progress attributes failures to the component that actually failed, while recoverable `ask_panel` problems remain internal to the judge.
+
+  Reviewer rows currently reopen during judge follow-ups. An orchestration failure inside `ask_panel` can therefore turn a reviewer row red even when that model returned no error, and a later event can overwrite the misleading status. This makes internal coordination failures look like model failures.
+
+  Reviewer rows should represent only the initial panel run. Follow-up activity and recoverable per-query failures stay in the judge's tool context and debug records. They do not appear in the normal progress UI. If the judge cannot complete the review, the existing judge or whole-run failure remains visible.
+
+  This supersedes the live re-query behavior introduced by `SYN-040`.
+
+  User decisions:
+  - `ask_panel` orchestration failures must not appear on reviewer rows
+  - recoverable follow-up failures must not appear in the normal UI
+  - only a failure that prevents the judge or whole review from completing becomes user-visible
+
+  DoD:
+  - successful, failed, and cancelled `ask_panel` follow-ups do not reopen or overwrite terminal reviewer rows
+  - initial reviewer/provider failures still appear on their reviewer rows
+  - recoverable follow-up failures remain available to the judge and debug logging without appearing in normal progress
+  - a judge or whole-review failure remains visible through the existing final failure state
+  - stray follow-up lifecycle events cannot overwrite a terminal reviewer status
+  - deterministic tests cover successful follow-up, recoverable failure, cancellation, and final judge failure
