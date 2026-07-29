@@ -149,11 +149,11 @@ git clone https://github.com/syabro/rejudge.git
 cd rejudge
 bun install
 bun run build
-npm install -g --ignore-scripts .
+npm link
 pi install "$PWD"
 ```
 
-The npm command exposes the CLI globally. The Pi command registers the same local package's extension and skills. Rebuild after changing `src/`.
+`npm link` exposes the current checkout's CLI globally, so later `bun run build` commands update it. The Pi command registers the same local package's extension and skills. Rebuild after changing `src/`.
 
 ## Common setup failures
 

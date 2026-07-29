@@ -53,6 +53,24 @@ The CLI reads the prompt from stdin — no temp file. Use a **quoted** heredoc (
 
 A real run is minutes (the panel runs at xhigh), so set a generous timeout on the bash command itself (the timeout is per-invocation). If a run is killed for time, report it and re-run; never background it.
 
+## The prompt is the task, not Rejudge orchestration
+
+Rejudge already starts the reviewers and judge. The prompt is delivered to a reviewer as its task; it must say only what that reviewer should investigate or return. Do not ask it to start, call, ask, verify, or coordinate Rejudge, a panel, reviewers, a judge, agents, or another review. Those are runtime mechanics, not task requirements, and can make a reviewer attempt a nested review.
+
+Use a concrete review task when reviewing work:
+
+```text
+Identify the two most important risks in the current diff. For each, state the evidence and consequence.
+```
+
+Never write prompts such as:
+
+```text
+Ask the panel to verify that reviewers and judge can complete normally.
+Ask reviewers to run Rejudge and have the judge collect their results.
+Verify the panel, reviewers, or judge.
+```
+
 ## Prompt content
 
 Give the agents what to reason about:
