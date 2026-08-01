@@ -23,6 +23,13 @@ No linter is configured — these are upheld by reading the code (and by LLM cod
 
 For the two review steps in the `mdtask-do` / `mdtask-next` skills, use Rejudge as the reviewer (no hardcoded command — the skill knows how to launch it): code review → the `rejudge-diff` skill; plan review → the `rejudge` skill with a plan-review prompt. The judge's answer is the review. This runs the `rejudge` tool or CLI in real use ("боевой режим").
 
+## Commits
+
+Every commit message carries the task ID. Two forms:
+
+- work on a task: `<TYPE>: <ID> <what changed>` — e.g. `FIX: CLI-065 draw the progress block in TTY mode`
+- adding a task: `TASK: Add <ID> <short title>` — e.g. `TASK: Add CLI-065 CLI progress in the Pi format in TTY mode`
+
 ## Technical decisions
 
 How the project is built — tooling, architecture, testing approach, and any technical decision that isn't behavior. Read and keep current: @docs/tech.md
