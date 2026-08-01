@@ -156,3 +156,12 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - Deleted `scripts/demo.ts` (the `scripts/` dir is now empty/gone); the CLI fully replaces it.
   - `panel.md`'s Demo section now runs `bun src/cli.ts "<question>"`.
   - The AGENTS.md review rule no longer hardcodes a command — to avoid the same staleness it now delegates to the skills: code review → `fusion-review`, plan review → `fusion`.
+
+- [ ] CLI-065 Render CLI progress in the Pi format in TTY mode
+  Draw in a terminal the same live block as Pi: judge, reviewers under it, current step, running time, total.
+
+  Leave non-TTY output (pipe, redirect, CI) as it is.
+
+  DoD:
+  - TTY: progress drawn in the Pi block format
+  - non-TTY: output unchanged
