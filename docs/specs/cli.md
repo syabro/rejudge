@@ -37,7 +37,7 @@ In a terminal, progress is the same block Pi draws — the judge, the reviewers 
 ```text
 Rejudge
 Mode: fresh — new panel
-review the runner change (ctrl+o to expand)
+review the runner change
   glm-5.1 (judge)        ✓  done (18s | 1 tool)
     ⎿ deepseek-v4-pro    2. read       03s src/runner.ts
     ⎿ minimax-m3         ✓  done (35s | 6 tools)
@@ -45,6 +45,8 @@ Total 41s
 ```
 
 Anywhere else — a pipe, a redirect, CI, an agent's shell — the output is the plain append log as before: one line per finished step, per model, per stage, then the total.
+
+The block is the same one the Pi tool draws, minus what only Pi can offer: inside Pi the header carries a `ctrl+o to expand` hint that opens the full request, and `rejudge` is a non-interactive command with no such key, so it shows the title alone.
 
 Which one you get depends only on whether **stderr** is a terminal. Progress belongs to stderr because stdout carries the answer, so `rejudge "…" > answer.txt` still animates in a terminal, and `rejudge "…" 2> log.txt` still writes the flat log. Set `NO_COLOR` (any value, including empty) to drop the styling and keep the block.
 
@@ -189,4 +191,5 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - Anything that isn't a terminal keeps the previous append log, byte-for-byte behavior: proven by a real run with stderr redirected, which produced the same step/model/stage/total lines and zero escape sequences.
   - The choice depends only on whether **stderr** is a terminal, so redirecting the answer still animates and redirecting the log still writes flat text. Nothing else (`TERM`, color support, `CI`) can turn the block on, which keeps escape codes out of an agent's log.
   - `NO_COLOR` — present at any value, per the convention — drops styling and keeps the block.
+  - The header shows the `ctrl+o to expand` hint only where that key exists, i.e. inside Pi; the CLI shows the title alone rather than offering a key that does nothing.
   - A real terminal reporting no size (a `script(1)` pty reports `0`) falls back to 80×24 instead of collapsing the block; the block always leaves the last column free and never draws taller than the viewport, so the redraw can't smear.

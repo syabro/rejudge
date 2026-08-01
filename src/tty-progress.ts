@@ -150,7 +150,9 @@ export function createTtyProgress(options: TtyProgressOptions): TtyProgress {
     // accepted degradation there.
     const width = Math.max(MIN_COLUMNS, reported(stream.columns, DEFAULT_COLUMNS)) - 1;
     const height = Math.max(1, reported(stream.rows, DEFAULT_ROWS) - 1);
-    const lines = fitHeight(renderProgress(state, theme, now(), width), height);
+    // `expandable: false` — the block is drawn by a non-interactive command, so there is no
+    // ctrl+o to offer. Only Pi binds that key.
+    const lines = fitHeight(renderProgress(state, theme, now(), width, false, false), height);
 
     // Rewind over the previous frame, then rewrite each row — clearing it first, so a shorter
     // line can't leave the old tail behind.

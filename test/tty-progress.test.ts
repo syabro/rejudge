@@ -80,6 +80,9 @@ test("the first frame draws the whole tree and never moves the cursor up", () =>
   expect(text).toContain("Rejudge");
   expect(text).toContain("Mode: fresh — new panel");
   expect(text).toContain("a title");
+  // The CLI is not interactive: offering a key that does nothing here would be a lie. The hint
+  // belongs to Pi, which actually binds ctrl+o (pinned in test/progress.test.ts).
+  expect(text).not.toContain("ctrl+o");
   expect(text).toContain("judge");
   expect(text).toContain("panel-a");
   expect(text).toContain("panel-b");

@@ -139,6 +139,12 @@ test("expanded view shows the full request first; collapsed keeps it behind the 
   expect(collapsed).toContain("ctrl+o to expand");
   expect(collapsed).not.toContain("REQ-LINE-1");
 
+  // A host with no ctrl+o binding (the CLI) keeps the title and drops the hint.
+  const flat = renderProgress(s, THEME, 0, 80, false, false).join("\n");
+  expect(flat).toContain("short title");
+  expect(flat).not.toContain("ctrl+o");
+  expect(flat).not.toContain("REQ-LINE-1");
+
   // Expanded: both request lines show under a "Request:" label; the title and expand hint are gone.
   const lines = progressComponent(s, THEME, true, "THE-ANSWER").render(80);
   const joined = lines.join("\n");

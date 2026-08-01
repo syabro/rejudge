@@ -311,7 +311,8 @@ interface Row {
  * Line 1 is bold `Rejudge`, colored by status (green done, red fail, dim cancel, neutral running).
  * The shared mode label follows it, then the query: collapsed → a clipped title + the dimmed ctrl+o
  * hint (shown above); expanded (Ctrl+O) → the full request under a dim `Request:` label, falling back
- * to the title when blank. The
+ * to the title when blank. `expandable` says whether the host actually binds that key — the CLI
+ * draws the same block but has no keyboard, so it passes `false` and the hint is left off. The
  * tree is root → judge → reviewers, the status cell aligned to one shared column across the judge
  * (level 2) and reviewers (level 3). A running row's dimmed detail is trimmed to whatever width is
  * left on the line, so it never wraps. The overall time lives on a dimmed `Total <time>` line at the
@@ -323,6 +324,7 @@ export function renderProgress(
   now: number = Date.now(),
   width: number = Number.POSITIVE_INFINITY,
   expanded = false,
+  expandable = true,
 ): string[] {
   const byRoleKey = new Map(s.models.map((model) => [model.roleKey, model]));
 
@@ -345,9 +347,12 @@ export function renderProgress(
     } else if (title) {
       lines.push(...wrapTextWithAnsi(title, width));
     }
-  } else if (title) {
+  } else if (title && expandable) {
     const hint = " (ctrl+o to expand)";
     lines.push(`${truncateToWidth(title, width - hint.length, "…")}${theme.fg("dim", hint)}`);
+  } else if (title) {
+    // No key to press — the title gets the whole line instead of making room for the hint.
+    lines.push(truncateToWidth(title, width, "…"));
   }
 
   // Build each role-keyed model row, then align the status cell to one shared column.
