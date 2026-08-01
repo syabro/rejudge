@@ -13,6 +13,7 @@ import {
   applyEvent,
   createProgressState,
   progressComponent,
+  progressTitle,
   type ProgressSnapshot,
 } from "./progress.ts";
 import { reviewMode } from "./review-mode.ts";
@@ -44,15 +45,6 @@ const parameters = Type.Object({
     }),
   ),
 });
-
-/** A short header title — the caller's `title`, else a trimmed first line of the question. */
-function progressTitle(question: string, title?: string): string {
-  const explicit = title?.trim();
-  if (explicit) return explicit;
-
-  const firstLine = question.trim().split("\n", 1)[0]?.trim() ?? "";
-  return firstLine.length > 120 ? `${firstLine.slice(0, 119)}…` : firstLine;
-}
 
 /**
  * Compose the caller's question and optional output instructions into the single

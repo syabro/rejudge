@@ -13,8 +13,10 @@ import { readFileSync, realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { parseCliArgs, USAGE } from "./cli-args.ts";
 import { resolveRejudgeConfig } from "./config.ts";
+import { progressTitle } from "./progress.ts";
 import { formatFailure, runReview } from "./review.ts";
 import { createStderrSink } from "./stderr-sink.ts";
+import { createTtyProgress, shouldDrawLiveBlock } from "./tty-progress.ts";
 import { formatReviewMode, reviewMode } from "./review-mode.ts";
 
 function msg(err: unknown): string {
@@ -112,7 +114,14 @@ async function main(): Promise<number> {
       }
     }
   }
-  console.error(formatReviewMode(reviewMode(args.resume)));
+  // A terminal gets the live block; everything else keeps the plain append log.
+  const mode = reviewMode(args.resume);
+  const liveBlock = shouldDrawLiveBlock(process.stderr);
+
+  // The block renders the mode itself, so printing it here too would just duplicate it.
+  if (!liveBlock) {
+    console.error(formatReviewMode(mode));
+  }
   if (args.resume) {
     // On resume the tool policy comes from the saved run's manifest, not these flags — so don't
     // print the read-only/unsafe label (it would misreport).
@@ -127,13 +136,30 @@ async function main(): Promise<number> {
   }
 
   // Live progress goes to stderr; the review answer owns stdout.
-  const result = await runReview(config, prompt, {
-    cwd,
-    fullTools: args.fullTools,
-    resumeRunId: args.resume,
-    promptAdds,
-    activitySink: createStderrSink(),
-  });
+  const progress = liveBlock
+    ? createTtyProgress({
+        reviewerModels: config.reviewers.map((model) => model.id),
+        judgeModel: config.judge.id,
+        title: progressTitle(prompt),
+        mode,
+      })
+    : undefined;
+
+  // Only the review is inside the try: the block must be finalized before anything else is
+  // written, or the answer would land in the middle of a frame the renderer still owns.
+  let result;
+  try {
+    result = await runReview(config, prompt, {
+      cwd,
+      fullTools: args.fullTools,
+      resumeRunId: args.resume,
+      promptAdds,
+      activitySink: progress ? progress.sink : createStderrSink(),
+    });
+  } finally {
+    progress?.stop();
+  }
+
   if (result.isErr()) {
     console.error(`rejudge: ${formatFailure(result.error)}`);
     return 1;

@@ -30,6 +30,24 @@ Reviews are read-only by default. Reviewers get `read`/`grep`/`find`/`ls` plus r
 
 Config resolves from `<cwd>/.rejudge/config.json`, then `~/.config/rejudge/config.json` (XDG-aware). See `config.md`. Provider credentials stay in environment variables such as `OPENCODE_API_KEY` or Pi's stored authentication; the CLI does not store them.
 
+## Live progress
+
+In a terminal, progress is the same block Pi draws — the judge, the reviewers beneath it, each one's current step and running time, and a total — redrawn in place until the run ends:
+
+```text
+Rejudge
+Mode: fresh — new panel
+review the runner change (ctrl+o to expand)
+  glm-5.1 (judge)        ✓  done (18s | 1 tool)
+    ⎿ deepseek-v4-pro    2. read       03s src/runner.ts
+    ⎿ minimax-m3         ✓  done (35s | 6 tools)
+Total 41s
+```
+
+Anywhere else — a pipe, a redirect, CI, an agent's shell — the output is the plain append log as before: one line per finished step, per model, per stage, then the total.
+
+Which one you get depends only on whether **stderr** is a terminal. Progress belongs to stderr because stdout carries the answer, so `rejudge "…" > answer.txt` still animates in a terminal, and `rejudge "…" 2> log.txt` still writes the flat log. Set `NO_COLOR` (any value, including empty) to drop the styling and keep the block.
+
 ## Packaged workflows
 
 Pi installs the same package with:
@@ -157,7 +175,7 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - `panel.md`'s Demo section now runs `bun src/cli.ts "<question>"`.
   - The AGENTS.md review rule no longer hardcodes a command — to avoid the same staleness it now delegates to the skills: code review → `fusion-review`, plan review → `fusion`.
 
-- [ ] CLI-065 Render CLI progress in the Pi format in TTY mode
+- [x] CLI-065 Render CLI progress in the Pi format in TTY mode
   Draw in a terminal the same live block as Pi: judge, reviewers under it, current step, running time, total.
 
   Leave non-TTY output (pipe, redirect, CI) as it is.
@@ -165,3 +183,10 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   DoD:
   - TTY: progress drawn in the Pi block format
   - non-TTY: output unchanged
+
+  **Implemented:**
+  - In a terminal the CLI now draws the same block the Pi tool does — judge, reviewers beneath it, each one's step and elapsed time, and a total — redrawn in place until the run ends. It reuses the existing renderer rather than adding a second one, so the two surfaces can't drift apart.
+  - Anything that isn't a terminal keeps the previous append log, byte-for-byte behavior: proven by a real run with stderr redirected, which produced the same step/model/stage/total lines and zero escape sequences.
+  - The choice depends only on whether **stderr** is a terminal, so redirecting the answer still animates and redirecting the log still writes flat text. Nothing else (`TERM`, color support, `CI`) can turn the block on, which keeps escape codes out of an agent's log.
+  - `NO_COLOR` — present at any value, per the convention — drops styling and keeps the block.
+  - A real terminal reporting no size (a `script(1)` pty reports `0`) falls back to 80×24 instead of collapsing the block; the block always leaves the last column free and never draws taller than the viewport, so the redraw can't smear.

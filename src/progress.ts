@@ -1,4 +1,4 @@
-import type { Theme } from "@earendil-works/pi-coding-agent";
+import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 import { type Component, truncateToWidth, visibleWidth, wrapTextWithAnsi } from "@earendil-works/pi-tui";
 import {
   JUDGE_ROLE_KEY,
@@ -19,6 +19,29 @@ import { formatReviewMode, reviewMode, type ReviewMode } from "./review-mode.ts"
  */
 
 type ModelStatus = "running" | "done" | "error" | "cancelled";
+
+/**
+ * The slice of Pi's `Theme` this renderer actually uses. Narrowed to a structural interface so
+ * the block can also be drawn outside a Pi host — the CLI passes a small ANSI implementation
+ * (see `tty-progress.ts`) instead of constructing a real `Theme`, whose constructor demands a
+ * full palette. Pi's `Theme` class satisfies this, so the extension passes its host theme as-is.
+ */
+export interface ProgressTheme {
+  fg(color: ThemeColor, text: string): string;
+  bold(text: string): string;
+}
+
+/**
+ * The header title for a run: the caller's explicit title, else the question's first line,
+ * clipped. Shared so the CLI block and the Pi tool title a run by the same rule.
+ */
+export function progressTitle(question: string, title?: string): string {
+  const explicit = title?.trim();
+  if (explicit) return explicit;
+
+  const firstLine = question.trim().split("\n", 1)[0]?.trim() ?? "";
+  return firstLine.length > 120 ? `${firstLine.slice(0, 119)}…` : firstLine;
+}
 
 /** Live state of one inner agent, built up from its progress events. */
 interface ModelProgress {
@@ -69,16 +92,21 @@ export interface ProgressSnapshot {
   diagnostics: { severity: "info" | "warn" | "error"; message: string }[];
 }
 
-/** A fresh snapshot with the full tree seeded — every row present, none started yet. */
+/**
+ * A fresh snapshot with the full tree seeded — every row present, none started yet.
+ * `startedAt` is injectable so a caller driving its own clock (the CLI renderer, tests) keeps
+ * the run's elapsed time on that same time source.
+ */
 export function createProgressState(
   reviewerModels: string[],
   judgeModel: string,
   title?: string,
   request?: string,
   mode: ReviewMode = reviewMode(),
+  startedAt: number = Date.now(),
 ): ProgressSnapshot {
   return {
-    startedAt: Date.now(),
+    startedAt,
     status: "running",
     mode,
     title,
@@ -196,7 +224,7 @@ function meta(durationMs: number, toolCount: number): string {
  * Before the first step (nothing has run yet) the cell is empty; the root clock carries the
  * liveness.
  */
-function statusCell(p: ModelProgress, now: number, theme: Theme): { text: string; detail?: string } {
+function statusCell(p: ModelProgress, now: number, theme: ProgressTheme): { text: string; detail?: string } {
   const total = (p.endedAt ?? now) - p.startedAt;
   switch (p.status) {
     case "done":
@@ -218,7 +246,7 @@ function statusCell(p: ModelProgress, now: number, theme: Theme): { text: string
 }
 
 /** Tint a whole row by a model's status: done green, error red, cancelled/waiting dim. */
-function tintRow(theme: Theme, status: ModelStatus | "waiting", line: string): string {
+function tintRow(theme: ProgressTheme, status: ModelStatus | "waiting", line: string): string {
   switch (status) {
     case "done":
       return theme.fg("success", line);
@@ -291,7 +319,7 @@ interface Row {
  */
 export function renderProgress(
   s: ProgressSnapshot,
-  theme: Theme,
+  theme: ProgressTheme,
   now: number = Date.now(),
   width: number = Number.POSITIVE_INFINITY,
   expanded = false,
@@ -371,7 +399,7 @@ export function renderProgress(
  */
 export function progressComponent(
   s: ProgressSnapshot,
-  theme: Theme,
+  theme: ProgressTheme,
   expanded: boolean,
   answer?: string,
 ): Component {
