@@ -193,3 +193,32 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - `NO_COLOR` — present at any value, per the convention — drops styling and keeps the block.
   - The header shows the `ctrl+o to expand` hint only where that key exists, i.e. inside Pi; the CLI shows the title alone rather than offering a key that does nothing.
   - A real terminal reporting no size (a `script(1)` pty reports `0`) falls back to 80×24 instead of collapsing the block; the block always leaves the last column free and never draws taller than the viewport, so the redraw can't smear.
+
+- [ ] CLI-066 Collapse the TTY preamble into one mode line inside the block
+  In a terminal the CLI prints four lines above the live block — `config:`, `reviewers:`,
+  `read-only:`, `running Rejudge…`. They go away. The one thing worth keeping from them, the
+  tool policy, moves inside the block and replaces its `Mode: fresh — new panel`:
+
+      Fresh | read-only read, grep, find, ls, git_diff
+      Resume 2026-08-01T07-28-16-698Z-ky2sm7 | read-only read, grep, find, ls, git_diff
+      Fresh | ⚠ UNSAFE read, grep, find, ls, git_diff, edit, write, bash
+
+  `Fresh`/`Resume` and `read-only` are bold; the run id, the separator and the safe tools are
+  dim; `⚠ UNSAFE` is red, bold and uppercase, with `edit`/`write`/`bash` red beside it. The
+  dangerous state has to be obvious at a glance next to the safe one, on a light terminal as
+  well as a dark one.
+
+  The tool list is whatever that run actually granted, never a constant — `web_search` is
+  only in it when the host offers the tool.
+
+  The renderer is shared, so this line also replaces `Mode:` in the Pi block, which today
+  says nothing about permissions at all. The Pi tool never grants write access, so there it
+  always reads `read-only`.
+
+  Non-TTY output — pipe, redirect, CI — keeps its full preamble and its flat log.
+
+  DoD:
+  - a terminal run shows nothing above the block, and the mode line inside it
+  - `⚠ UNSAFE` is distinguishable from `read-only` at a glance on a light and a dark theme
+  - the listed tools are the ones that run actually granted
+  - piped or redirected output is unchanged
