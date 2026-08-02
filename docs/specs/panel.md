@@ -220,3 +220,12 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   - Different reviewer sessions continue in parallel, while answer blocks keep their original query order.
   - The `ask_panel` contract explains how repeated and distinct reviewer queries are scheduled.
   - Deterministic and live-session checks cover repeated roles, mixed roles, output order, and two clean follow-up turns.
+
+- [ ] PNL-067 Give the reviewer its own tool list in the prompt
+  Reviewer time goes into the review instead of retries of a tool that is not there.
+
+  Name the tools the run actually granted — read, grep, find, ls, git_diff, plus web_search when the host has it — say the run is read-only, and say the deliverable is the write-up.
+
+  DoD:
+  - the reviewer prompt lists exactly the tools that run granted, from the same source as the session's tool set
+  - the prompt states that the run is read-only
