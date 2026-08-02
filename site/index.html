@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rejudge</title>
+<meta name="description" content="Independent review before your agent acts. Separate reviewer models investigate your request, a judge returns one answer.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%96%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<style>
+  /* ── tokens ─────────────────────────────────────────────────────────── */
+  :root{
+    --ink:#1d1d1f; --ink-2:#6e6e73; --line:#d2d2d7; --soft:#f5f5f7; --page:#fff;
+    --accent:#c2410c; --accent-soft:#fdf1e7;
+    --ok:#1a7f37; --danger:#d70015;
+    --term-bg:#17181a; --term-ink:#dcdcda; --term-dim:#8a8b86; --term-ok:#84c46a; --term-err:#ee6f63;
+    --page-gutter:80px;
+  }
+
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ink:#ececef; --ink-2:#98989d; --line:#33343a; --soft:#1b1c1f; --page:#131417;
+      --accent:#f08f4e; --accent-soft:#2a1d14;
+      --ok:#63c07e; --danger:#ff6b63;
+      --term-bg:#0d0e10;
+    }
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);font:16px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+  p{margin:0 0 16px}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  chip,code,pre{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+  chip,code{background:var(--soft);border-radius:4px;padding:.05em .35em;font-size:.85rem}
+  chip{display:inline-block;font-weight:500}
+  pre{margin:0 0 18px;padding:16px 18px;overflow-x:auto;border-radius:12px;background:var(--soft);font-size:.78rem;line-height:1.7;font-weight:500}
+  pre code{background:transparent;color:inherit;font:inherit;padding:0}
+  .cmt{color:var(--ink-2)}
+
+  .wrap{max-width:880px;margin:0 auto;padding:64px 40px 120px}
+  section{margin:0 0 96px}
+  section:last-of-type{margin-bottom:64px}
+
+  .eyebrow{margin:0 0 10px;color:var(--ink-2);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  h2{margin:0 0 22px;font-size:24px;line-height:1.25;font-weight:600;letter-spacing:-.01em}
+
+  /* ── hero ───────────────────────────────────────────────────────────── */
+  .hero{margin:0 0 56px}
+  .hero h1{margin:0 0 6px;font-size:clamp(36px,6vw,56px);line-height:1.05;font-weight:680;letter-spacing:-.025em}
+  .hero .rule{width:56px;height:3px;margin:0 0 22px;background:var(--accent);border-radius:2px}
+  .hero .tagline{max-width:30ch;margin:0 0 32px;font-size:clamp(19px,2.6vw,24px);line-height:1.3;font-weight:500;color:var(--ink)}
+  .hero .cta{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+  .hero .cmd{margin:0;padding:13px 18px;background:var(--term-bg);color:var(--term-ink);border-radius:10px;font-size:.82rem}
+  .hero .cmd .p{color:var(--term-dim)}
+  .hero .cta a{padding:12px 16px;border:1px solid var(--line);border-radius:10px;color:var(--ink);font-size:14px;font-weight:500}
+  .hero .cta a:hover{border-color:var(--accent);color:var(--accent);text-decoration:none}
+
+  /* ── terminal frame ─────────────────────────────────────────────────── */
+  .run{margin:0 0 96px}
+  .run pre{background:var(--term-bg);color:var(--term-ink);padding:22px 24px;border-radius:14px;margin-bottom:14px}
+  .run .dim{color:var(--term-dim)}
+  .run .ok{color:var(--term-ok)}
+  .run .err{color:var(--term-err)}
+  .run .b{font-weight:700}
+  .run figcaption{color:var(--ink-2);font-size:14px;line-height:1.45}
+
+  /* ── lede ───────────────────────────────────────────────────────────── */
+  .lede p{font-size:19px;line-height:1.5}
+  .lede p:last-child{margin-bottom:0}
+  .lede strong{font-weight:620}
+
+  /* ── panel diagram ──────────────────────────────────────────────────── */
+  .diagram{display:grid;gap:14px;margin:0 0 26px}
+  .reviewers{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .node{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--page)}
+  .node .role{margin:0 0 4px;color:var(--ink-2);font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
+  .node .name{margin:0;font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem}
+  .node .did{margin:8px 0 0;color:var(--ink-2);font-size:13px;line-height:1.4}
+  .node.judge{border-color:var(--accent);background:var(--accent-soft)}
+  .node.judge .role{color:var(--accent)}
+  .node.answer{border-style:dashed}
+  .arrows{display:grid;grid-template-columns:repeat(3,1fr);color:var(--line);font-size:18px;text-align:center;line-height:1}
+  .arrow-one{color:var(--line);font-size:18px;text-align:center;line-height:1}
+
+  /* ── steps ──────────────────────────────────────────────────────────── */
+  .step{margin:0 0 28px}
+  .step:last-child{margin-bottom:0}
+  .step h3{display:flex;align-items:baseline;gap:10px;margin:0 0 8px;font-size:16px;font-weight:620}
+  .step h3 b{color:var(--accent);font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.85rem;font-weight:700}
+  .step p:last-child{margin-bottom:0}
+
+  /* ── notes ──────────────────────────────────────────────────────────── */
+  .note{border-left:2px solid var(--line);padding:0 0 0 18px;margin:0 0 22px}
+  .note:last-child{margin-bottom:0}
+  .note h3{margin:0 0 6px;font-size:15px;font-weight:620}
+  .note p{margin:0;color:var(--ink-2);font-size:15px;line-height:1.5}
+  .note.danger{border-left-color:var(--danger)}
+  .note.danger h3{color:var(--danger)}
+
+  footer{border-top:1px solid var(--line);padding-top:22px;color:var(--ink-2);font-size:14px}
+  footer a{color:var(--ink-2)}
+
+  @media (max-width:700px){
+    :root{--page-gutter:44px}
+    .wrap{padding:44px 22px 90px}
+    section{margin-bottom:72px}
+    .reviewers{grid-template-columns:1fr}
+    .arrows{grid-template-columns:1fr}
+    .arrows span:nth-child(n+2){display:none}
+    .hero .cmd{width:100%}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <h1>Rejudge</h1>
+    <div class="rule"></div>
+    <p class="tagline">Independent review before your agent acts.</p>
+    <div class="cta">
+      <pre class="cmd"><code><span class="p">$</span> npm install -g rejudge</code></pre>
+      <a href="https://github.com/syabro/rejudge">GitHub</a>
+      <a href="https://www.npmjs.com/package/rejudge">npm</a>
+    </div>
+  </header>
+
+  <figure class="run">
+<pre><code><span class="b">Rejudge</span>
+<span class="dim">Fresh · read-only</span>
+does this migration need a lock?
+  gpt-5.5 (judge)      <span class="dim">  0.</span> thinking     01s <span class="dim">weighing the two objections</span>
+    ⎿ deepseek-v4-pro  <span class="ok">✓  done (35s | 6 tools)</span>
+    ⎿ mimo-v2.5-pro    <span class="ok">✓  done (41s | 4 tools)</span>
+    ⎿ gpt-5.4          <span class="dim">  2.</span> read         03s <span class="dim">db/migrate/0142_add_index.sql</span>
+<span class="dim">Total 52s</span></code></pre>
+    <figcaption>Three reviewers read the code on their own. The judge waits for them, then answers.</figcaption>
+  </figure>
+
+  <section class="lede">
+    <p class="eyebrow">Why</p>
+    <p>The agent that just wrote the code is the worst candidate to review it. It checks its own reasoning with the model that produced it, so a mistake made while writing survives the reading.</p>
+    <p>Asking one other model helps — until that model is confidently wrong. You get a fluent second opinion with nothing to weigh it against, and no signal about which parts are actually contested.</p>
+    <p><strong>Rejudge runs several models that never see each other's work, then makes one of them account for the disagreement.</strong> What comes back is either agreement worth trusting or a dissent worth reading.</p>
+  </section>
+
+  <section>
+    <p class="eyebrow">How it works</p>
+    <h2>Separate sessions, then one accountable answer</h2>
+
+    <div class="diagram">
+      <div class="reviewers">
+        <div class="node">
+          <p class="role">Reviewer</p>
+          <p class="name">deepseek-v4-pro</p>
+          <p class="did">Reads the migration and the index it touches.</p>
+        </div>
+        <div class="node">
+          <p class="role">Reviewer</p>
+          <p class="name">mimo-v2.5-pro</p>
+          <p class="did">Greps for every caller of the changed table.</p>
+        </div>
+        <div class="node">
+          <p class="role">Reviewer</p>
+          <p class="name">gpt-5.4</p>
+          <p class="did">Checks the rollback path and finds a race.</p>
+        </div>
+      </div>
+      <div class="arrows"><span>↓</span><span>↓</span><span>↓</span></div>
+      <div class="node judge">
+        <p class="role">Judge</p>
+        <p class="name">gpt-5.5</p>
+        <p class="did">Reads the three write-ups, not your repository. Where they materially disagree, it re-queries the reviewers inside their live sessions and settles the point.</p>
+      </div>
+      <div class="arrow-one">↓</div>
+      <div class="node answer">
+        <p class="role">Answer + run id</p>
+        <p class="did">One answer, with the dissent kept when it matters. Continuing on the run id reuses the same sessions instead of paying for a fresh panel.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Install</p>
+    <h2>Three steps to the first review</h2>
+
+    <div class="step">
+      <h3><b>01</b> Install the CLI</h3>
+      <p>Node 22.19 or newer. The package ships prebuilt, so Bun is needed only to build from source.</p>
+<pre><code>npm install -g rejudge</code></pre>
+    </div>
+
+    <div class="step">
+      <h3><b>02</b> Configure the panel</h3>
+      <p>Create <code>.rejudge/config.json</code> in the project you want reviewed. Two reviewers minimum, and every model carries a reasoning level — <chip>minimal</chip> <chip>low</chip> <chip>medium</chip> <chip>high</chip> <chip>xhigh</chip>.</p>
+<pre><code>{
+  "reviewers": [
+    "opencode-go/deepseek-v4-pro@high",
+    "opencode-go/mimo-v2.5-pro@high",
+    "opencode-go/minimax-m3@high"
+  ],
+  "judge": "opencode-go/glm-5.1@high"
+}</code></pre>
+      <p>A project config wins over the global one at <code>~/.config/rejudge/config.json</code>. Credentials stay in the environment; the CLI never stores a key.</p>
+    </div>
+
+    <div class="step">
+      <h3><b>03</b> Ask</h3>
+<pre><code>rejudge "does this migration need a lock?"
+git diff | rejudge "review this change"
+rejudge --resume &lt;run-id&gt; "what about the rollback path?"</code></pre>
+      <p>The answer owns stdout; progress, configuration, and the run id go to stderr, so redirecting the answer keeps it clean. Inside Pi the same package registers a native <code>rejudge</code> tool plus the <code>/rejudge</code> and <code>/rejudge-diff</code> workflows.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="eyebrow">Before you run it</p>
+    <h2>What it costs you to ask</h2>
+
+    <div class="note">
+      <h3>Your request reaches every configured provider</h3>
+      <p>A fresh review sends the request to each reviewer, and anything they read through their tools becomes part of that model session. Treat sensitive text as shared with all of them.</p>
+    </div>
+
+    <div class="note danger">
+      <h3>--unsafe is not a sandbox</h3>
+      <p>By default reviewers get read, grep, find, ls, and a read-only <code>git_diff</code>, and the judge gets only its follow-up tool. The flag hands reviewers edit, write, and shell access in your environment.</p>
+    </div>
+
+    <div class="note">
+      <h3>There is no spending cap</h3>
+      <p>One review invokes every reviewer and then the judge, plus retries and follow-ups. Cost and rate limits come from the models you configure.</p>
+    </div>
+
+    <div class="note">
+      <h3>Agreement is not correctness</h3>
+      <p>Separate sessions make the reviews independent, not the errors. Rejudge promises an independent process, not truth by consensus — verify anything consequential.</p>
+    </div>
+  </section>
+
+  <footer>
+    MIT licensed · <a href="https://github.com/syabro/rejudge">github.com/syabro/rejudge</a> · <a href="https://www.npmjs.com/package/rejudge">npm</a>
+  </footer>
+
+</div>
+</body>
+</html>
