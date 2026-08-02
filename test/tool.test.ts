@@ -139,6 +139,9 @@ test("rejudge returns user cancellation as its own model-visible result", async 
   expect(text).toBe("Rejudge cancelled by user.");
   expect(text).not.toMatch(/rejudge failed/i);
   expect(updates[0]?.mode).toEqual({ kind: "fresh" });
+  expect(updates[0]?.toolPolicy?.fullTools).toBe(false);
+  expect(updates[0]?.toolPolicy?.tools).toEqual(expect.arrayContaining(["read", "grep", "find", "ls", "git_diff"]));
+  expect(updates[0]?.toolPolicy?.tools).not.toEqual(expect.arrayContaining(["edit", "write", "bash"]));
   expect(updates[0]?.models).toEqual([]);
   expect(snapshot.mode).toEqual({ kind: "fresh" });
   expect(snapshot.status).toBe("cancelled");

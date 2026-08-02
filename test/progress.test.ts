@@ -23,9 +23,19 @@ function seeded(): ProgressSnapshot {
   return s;
 }
 
-test("progress identifies fresh and resumed runs throughout their lifecycle", () => {
-  const fresh = createProgressState(["prov/panel-a"], "prov/judge", "fresh review");
-  expect(renderProgress(fresh, THEME, fresh.startedAt).join("\n")).toContain("Mode: fresh — new panel");
+test("progress identifies fresh and resumed tool policy throughout their lifecycle", () => {
+  const safeTools = ["read", "grep", "find", "ls", "git_diff"];
+  const fresh = createProgressState(
+    ["prov/panel-a"],
+    "prov/judge",
+    "fresh review",
+    undefined,
+    reviewMode(),
+    { fullTools: false, tools: safeTools },
+  );
+  expect(renderProgress(fresh, THEME, fresh.startedAt).join("\n")).toContain(
+    "Fresh | read-only read, grep, find, ls, git_diff",
+  );
 
   const runId = "2026-07-16T00-00-00-000Z-resume";
   for (const status of ["done", "error", "cancelled"] as const) {
@@ -35,14 +45,38 @@ test("progress identifies fresh and resumed runs throughout their lifecycle", ()
       "follow up",
       undefined,
       reviewMode(runId),
+      { fullTools: false, tools: [...safeTools, "web_search"] },
     );
     const first = renderProgress(resumed, THEME, resumed.startedAt).join("\n");
-    expect(first).toContain(`Mode: resumed — ${runId}`);
+    expect(first).toContain(`Resume ${runId} | read-only read, grep, find, ls, git_diff, web_search`);
 
     applyEvent(resumed, { kind: "total", t: resumed.startedAt + 1000, durationMs: 1000, status });
     const final = renderProgress(resumed, THEME, resumed.startedAt + 1000).join("\n");
-    expect(final).toContain(`Mode: resumed — ${runId}`);
+    expect(final).toContain(`Resume ${runId} | read-only read, grep, find, ls, git_diff, web_search`);
   }
+});
+
+test("unsafe progress makes the warning and dangerous tools visually distinct", () => {
+  const theme = {
+    fg: (color: string, text: string) => `<${color}>${text}</${color}>`,
+    bold: (text: string) => `<bold>${text}</bold>`,
+  } as unknown as Theme;
+  const state = createProgressState(
+    ["prov/panel-a"],
+    "prov/judge",
+    "unsafe review",
+    undefined,
+    reviewMode(),
+    { fullTools: true, tools: ["read", "git_diff", "edit", "write", "bash"] },
+  );
+
+  const line = renderProgress(state, theme, state.startedAt)[1]!;
+  expect(line).toContain("<error><bold>⚠ UNSAFE</bold></error>");
+  expect(line).toContain("<error>edit</error>");
+  expect(line).toContain("<error>write</error>");
+  expect(line).toContain("<error>bash</error>");
+  expect(line).toContain("<dim>read</dim>");
+  expect(line).toContain("<dim>git_diff</dim>");
 });
 
 test("legacy progress snapshots without mode still render", () => {
@@ -51,7 +85,7 @@ test("legacy progress snapshots without mode still render", () => {
 
   const rendered = renderProgress(legacy as ProgressSnapshot, THEME, legacy.startedAt).join("\n");
   expect(rendered).toContain("Rejudge");
-  expect(rendered).not.toContain("Mode:");
+  expect(rendered).not.toContain("read-only");
 });
 
 // The bug that crashed the host (pi-tui throws when any rendered line exceeds the terminal width):

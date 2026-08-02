@@ -9,7 +9,13 @@ import {
   formatDur,
   shortModel,
 } from "./events.ts";
-import { formatReviewMode, reviewMode, type ReviewMode } from "./review-mode.ts";
+import {
+  formatLiveReviewMode,
+  formatReviewMode,
+  reviewMode,
+  type ReviewerToolPolicy,
+  type ReviewMode,
+} from "./review-mode.ts";
 
 /**
  * The live-progress model and renderer for the `rejudge` tool block: a snapshot built
@@ -78,6 +84,8 @@ export interface ProgressSnapshot {
   status: ModelStatus;
   /** Whether this invocation started a new panel or restored a specific prior run. Absent on legacy snapshots. */
   mode?: ReviewMode;
+  /** Exact tools granted to panel agents. Absent on legacy snapshots. */
+  toolPolicy?: ReviewerToolPolicy;
   /** Short title shown in the header (`Rejudge <title>`); what this run is about. */
   title?: string;
   /** Full request sent to the panel (`buildInvocationPrompt(question, outputInstructions)`),
@@ -103,12 +111,14 @@ export function createProgressState(
   title?: string,
   request?: string,
   mode: ReviewMode = reviewMode(),
+  toolPolicy?: ReviewerToolPolicy,
   startedAt: number = Date.now(),
 ): ProgressSnapshot {
   return {
     startedAt,
     status: "running",
     mode,
+    toolPolicy,
     title,
     request,
     reviewerModels: [...reviewerModels],
@@ -330,7 +340,9 @@ export function renderProgress(
 
   // Header line 1: bold "Rejudge", colored by status (the time lives on the Total line).
   const lines = [tintRow(theme, s.status, theme.bold("Rejudge"))];
-  if (s.mode) {
+  if (s.mode && s.toolPolicy) {
+    lines.push(formatLiveReviewMode(s.mode, s.toolPolicy, theme));
+  } else if (s.mode) {
     lines.push(formatReviewMode(s.mode));
   }
 

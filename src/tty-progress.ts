@@ -1,7 +1,7 @@
 import type { ThemeColor } from "@earendil-works/pi-coding-agent";
 import type { ActivitySink } from "./events.ts";
 import { applyEvent, createProgressState, renderProgress, type ProgressTheme } from "./progress.ts";
-import type { ReviewMode } from "./review-mode.ts";
+import type { ReviewerToolPolicy, ReviewMode } from "./review-mode.ts";
 
 /**
  * The CLI's live progress block: the same tree the `rejudge` tool draws inside Pi
@@ -99,6 +99,7 @@ export interface TtyProgressOptions {
   /** Header title for the run; see `progressTitle`. */
   title?: string;
   mode: ReviewMode;
+  toolPolicy: ReviewerToolPolicy;
   /** Defaults to `process.stderr`; injected in tests. */
   stream?: ProgressStream;
   /** Defaults to {@link cliTheme}; injected in tests. */
@@ -129,6 +130,7 @@ export function createTtyProgress(options: TtyProgressOptions): TtyProgress {
     options.title,
     undefined,
     options.mode,
+    options.toolPolicy,
     now(),
   );
 

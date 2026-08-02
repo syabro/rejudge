@@ -3,7 +3,14 @@ import { createAgentSession, type AgentSession } from "@earendil-works/pi-coding
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { REVIEWER_TOOLS, READONLY_TOOLS, createInnerSession, resolveModel, runReviewer } from "../src/runner.ts";
+import {
+  REVIEWER_TOOLS,
+  READONLY_TOOLS,
+  createInnerSession,
+  resolveModel,
+  reviewerToolNames,
+  runReviewer,
+} from "../src/runner.ts";
 import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "../src/git-diff-tool.ts";
 import { ASK_PANEL_TOOL_NAME, makeAskPanelTool } from "../src/ask-panel-tool.ts";
 import { integrationTest } from "./integration.ts";
@@ -60,6 +67,29 @@ function fakeRunSession(turns: FakePromptTurn[]): FakeRunSession {
   return session;
 }
 
+test("reviewer tool names reflect the granted safety mode and available host tools", () => {
+  expect(reviewerToolNames(false, [])).toEqual(["read", "grep", "find", "ls", "git_diff"]);
+  expect(reviewerToolNames(false, ["web_search"])).toEqual([
+    "read",
+    "grep",
+    "find",
+    "ls",
+    "git_diff",
+    "web_search",
+  ]);
+  expect(reviewerToolNames(true, ["web_search"])).toEqual([
+    "read",
+    "grep",
+    "find",
+    "ls",
+    "git_diff",
+    "edit",
+    "write",
+    "bash",
+    "web_search",
+  ]);
+});
+
 // Real SDK, no model call: a session created with REVIEWER_TOOLS actually activates
 // the full local tool set — read, the dedicated grep/find/ls search/list tools,
 // and edit/write/bash — so inner agents search/list with the dedicated tools
@@ -99,6 +129,18 @@ test("a session with git_diff in customTools + allow-list activates it", async (
   });
   try {
     expect(session.getActiveToolNames()).toContain(GIT_DIFF_TOOL_NAME);
+  } finally {
+    session.dispose();
+  }
+}, 30_000);
+
+test("a pre-resolved read-only policy is the session's exact allow-list", async () => {
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
+  const reviewerTools = reviewerToolNames(false, []);
+  const session = await createInnerSession(STUB, { cwd, fullTools: true, reviewerTools });
+
+  try {
+    expect(session.getActiveToolNames()).toEqual(reviewerTools);
   } finally {
     session.dispose();
   }

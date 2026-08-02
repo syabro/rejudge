@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -141,6 +141,13 @@ test("source CLI reports fresh and resumed mode before starting review work", ()
     expect(fresh.status).toBe(1);
     const freshMode = "Mode: fresh — new panel";
     const freshRunning = "running Rejudge on real models";
+    expect(fresh.stderr.split("\n").slice(0, 5)).toEqual([
+      `config: ${join(realpathSync(cwd), ".rejudge", "config.json")}`,
+      "reviewers: missing/reviewer-a@minimal, missing/reviewer-b@minimal | judge: missing/judge@minimal",
+      freshMode,
+      "read-only: inner agents limited to read/grep/find/ls",
+      "running Rejudge on real models (this takes a few minutes)…",
+    ]);
     expect(fresh.stderr).toContain(freshMode);
     expect(fresh.stderr.indexOf(freshMode)).toBeLessThan(fresh.stderr.indexOf(freshRunning));
     expect(fresh.stderr.indexOf(freshRunning)).toBeLessThan(fresh.stderr.lastIndexOf("rejudge:"));

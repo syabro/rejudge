@@ -44,6 +44,7 @@ function harness(options: { columns?: number; rows?: number; noColor?: boolean }
     judgeModel: "prov/judge",
     title: "a title",
     mode: reviewMode(),
+    toolPolicy: { fullTools: false, tools: ["read", "grep", "find", "ls", "git_diff"] },
     stream,
     theme: cliTheme(options.noColor ? { NO_COLOR: "" } : {}),
     now: () => clock,
@@ -78,7 +79,7 @@ test("the first frame draws the whole tree and never moves the cursor up", () =>
 
   const text = plain(first);
   expect(text).toContain("Rejudge");
-  expect(text).toContain("Mode: fresh — new panel");
+  expect(text).toContain("Fresh | read-only read, grep, find, ls, git_diff");
   expect(text).toContain("a title");
   // The CLI is not interactive: offering a key that does nothing here would be a lie. The hint
   // belongs to Pi, which actually binds ctrl+o (pinned in test/progress.test.ts).
@@ -154,6 +155,7 @@ test("a terminal reporting size 0 falls back to the default size and still draws
       judgeModel: "prov/judge",
       title: "a title",
       mode: reviewMode(),
+      toolPolicy: { fullTools: false, tools: ["read", "grep", "find", "ls", "git_diff"] },
       stream,
       theme: cliTheme({ NO_COLOR: "" }),
     });

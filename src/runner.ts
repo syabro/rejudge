@@ -22,17 +22,7 @@ import {
   type RunStatus,
 } from "./events.ts";
 import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "./git-diff-tool.ts";
-
-/**
- * The full local tool set: the SDK's built-ins — read, the dedicated grep/find/ls
- * search-and-list tools, and edit/write/bash. Used only when the caller opts into
- * write access (`fullTools`); the default is the read-only subset below. grep/find/ls
- * are wired in so reviewers search and list with the dedicated tools rather than
- * shelling out through bash (slow and noisy). Host extensions are not inherited —
- * only these built-in tools are exposed (which also keeps a reviewer from re-entering
- * `rejudge`).
- */
-export const REVIEWER_TOOLS = ["read", "grep", "find", "ls", "edit", "write", "bash"] as const;
+import { DANGEROUS_REVIEWER_TOOLS } from "./review-mode.ts";
 
 /**
  * The read-only subset (the SDK's read-only tools): read plus the dedicated
@@ -42,6 +32,12 @@ export const REVIEWER_TOOLS = ["read", "grep", "find", "ls", "edit", "write", "b
  * default; only read and search.
  */
 export const READONLY_TOOLS = ["read", "grep", "find", "ls"] as const;
+
+/**
+ * The full local built-in tool set. It extends the read-only tools with the shared dangerous-tool
+ * tuple so session policy and warning styling cannot diverge.
+ */
+export const REVIEWER_TOOLS = [...READONLY_TOOLS, ...DANGEROUS_REVIEWER_TOOLS] as const;
 
 /**
  * A host extension tool the inner agents opt into when the host provides it: `web_search`.
@@ -59,6 +55,48 @@ export const WEB_SEARCH_TOOL = "web_search";
  * agent's completion. Today the only opt-in is `web_search`.
  */
 const OPT_IN_HOST_TOOLS = new Set<string>([WEB_SEARCH_TOOL]);
+
+/** Exact reviewer allow-list for one safety mode and the host tools available to this run. */
+export function reviewerToolNames(fullTools: boolean, hostTools: readonly string[]): string[] {
+  const tools = [...READONLY_TOOLS, GIT_DIFF_TOOL_NAME];
+  if (fullTools) {
+    tools.push(...DANGEROUS_REVIEWER_TOOLS);
+  }
+  if (hostTools.includes(WEB_SEARCH_TOOL)) {
+    tools.push(WEB_SEARCH_TOOL);
+  }
+  return tools;
+}
+
+function innerResourceLoader(cwd: string): { resourceLoader: DefaultResourceLoader; settingsManager: SettingsManager } {
+  const agentDir = getAgentDir();
+  const settingsManager = SettingsManager.create(cwd, agentDir);
+  const resourceLoader = new DefaultResourceLoader({
+    cwd,
+    agentDir,
+    settingsManager,
+    extensionsOverride: (base) => ({
+      ...base,
+      extensions: base.extensions.filter((e) =>
+        [...e.tools.keys()].some((name) => OPT_IN_HOST_TOOLS.has(name)),
+      ),
+    }),
+  });
+  return { resourceLoader, settingsManager };
+}
+
+function availableHostTools(resourceLoader: DefaultResourceLoader): string[] {
+  return resourceLoader.getExtensions().extensions
+    .flatMap((extension) => [...extension.tools.keys()])
+    .filter((name) => OPT_IN_HOST_TOOLS.has(name));
+}
+
+/** Resolve the exact reviewer tools before a live block is first painted. */
+export async function resolveReviewerToolNames(cwd: string, fullTools: boolean): Promise<string[]> {
+  const { resourceLoader } = innerResourceLoader(cwd);
+  await resourceLoader.reload();
+  return reviewerToolNames(fullTools, availableHostTools(resourceLoader));
+}
 
 const EMPTY_VISIBLE_TEXT_RETRY_PROMPT =
   "Your previous turn had no visible final answer. Please provide the final answer now in visible assistant text only. Do not use hidden thinking as the answer.";
@@ -97,6 +135,8 @@ export interface RunReviewerOptions {
    * `ask_panel`. Default: false → {@link READONLY_TOOLS}.
    */
   fullTools?: boolean;
+  /** Exact pre-resolved reviewer tools; keeps the rendered policy and session allow-list identical. */
+  reviewerTools?: readonly string[];
   /**
    * Progress sink. When set, this agent emits `model_start`/`activity`/`model_end`
    * {@link ActivitySink} events through it so a consumer can render live progress. When
@@ -195,38 +235,15 @@ export async function createInnerSession(
   // (read-only or, on opt-in, full) plus git_diff.
   const judge = options.role === "judge";
   const askPanel = options.askPanel;
-  const tools = judge
-    ? askPanel ? [askPanel.name] : []
-    : [...(options.fullTools ? REVIEWER_TOOLS : READONLY_TOOLS), GIT_DIFF_TOOL_NAME];
   const customTools = judge ? (askPanel ? [askPanel] : []) : [gitDiffTool];
-
-  // Build and reload the loader ourselves so we can read the surviving host tools, then hand the
-  // same instance to createAgentSession.
-  const agentDir = getAgentDir();
-  const settingsManager = SettingsManager.create(cwd, agentDir);
-  const resourceLoader = new DefaultResourceLoader({
-    cwd,
-    agentDir,
-    settingsManager,
-    extensionsOverride: (base) => ({
-      ...base,
-      extensions: base.extensions.filter((e) =>
-        [...e.tools.keys()].some((name) => OPT_IN_HOST_TOOLS.has(name)),
-      ),
-    }),
-  });
+  const { resourceLoader, settingsManager } = innerResourceLoader(cwd);
   await resourceLoader.reload();
 
-  // A panel agent opts into the host's web_search when present; the judge delegates host-tool work
-  // to the panel, so this block runs for panel agents.
-  if (!judge) {
-    const hostTools = new Set(
-      resourceLoader.getExtensions().extensions.flatMap((e) => [...e.tools.keys()]),
-    );
-    if (hostTools.has(WEB_SEARCH_TOOL)) {
-      tools.push(WEB_SEARCH_TOOL);
-    }
-  }
+  const tools = judge
+    ? askPanel ? [askPanel.name] : []
+    : options.reviewerTools
+      ? [...options.reviewerTools]
+      : reviewerToolNames(Boolean(options.fullTools), availableHostTools(resourceLoader));
 
   const { session } = await createAgentSession({
     model,

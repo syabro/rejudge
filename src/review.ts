@@ -236,6 +236,7 @@ async function resumeRun(
         cwd,
         role: "reviewer",
         fullTools: manifest.fullTools,
+        reviewerTools: options.reviewerTools,
         thinkingLevel: ref.level,
         sessionManager: SessionManager.open(ref.file),
       });

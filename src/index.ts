@@ -9,6 +9,7 @@ import { Type } from "typebox";
 import { resolveRejudgeConfig } from "./config.ts";
 import type { ActivitySink } from "./events.ts";
 import { formatFailure, runReview } from "./review.ts";
+import { resolveReviewerToolNames } from "./runner.ts";
 import {
   applyEvent,
   createProgressState,
@@ -100,6 +101,19 @@ export default function (pi: ExtensionAPI): void {
         };
       }
 
+      // Resolve panel permissions before the first paint so the line always names the tools this
+      // Pi invocation actually grants. Pi never opts into edit/write/bash.
+      let reviewerTools: string[];
+      try {
+        reviewerTools = await resolveReviewerToolNames(ctx.cwd, false);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text", text: `rejudge failed: could not resolve reviewer tools (${message})` }],
+          details: undefined,
+        };
+      }
+
       // Live progress, scoped to this tool call (a second invocation starts clean). The tree
       // is seeded with every panel + judge row up front, "waiting…" until each model starts.
       const state = createProgressState(
@@ -108,6 +122,7 @@ export default function (pi: ExtensionAPI): void {
         progressTitle(params.question, params.title),
         prompt,
         reviewMode(resumeRunId),
+        { fullTools: false, tools: reviewerTools },
       );
 
       // Each update carries an immutable clone in `details` (a late render must never see
@@ -131,7 +146,13 @@ export default function (pi: ExtensionAPI): void {
         // Thread the cancel signal end-to-end: aborting stops every in-flight agent.
         // Read-only by default (no `fullTools`) — the tool is a Q&A/review surface, so a
         // calling agent can't get edit/write/bash behind the user's back.
-        const result = await runReview(config, prompt, { cwd: ctx.cwd, signal, activitySink: sink, resumeRunId });
+        const result = await runReview(config, prompt, {
+          cwd: ctx.cwd,
+          signal,
+          activitySink: sink,
+          resumeRunId,
+          reviewerTools,
+        });
         // Don't throw on failure — throwing makes the host discard the whole rendered block.
         // Return instead: the final snapshot stays in `details` so the block keeps its failed
         // (red/cancelled) rows, and the failure is surfaced as the content text (no fabricated

@@ -15,9 +15,11 @@ import { parseCliArgs, USAGE } from "./cli-args.ts";
 import { resolveRejudgeConfig } from "./config.ts";
 import { progressTitle } from "./progress.ts";
 import { formatFailure, runReview } from "./review.ts";
+import { readManifest } from "./run-store.ts";
+import { resolveReviewerToolNames } from "./runner.ts";
 import { createStderrSink } from "./stderr-sink.ts";
 import { createTtyProgress, shouldDrawLiveBlock } from "./tty-progress.ts";
-import { formatReviewMode, reviewMode } from "./review-mode.ts";
+import { formatReviewMode, reviewMode, type ReviewerToolPolicy } from "./review-mode.ts";
 
 function msg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
@@ -95,9 +97,12 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  console.error(`config: ${path}`);
-  const showSpec = (m: { id: string; level: string }): string => `${m.id}@${m.level}`;
-  console.error(`reviewers: ${config.reviewers.map(showSpec).join(", ")} | judge: ${showSpec(config.judge)}`);
+  const liveBlock = shouldDrawLiveBlock(process.stderr);
+  if (!liveBlock) {
+    console.error(`config: ${path}`);
+    const showSpec = (m: { id: string; level: string }): string => `${m.id}@${m.level}`;
+    console.error(`reviewers: ${config.reviewers.map(showSpec).join(", ")} | judge: ${showSpec(config.judge)}`);
+  }
 
   // Testing-only --prompt-add-N validation needs the resolved panel size. A resume doesn't re-run
   // the panel, so a per-panel add would be silently ignored — reject the combination loudly.
@@ -114,34 +119,44 @@ async function main(): Promise<number> {
       }
     }
   }
-  // A terminal gets the live block; everything else keeps the plain append log.
+  // A terminal gets only the live block; everything else keeps the unchanged flat preamble.
   const mode = reviewMode(args.resume);
-  const liveBlock = shouldDrawLiveBlock(process.stderr);
-
-  // The block renders the mode itself, so printing it here too would just duplicate it.
   if (!liveBlock) {
     console.error(formatReviewMode(mode));
-  }
-  if (args.resume) {
-    // On resume the tool policy comes from the saved run's manifest, not these flags — so don't
-    // print the read-only/unsafe label (it would misreport).
-    console.error(`resuming run ${args.resume} (this takes a few minutes)…`);
-  } else {
-    console.error(
-      args.fullTools
-        ? "unsafe: inner agents can edit/write/run bash in this directory"
-        : "read-only: inner agents limited to read/grep/find/ls",
-    );
-    console.error("running Rejudge on real models (this takes a few minutes)…");
+    if (args.resume) {
+      console.error(`resuming run ${args.resume} (this takes a few minutes)…`);
+    } else {
+      console.error(
+        args.fullTools
+          ? "unsafe: inner agents can edit/write/run bash in this directory"
+          : "read-only: inner agents limited to read/grep/find/ls",
+      );
+      console.error("running Rejudge on real models (this takes a few minutes)…");
+    }
   }
 
-  // Live progress goes to stderr; the review answer owns stdout.
-  const progress = liveBlock
+  // A resume restores its saved policy; current CLI flags never widen or narrow it.
+  const manifest = liveBlock && args.resume ? readManifest(args.resume) : undefined;
+  let toolPolicy: ReviewerToolPolicy | undefined;
+  if (liveBlock && (!args.resume || manifest)) {
+    const fullTools = manifest?.fullTools ?? args.fullTools;
+    try {
+      toolPolicy = { fullTools, tools: await resolveReviewerToolNames(cwd, fullTools) };
+    } catch (err) {
+      console.error(`rejudge: could not resolve reviewer tools (${msg(err)})`);
+      return 1;
+    }
+  }
+
+  // Live progress goes to stderr; the review answer owns stdout. A missing resume fails before
+  // painting rather than showing a guessed policy.
+  const progress = toolPolicy
     ? createTtyProgress({
         reviewerModels: config.reviewers.map((model) => model.id),
         judgeModel: config.judge.id,
         title: progressTitle(prompt),
         mode,
+        toolPolicy,
       })
     : undefined;
 
@@ -154,7 +169,8 @@ async function main(): Promise<number> {
       fullTools: args.fullTools,
       resumeRunId: args.resume,
       promptAdds,
-      activitySink: progress ? progress.sink : createStderrSink(),
+      reviewerTools: toolPolicy?.tools,
+      activitySink: progress ? progress.sink : liveBlock ? undefined : createStderrSink(),
     });
   } finally {
     progress?.stop();

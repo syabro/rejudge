@@ -36,7 +36,7 @@ In a terminal, progress is the same block Pi draws — the judge, the reviewers 
 
 ```text
 Rejudge
-Mode: fresh — new panel
+Fresh | read-only read, grep, find, ls, git_diff
 review the runner change
   glm-5.1 (judge)        ✓  done (18s | 1 tool)
     ⎿ deepseek-v4-pro    2. read       03s src/runner.ts
@@ -44,7 +44,9 @@ review the runner change
 Total 41s
 ```
 
-Anywhere else — a pipe, a redirect, CI, an agent's shell — the output is the plain append log as before: one line per finished step, per model, per stage, then the total.
+The second line shows whether the run is fresh or resumed and lists the tools granted to reviewers. `web_search` appears only when the host provides it. Read-only runs emphasize `read-only`; `--unsafe` runs show a red `⚠ UNSAFE` warning and highlight `edit`, `write`, and `bash` in red.
+
+The terminal starts directly with the block. Anywhere else — a pipe, a redirect, CI, an agent's shell — the full preamble and plain append log remain: one line per finished step, per model, per stage, then the total.
 
 The block is the same one the Pi tool draws, minus what only Pi can offer: inside Pi the header carries a `ctrl+o to expand` hint that opens the full request, and `rejudge` is a non-interactive command with no such key, so it shows the title alone.
 
@@ -194,7 +196,7 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - The header shows the `ctrl+o to expand` hint only where that key exists, i.e. inside Pi; the CLI shows the title alone rather than offering a key that does nothing.
   - A real terminal reporting no size (a `script(1)` pty reports `0`) falls back to 80×24 instead of collapsing the block; the block always leaves the last column free and never draws taller than the viewport, so the redraw can't smear.
 
-- [ ] CLI-066 Collapse the TTY preamble into one mode line inside the block
+- [x] CLI-066 Collapse the TTY preamble into one mode line inside the block
   In a terminal the CLI prints four lines above the live block — `config:`, `reviewers:`,
   `read-only:`, `running Rejudge…`. They go away. The one thing worth keeping from them, the
   tool policy, moves inside the block and replaces its `Mode: fresh — new panel`:
@@ -222,3 +224,9 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - `⚠ UNSAFE` is distinguishable from `read-only` at a glance on a light and a dark theme
   - the listed tools are the ones that run actually granted
   - piped or redirected output is unchanged
+
+  **Implemented:**
+  - Terminal runs start directly with the shared live block and show fresh/resume state plus the exact reviewer tool policy inside it.
+  - Read-only and unsafe runs are visually distinct; unsafe write and shell tools are highlighted in red.
+  - Pi always displays and enforces a read-only reviewer policy, including optional `web_search` only when available.
+  - Piped, redirected, and CI output keeps the existing full preamble and flat log.
