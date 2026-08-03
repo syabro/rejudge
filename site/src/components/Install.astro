@@ -18,7 +18,7 @@ const configExample = `{
 ---
 
 <section id="install">
-  <h2 class="eyebrow">{content.install.eyebrow}</h2>
+  <h2>{content.install.eyebrow}</h2>
 
   <div class="step">
     <h3><b>01</b> {steps.install.title}</h3>
@@ -29,14 +29,39 @@ const configExample = `{
   </div>
 
   <div class="step">
-    <h3><b>02</b> {steps.configure.title}</h3>
-    <p>{steps.configure.beforeLevels} <code>.rejudge/config.json</code> {steps.configure.afterLevels} <chip>minimal</chip> <chip>low</chip> <chip>medium</chip> <chip>high</chip> <chip>xhigh</chip>.</p>
-    <pre><code>{configExample}</code></pre>
-    <p>{steps.configure.configNote[0]} <code>~/.config/rejudge/config.json</code>. {steps.configure.configNote[1]}</p>
+    <h3><b>02</b> {steps.connect.title}</h3>
+    <blockquote class="personal-note">
+      <p>“{steps.connect.personalNote[0]} <a href="https://opencode.ai/go" target="_blank" rel="noreferrer">{steps.connect.personalNote[1]}</a> {steps.connect.personalNote[2]}” <cite>@syabro</cite></p>
+    </blockquote>
+
+    <p class="env-line">
+      {steps.connect.envIntro}
+      {steps.connect.envKeys.map((key) => <code>{key}</code>)}
+      {steps.connect.envMore} <a href="https://pi.dev/docs/latest/providers#api-keys" target="_blank" rel="noreferrer">{steps.connect.envDocs}</a>
+    </p>
+
+    <details class="subscription-auth">
+      <summary>{steps.connect.subscriptionSummary}</summary>
+      <div>
+        <p>{steps.connect.subscriptionIntro[0]} <a href="https://pi.dev/docs/latest/providers#subscriptions" target="_blank" rel="noreferrer">{steps.connect.subscriptionIntro[1]}</a>{steps.connect.subscriptionIntro[2]}</p>
+        <div class="command-copy">
+          <pre><code>npx -y @earendil-works/pi-coding-agent</code></pre>
+          <button type="button" class="copy-command" aria-label={content.install.copy.buttonLabel} data-copy-command="npx -y @earendil-works/pi-coding-agent" data-copied-label={content.install.copy.copiedLabel}>{content.install.copy.buttonLabel}</button>
+        </div>
+        <p>{steps.connect.login[0]} <code>/login</code> {steps.connect.login[1]}</p>
+      </div>
+    </details>
   </div>
 
   <div class="step">
-    <h3><b>03</b> {steps.ask.title}</h3>
+    <h3><b>03</b> {steps.configure.title}</h3>
+    <p>{steps.configure.beforeLevels} <code>.rejudge/config.json</code> {steps.configure.afterLevels}</p>
+    <pre><code>{configExample}</code></pre>
+    <p>{steps.configure.levels} <code>minimal</code>, <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>.</p>
+  </div>
+
+  <div class="step">
+    <h3><b>04</b> {steps.ask.title}</h3>
     <pre><code>rejudge "does this migration need a lock?"
 git diff | rejudge "review this change"
 rejudge --resume &lt;run-id&gt; "what about the rollback path?"</code></pre>

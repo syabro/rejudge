@@ -49,11 +49,22 @@ export type SiteContent = {
       install: {
         title: string;
       };
+      connect: {
+        title: string;
+        envIntro: string;
+        envMore: string;
+        envDocs: string;
+        envKeys: string[];
+        personalNote: [string, string, string];
+        subscriptionSummary: string;
+        subscriptionIntro: [string, string, string];
+        login: [string, string];
+      };
       configure: {
         title: string;
         beforeLevels: string;
         afterLevels: string;
-        configNote: [string, string];
+        levels: string;
       };
       ask: {
         title: string;
@@ -111,7 +122,7 @@ export const content: Record<Locale, SiteContent> = {
       summary: "Every reviewer gets the same request and works without seeing the others. The judge compares their answers and goes back with follow-up questions when they disagree.",
     },
     install: {
-      eyebrow: "Install",
+      eyebrow: "Quick start",
       copy: {
         buttonLabel: "Copy",
         copiedLabel: "✓ Copied",
@@ -120,14 +131,36 @@ export const content: Record<Locale, SiteContent> = {
         install: {
           title: "Install the CLI",
         },
+        connect: {
+          title: "Provide model access",
+          envIntro: "Rejudge uses Pi under the hood and reads its provider settings. You can use environment variables such as",
+          envMore: "and more - read Pi",
+          envDocs: "docs",
+          envKeys: [
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "GEMINI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "OPENCODE_API_KEY",
+          ],
+          personalNote: [
+            "I personally use",
+            "OpenCode Go",
+            "because it offers an excellent mix of models for $10 a month.",
+          ],
+          subscriptionSummary: "Using a subscription instead of API keys?",
+          subscriptionIntro: [
+            "Rejudge currently uses Pi for",
+            "subscription",
+            " login. If Pi is not already authorized, run:",
+          ],
+          login: ["Then run", "and complete sign-in with your subscription provider."],
+        },
         configure: {
           title: "Configure the panel",
           beforeLevels: "Create",
-          afterLevels: "in the project you want reviewed. Two reviewers minimum, and every model carries a reasoning level:",
-          configNote: [
-            "A project config wins over the global one at",
-            "Credentials stay in the environment; the CLI never stores a key.",
-          ],
+          afterLevels: "in the project you want reviewed.",
+          levels: "Two reviewers minimum, and every model carries a reasoning level:",
         },
         ask: {
           title: "Ask",
@@ -184,7 +217,7 @@ export const content: Record<Locale, SiteContent> = {
       summary: "Каждая модель получает один и тот же вопрос и работает, не видя остальных. Судья сравнивает ответы и возвращается к моделям с дополнительными вопросами, если они расходятся.",
     },
     install: {
-      eyebrow: "Установка",
+      eyebrow: "Быстрый старт",
       copy: {
         buttonLabel: "Копировать",
         copiedLabel: "✓ Скопировано",
@@ -193,14 +226,36 @@ export const content: Record<Locale, SiteContent> = {
         install: {
           title: "Установите CLI",
         },
+        connect: {
+          title: "Предоставьте доступ к моделям",
+          envIntro: "Rejudge использует Pi под капотом и читает его настройки провайдеров. Можно использовать, например, такие переменные окружения",
+          envMore: "и другие — читайте",
+          envDocs: "документацию Pi",
+          envKeys: [
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "GEMINI_API_KEY",
+            "OPENROUTER_API_KEY",
+            "OPENCODE_API_KEY",
+          ],
+          personalNote: [
+            "Я сам пользуюсь",
+            "OpenCode Go",
+            "потому что за $10 в месяц он даёт отличный набор разных моделей.",
+          ],
+          subscriptionSummary: "Используете подписку вместо API-ключей?",
+          subscriptionIntro: [
+            "Пока Rejudge использует Pi для входа по",
+            "подписке",
+            ". Если Pi ещё не авторизован, выполните:",
+          ],
+          login: ["Затем выполните", "и завершите авторизацию у нужного провайдера подписки."],
+        },
         configure: {
           title: "Настройте панель",
           beforeLevels: "Создайте",
-          afterLevels: "в проекте, который нужно проверить. Требуются минимум две проверяющие модели. Для каждой указывается уровень рассуждения:",
-          configNote: [
-            "Конфигурация проекта имеет приоритет над глобальной конфигурацией в",
-            "Ключи остаются в переменных окружения. CLI их не хранит.",
-          ],
+          afterLevels: "в проекте, который нужно проверить.",
+          levels: "Требуются минимум две проверяющие модели. Для каждой указывается уровень рассуждения:",
         },
         ask: {
           title: "Задайте вопрос",
