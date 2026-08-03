@@ -21,12 +21,11 @@ export type SiteContent = {
     paragraphs: [string, string];
     conclusion: {
       strong: string;
-      rest: string;
+      rest?: string;
     };
   };
   flow: {
     eyebrow: string;
-    title: string;
     ariaLabel: string;
     agent: string;
     asksQuestion: string;
@@ -42,11 +41,13 @@ export type SiteContent = {
   };
   install: {
     eyebrow: string;
-    title: string;
+    copy: {
+      buttonLabel: string;
+      copiedLabel: string;
+    };
     steps: {
       install: {
         title: string;
-        description: string;
       };
       configure: {
         title: string;
@@ -82,22 +83,20 @@ export const content: Record<Locale, SiteContent> = {
       linksLabel: "Project links",
     },
     run: {
-      caption: "Three reviewers read the code on their own. The judge waits for them, then answers.",
+      caption: "TODO: replace this caption when the final example is ready.",
     },
     why: {
       eyebrow: "Why",
       paragraphs: [
-        "The agent that just wrote the code is the worst candidate to review it. It checks its own reasoning with the model that produced it, so a mistake made while writing survives the reading.",
-        "Asking one other model helps — until that model is confidently wrong. You get a fluent second opinion with nothing to weigh it against, and no signal about which parts are actually contested.",
+        "An agent cannot reliably review its own work. It uses the same assumptions that produced the answer, so it may miss the same error twice.",
+        "A second model adds another answer, but does not resolve a disagreement. You still need a way to compare the conclusions and decide which one holds up.",
       ],
       conclusion: {
-        strong: "Rejudge runs several models that never see each other's work, then makes one of them account for the disagreement.",
-        rest: "What comes back is either agreement worth trusting or a dissent worth reading.",
+        strong: "Rejudge asks several models for separate conclusions, compares them, and returns one reviewed answer.",
       },
     },
     flow: {
       eyebrow: "How it works",
-      title: "Several reviewers, then a judge who can question them",
       ariaLabel: "Your agent asks a question. Rejudge sends the same request to every reviewer at once, and each one writes its conclusion without seeing the other answers. The judge compares the findings and returns an answer with a run ID for resuming the review later.",
       agent: "Your agent",
       asksQuestion: "asks a question",
@@ -113,11 +112,13 @@ export const content: Record<Locale, SiteContent> = {
     },
     install: {
       eyebrow: "Install",
-      title: "Three steps to the first review",
+      copy: {
+        buttonLabel: "Copy",
+        copiedLabel: "✓ Copied",
+      },
       steps: {
         install: {
           title: "Install the CLI",
-          description: "Node 22.19 or newer. The package ships prebuilt, so Bun is needed only to build from source.",
         },
         configure: {
           title: "Configure the panel",
@@ -169,7 +170,6 @@ export const content: Record<Locale, SiteContent> = {
     },
     flow: {
       eyebrow: "Как это работает",
-      title: "Несколько проверяющих моделей и судья, который может задать им вопросы",
       ariaLabel: "Агент задаёт вопрос. Rejudge одновременно отправляет его трём моделям. Каждая модель пишет свой вывод и не видит остальные ответы. Судья сравнивает выводы и возвращает ответ с ID запуска, по которому проверку можно продолжить позже.",
       agent: "Ваш агент",
       asksQuestion: "задаёт вопрос",
@@ -185,11 +185,13 @@ export const content: Record<Locale, SiteContent> = {
     },
     install: {
       eyebrow: "Установка",
-      title: "Три шага до первой проверки",
+      copy: {
+        buttonLabel: "Копировать",
+        copiedLabel: "✓ Скопировано",
+      },
       steps: {
         install: {
           title: "Установите CLI",
-          description: "Нужен Node 22.19 или новее. Пакет поставляется собранным. Bun нужен только для сборки из исходников.",
         },
         configure: {
           title: "Настройте панель",

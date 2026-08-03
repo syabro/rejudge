@@ -12,5 +12,6 @@ const { content } = Astro.props;
   <p class="eyebrow">{content.why.eyebrow}</p>
   <p>{content.why.paragraphs[0]}</p>
   <p>{content.why.paragraphs[1]}</p>
-  <p><strong>{content.why.conclusion.strong}</strong> {content.why.conclusion.rest}</p>
+  <p><strong>{content.why.conclusion.strong}</strong></p>
+  {content.why.conclusion.rest && <p>{content.why.conclusion.rest}</p>}
 </section>

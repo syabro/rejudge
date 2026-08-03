@@ -18,13 +18,14 @@ const configExample = `{
 ---
 
 <section id="install">
-  <p class="eyebrow">{content.install.eyebrow}</p>
-  <h2>{content.install.title}</h2>
+  <h2 class="eyebrow">{content.install.eyebrow}</h2>
 
   <div class="step">
     <h3><b>01</b> {steps.install.title}</h3>
-    <p>{steps.install.description}</p>
-    <pre><code>npm install -g rejudge</code></pre>
+    <div class="command-copy">
+      <pre><code>npm install -g rejudge</code></pre>
+      <button type="button" class="copy-command" aria-label={content.install.copy.buttonLabel} data-copy-command="npm install -g rejudge" data-copied-label={content.install.copy.copiedLabel}>{content.install.copy.buttonLabel}</button>
+    </div>
   </div>
 
   <div class="step">
@@ -42,3 +43,15 @@ rejudge --resume &lt;run-id&gt; "what about the rollback path?"</code></pre>
     <p>{steps.ask.stdout} {steps.ask.piIntro} <code>rejudge</code> {steps.ask.toolConnector} <code>/rejudge</code> {steps.ask.workflowConnector} <code>/rejudge-diff</code> {steps.ask.ending}</p>
   </div>
 </section>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>(".copy-command").forEach((button) => {
+    button.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(button.dataset.copyCommand ?? "");
+      button.textContent = button.dataset.copiedLabel;
+      window.setTimeout(() => {
+        button.textContent = button.getAttribute("aria-label");
+      }, 1500);
+    });
+  });
+</script>
