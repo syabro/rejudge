@@ -1,0 +1,44 @@
+---
+import type { SiteContent } from "../content";
+
+type Props = {
+  content: SiteContent;
+};
+
+const { content } = Astro.props;
+const { steps } = content.install;
+const configExample = `{
+  "reviewers": [
+    "opencode-go/deepseek-v4-pro@high",
+    "opencode-go/mimo-v2.5-pro@high",
+    "opencode-go/minimax-m3@high"
+  ],
+  "judge": "opencode-go/glm-5.1@high"
+}`;
+---
+
+<section>
+  <p class="eyebrow">{content.install.eyebrow}</p>
+  <h2>{content.install.title}</h2>
+
+  <div class="step">
+    <h3><b>01</b> {steps.install.title}</h3>
+    <p>{steps.install.description}</p>
+    <pre><code>npm install -g rejudge</code></pre>
+  </div>
+
+  <div class="step">
+    <h3><b>02</b> {steps.configure.title}</h3>
+    <p>{steps.configure.beforeLevels} <code>.rejudge/config.json</code> {steps.configure.afterLevels} <chip>minimal</chip> <chip>low</chip> <chip>medium</chip> <chip>high</chip> <chip>xhigh</chip>.</p>
+    <pre><code>{configExample}</code></pre>
+    <p>{steps.configure.configNote[0]} <code>~/.config/rejudge/config.json</code>. {steps.configure.configNote[1]}</p>
+  </div>
+
+  <div class="step">
+    <h3><b>03</b> {steps.ask.title}</h3>
+    <pre><code>rejudge "does this migration need a lock?"
+git diff | rejudge "review this change"
+rejudge --resume &lt;run-id&gt; "what about the rollback path?"</code></pre>
+    <p>{steps.ask.stdout} {steps.ask.piIntro} <code>rejudge</code> {steps.ask.toolConnector} <code>/rejudge</code> {steps.ask.workflowConnector} <code>/rejudge-diff</code> {steps.ask.ending}</p>
+  </div>
+</section>

@@ -1,0 +1,13 @@
+---
+import type { SiteContent } from "../content";
+
+type Props = {
+  content: SiteContent;
+};
+
+const { content } = Astro.props;
+---
+
+<footer>
+  {content.footer} · <a href="https://github.com/syabro/rejudge">github.com/syabro/rejudge</a> · <a href="https://www.npmjs.com/package/rejudge">npm</a>
+</footer>

@@ -33,6 +33,7 @@ PROJECT-AND-NAMING-BRIEF.md
 .eslintcache
 .cache
 *.tsbuildinfo
+site/.astro/
 
 # bench (BENCH-036): external tool clones + run output — re-fetchable, never committed
 bench/vendor/

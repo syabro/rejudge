@@ -1,0 +1,22 @@
+---
+import type { SiteContent } from "../content";
+import Footer from "./Footer.astro";
+import Hero from "./Hero.astro";
+import Install from "./Install.astro";
+import ReviewFlow from "./ReviewFlow.astro";
+import RunDemo from "./RunDemo.astro";
+import Why from "./Why.astro";
+
+type Props = {
+  content: SiteContent;
+};
+
+const { content } = Astro.props;
+---
+
+<Hero content={content} />
+<RunDemo content={content} />
+<Why content={content} />
+<ReviewFlow content={content} />
+<Install content={content} />
+<Footer content={content} />

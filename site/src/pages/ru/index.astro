@@ -1,0 +1,9 @@
+---
+import LandingPage from "../../components/LandingPage.astro";
+import { content } from "../../content";
+import SiteLayout from "../../layouts/SiteLayout.astro";
+---
+
+<SiteLayout content={content.ru}>
+  <LandingPage content={content.ru} />
+</SiteLayout>

@@ -1,0 +1,43 @@
+---
+import type { SiteContent } from "../content";
+import "../styles/site.css";
+
+type Props = {
+  content: SiteContent;
+};
+
+const { content } = Astro.props;
+const canonical = new URL(content.path, Astro.site);
+const enUrl = new URL("/", Astro.site);
+const ruUrl = new URL("/ru/", Astro.site);
+---
+
+<!doctype html>
+<html lang={content.lang}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{content.title}</title>
+    <meta name="description" content={content.description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="alternate" hreflang="en" href={enUrl} />
+    <link rel="alternate" hreflang="ru" href={ruUrl} />
+    <link rel="alternate" hreflang="x-default" href={enUrl} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Rejudge" />
+    <meta property="og:locale" content={content.ogLocale} />
+    <meta property="og:locale:alternate" content={content.locale === "en" ? "ru_RU" : "en_US"} />
+    <meta property="og:title" content={content.title} />
+    <meta property="og:description" content={content.description} />
+    <meta property="og:url" content={canonical} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={content.title} />
+    <meta name="twitter:description" content={content.description} />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9A%96%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+  </head>
+  <body>
+    <div class="wrap">
+      <slot />
+    </div>
+  </body>
+</html>

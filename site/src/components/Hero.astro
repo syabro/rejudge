@@ -1,0 +1,23 @@
+---
+import type { SiteContent } from "../content";
+
+type Props = {
+  content: SiteContent;
+};
+
+const { content } = Astro.props;
+---
+
+<header class="hero">
+  <div class="top">
+    <h1>Rejudge</h1>
+    <nav class="links" aria-label={content.hero.linksLabel}>
+      <a href={content.alternatePath} hreflang={content.locale === "en" ? "ru" : "en"}>{content.alternateLabel}</a>
+      <a href="https://github.com/syabro/rejudge">GitHub</a>
+      <a href="https://www.npmjs.com/package/rejudge">npm</a>
+    </nav>
+  </div>
+  <div class="rule"></div>
+  <p class="tagline">{content.hero.tagline}</p>
+  <pre class="cmd"><code><span class="p">$</span> npm install -g rejudge</code></pre>
+</header>

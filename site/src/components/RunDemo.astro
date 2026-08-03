@@ -1,0 +1,21 @@
+---
+import type { SiteContent } from "../content";
+
+type Props = {
+  content: SiteContent;
+};
+
+const { content } = Astro.props;
+---
+
+<figure class="run">
+  <pre><code><span class="b">Rejudge</span>
+<span class="dim">Fresh · read-only</span>
+does this migration need a lock?
+  gpt-5.5 (judge)      <span class="dim">  0.</span> thinking     01s <span class="dim">weighing the two objections</span>
+    ⎿ deepseek-v4-pro  <span class="ok">✓  done (35s | 6 tools)</span>
+    ⎿ mimo-v2.5-pro    <span class="ok">✓  done (41s | 4 tools)</span>
+    ⎿ gpt-5.4          <span class="dim">  2.</span> read         03s <span class="dim">db/migrate/0142_add_index.sql</span>
+<span class="dim">Total 52s</span></code></pre>
+  <figcaption>{content.run.caption}</figcaption>
+</figure>
