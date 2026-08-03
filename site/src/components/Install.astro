@@ -1,4 +1,5 @@
 ---
+import { Code } from "astro:components";
 import type { SiteContent } from "../content";
 
 type Props = {
@@ -15,6 +16,9 @@ const configExample = `{
   ],
   "judge": "opencode-go/glm-5.1@high"
 }`;
+const askExample = `rejudge "does this migration need a lock?"
+git diff | rejudge "review this change"
+rejudge --resume <run-id> "what about the rollback path?"`;
 ---
 
 <section id="install">
@@ -56,15 +60,13 @@ const configExample = `{
   <div class="step">
     <h3><b>03</b> {steps.configure.title}</h3>
     <p>{steps.configure.beforeLevels} <code>~/.config/rejudge/config.json</code>{steps.configure.afterPath}</p>
-    <pre><code>{configExample}</code></pre>
+    <Code code={configExample} lang="json" theme="github-light" />
     <p>{steps.configure.levels} <code>minimal</code>, <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>.</p>
   </div>
 
   <div class="step">
     <h3><b>04</b> {steps.ask.title}</h3>
-    <pre><code>rejudge "does this migration need a lock?"
-git diff | rejudge "review this change"
-rejudge --resume &lt;run-id&gt; "what about the rollback path?"</code></pre>
+    <Code code={askExample} lang="bash" theme="github-light" />
     <p>{steps.ask.stdout} {steps.ask.piIntro} <code>rejudge</code> {steps.ask.toolConnector} <code>/rejudge</code> {steps.ask.workflowConnector} <code>/rejudge-diff</code> {steps.ask.ending}</p>
   </div>
 </section>

@@ -24,6 +24,7 @@ code,pre{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monosp
 code{background:var(--soft);padding:.05em .35em;font-size:var(--text-small)}
 pre{margin:0 0 18px;padding:16px 18px;overflow-x:auto;border-radius:6px;background:var(--soft);font-size:var(--text-small);line-height:1.7}
 pre code{background:transparent;color:inherit;font:inherit;padding:0}
+pre.astro-code{background:var(--soft)!important}
 .cmt{color:var(--ink-2)}
 
 .wrap{max-width:880px;margin:0 auto;padding:64px 40px 120px}
