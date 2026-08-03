@@ -32,7 +32,7 @@
   a:hover{text-decoration:underline}
 
   chip,code,pre{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-  chip,code{background:var(--soft);border-radius:4px;padding:.05em .35em;font-size:.85rem}
+  chip,code{background:var(--soft);padding:.05em .35em;font-size:.85rem}
   chip{display:inline-block;font-weight:500}
   pre{margin:0 0 18px;padding:16px 18px;overflow-x:auto;border-radius:12px;background:var(--soft);font-size:.78rem;line-height:1.7;font-weight:500}
   pre code{background:transparent;color:inherit;font:inherit;padding:0}
@@ -70,18 +70,15 @@
   .lede p:last-child{margin-bottom:0}
   .lede strong{font-weight:620}
 
-  /* ── panel diagram ──────────────────────────────────────────────────── */
-  .diagram{display:grid;gap:14px;margin:0 0 26px}
-  .reviewers{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
-  .node{border:1px solid var(--line);border-radius:12px;padding:14px 16px;background:var(--page)}
-  .node .role{margin:0 0 4px;color:var(--ink-2);font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase}
-  .node .name{margin:0;font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.8rem}
-  .node .did{margin:8px 0 0;color:var(--ink-2);font-size:13px;line-height:1.4}
-  .node.judge{border-color:var(--accent);background:var(--accent-soft)}
-  .node.judge .role{color:var(--accent)}
-  .node.answer{border-style:dashed}
-  .arrows{display:grid;grid-template-columns:repeat(3,1fr);color:var(--line);font-size:18px;text-align:center;line-height:1}
-  .arrow-one{color:var(--line);font-size:18px;text-align:center;line-height:1}
+  /* ── panel flow ─────────────────────────────────────────────────────── */
+  .flow{margin:0 0 8px}
+  .flow svg{display:block;width:100%;height:auto;font-family:inherit;overflow:visible}
+  .flow svg .l{fill:none;stroke:var(--line);stroke-width:1}
+  .flow svg .head{fill:var(--line)}
+  .flow svg .n{fill:var(--ink);font-size:15px;font-weight:600}
+  .flow svg .d{fill:var(--ink-2);font-size:13px}
+  .flow svg.narrow{display:none}
+  .flow figcaption{margin-top:22px;color:var(--ink-2);font-size:14px;line-height:1.45}
 
   /* ── steps ──────────────────────────────────────────────────────────── */
   .step{margin:0 0 28px}
@@ -105,9 +102,8 @@
     :root{--page-gutter:44px}
     .wrap{padding:44px 22px 90px}
     section{margin-bottom:72px}
-    .reviewers{grid-template-columns:1fr}
-    .arrows{grid-template-columns:1fr}
-    .arrows span:nth-child(n+2){display:none}
+    .flow svg.wide{display:none}
+    .flow svg.narrow{display:block}
     .hero .cmd{width:100%}
   }
 </style>
@@ -147,38 +143,79 @@ does this migration need a lock?
 
   <section>
     <p class="eyebrow">How it works</p>
-    <h2>Separate sessions, then one accountable answer</h2>
+    <h2>Several reviewers, then a judge who can question them</h2>
 
-    <div class="diagram">
-      <div class="reviewers">
-        <div class="node">
-          <p class="role">Reviewer</p>
-          <p class="name">deepseek-v4-pro</p>
-          <p class="did">Reads the migration and the index it touches.</p>
-        </div>
-        <div class="node">
-          <p class="role">Reviewer</p>
-          <p class="name">mimo-v2.5-pro</p>
-          <p class="did">Greps for every caller of the changed table.</p>
-        </div>
-        <div class="node">
-          <p class="role">Reviewer</p>
-          <p class="name">gpt-5.4</p>
-          <p class="did">Checks the rollback path and finds a race.</p>
-        </div>
-      </div>
-      <div class="arrows"><span>↓</span><span>↓</span><span>↓</span></div>
-      <div class="node judge">
-        <p class="role">Judge</p>
-        <p class="name">gpt-5.5</p>
-        <p class="did">Reads the three write-ups, not your repository. Where they materially disagree, it re-queries the reviewers inside their live sessions and settles the point.</p>
-      </div>
-      <div class="arrow-one">↓</div>
-      <div class="node answer">
-        <p class="role">Answer + run id</p>
-        <p class="did">One answer, with the dissent kept when it matters. Continuing on the run id reuses the same sessions instead of paying for a fresh panel.</p>
-      </div>
-    </div>
+    <figure class="flow">
+      <svg class="wide" viewBox="0 0 920 360" role="img" aria-label="Your agent asks a question. Rejudge sends the same request to every reviewer at once, and each one writes its conclusion without seeing the other answers. The judge compares the findings.">
+        <defs>
+          <marker id="a" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 z" class="head"/>
+          </marker>
+        </defs>
+
+        <text class="n" x="0" y="146">Your agent</text>
+        <text class="d" x="0" y="166">asks a question</text>
+
+        <path class="l" d="M100 150 H150 M150 60 V240"/>
+        <line class="l" x1="150" y1="60" x2="218" y2="60" marker-end="url(#a)"/>
+        <line class="l" x1="150" y1="150" x2="218" y2="150" marker-end="url(#a)"/>
+        <line class="l" x1="150" y1="240" x2="218" y2="240" marker-end="url(#a)"/>
+
+        <text class="n" x="234" y="56">Model X</text>
+        <text class="d" x="234" y="76">writes its conclusion</text>
+        <text class="n" x="234" y="146">Model Y</text>
+        <text class="d" x="234" y="166">writes its conclusion</text>
+        <text class="n" x="234" y="236">Model Z</text>
+        <text class="d" x="234" y="256">writes its conclusion</text>
+
+        <g class="judge-stage">
+          <path class="l" d="M380 60 H448 M380 150 H448 M380 240 H448 M448 60 V240"/>
+          <line class="l" x1="448" y1="150" x2="500" y2="150" marker-end="url(#a)"/>
+
+          <text class="n" x="514" y="146">Judge</text>
+          <text class="d" x="514" y="170">compares the findings</text>
+        </g>
+
+        <g class="follow-up" transform="translate(-20 0)">
+          <path class="l" d="M560 188 V330 H280 V272" marker-end="url(#a)"/>
+          <text class="d" x="410" y="296" text-anchor="middle">asks follow-up questions</text>
+          <text class="d" x="410" y="314" text-anchor="middle">when the reviewers disagree</text>
+        </g>
+
+      </svg>
+
+      <svg class="narrow" viewBox="0 0 360 480" role="img" aria-label="Your agent asks a question. Rejudge sends the same request to every reviewer at once, and each one writes its conclusion without seeing the other answers. The judge compares the findings.">
+        <defs>
+          <marker id="b" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 z" class="head"/>
+          </marker>
+        </defs>
+
+        <text class="n" x="0" y="16">Your agent</text>
+        <text class="d" x="0" y="34">asks a question</text>
+
+        <path class="l" d="M8 46 V330"/>
+        <line class="l" x1="8" y1="90" x2="38" y2="90" marker-end="url(#b)"/>
+        <line class="l" x1="8" y1="170" x2="38" y2="170" marker-end="url(#b)"/>
+        <line class="l" x1="8" y1="250" x2="38" y2="250" marker-end="url(#b)"/>
+        <line class="l" x1="8" y1="330" x2="38" y2="330" marker-end="url(#b)"/>
+
+        <text class="n" x="52" y="84">Model X</text>
+        <text class="d" x="52" y="104">writes its conclusion</text>
+        <text class="n" x="52" y="164">Model Y</text>
+        <text class="d" x="52" y="184">writes its conclusion</text>
+        <text class="n" x="52" y="244">Model Z</text>
+        <text class="d" x="52" y="264">writes its conclusion</text>
+
+        <text class="n" x="52" y="324">Judge</text>
+        <text class="d" x="52" y="344">compares the findings</text>
+
+        <path class="l" d="M300 332 H340 V96 H306" marker-end="url(#b)"/>
+
+      </svg>
+
+      <figcaption>Every reviewer gets the same request and works without seeing the others. The judge compares their answers and goes back with follow-up questions when they disagree.</figcaption>
+    </figure>
   </section>
 
   <section>
@@ -211,31 +248,6 @@ does this migration need a lock?
 git diff | rejudge "review this change"
 rejudge --resume &lt;run-id&gt; "what about the rollback path?"</code></pre>
       <p>The answer owns stdout; progress, configuration, and the run id go to stderr, so redirecting the answer keeps it clean. Inside Pi the same package registers a native <code>rejudge</code> tool plus the <code>/rejudge</code> and <code>/rejudge-diff</code> workflows.</p>
-    </div>
-  </section>
-
-  <section>
-    <p class="eyebrow">Before you run it</p>
-    <h2>What it costs you to ask</h2>
-
-    <div class="note">
-      <h3>Your request reaches every configured provider</h3>
-      <p>A fresh review sends the request to each reviewer, and anything they read through their tools becomes part of that model session. Treat sensitive text as shared with all of them.</p>
-    </div>
-
-    <div class="note danger">
-      <h3>--unsafe is not a sandbox</h3>
-      <p>By default reviewers get read, grep, find, ls, and a read-only <code>git_diff</code>, and the judge gets only its follow-up tool. The flag hands reviewers edit, write, and shell access in your environment.</p>
-    </div>
-
-    <div class="note">
-      <h3>There is no spending cap</h3>
-      <p>One review invokes every reviewer and then the judge, plus retries and follow-ups. Cost and rate limits come from the models you configure.</p>
-    </div>
-
-    <div class="note">
-      <h3>Agreement is not correctness</h3>
-      <p>Separate sessions make the reviews independent, not the errors. Rejudge promises an independent process, not truth by consensus — verify anything consequential.</p>
     </div>
   </section>
 
