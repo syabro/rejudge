@@ -63,7 +63,7 @@ export type SiteContent = {
       configure: {
         title: string;
         beforeLevels: string;
-        afterLevels: string;
+        afterPath: string;
         levels: string;
       };
       ask: {
@@ -159,7 +159,7 @@ export const content: Record<Locale, SiteContent> = {
         configure: {
           title: "Configure the panel",
           beforeLevels: "Create",
-          afterLevels: "in the project you want reviewed.",
+          afterPath: " once.",
           levels: "Two reviewers minimum, and every model carries a reasoning level:",
         },
         ask: {
@@ -253,8 +253,8 @@ export const content: Record<Locale, SiteContent> = {
         },
         configure: {
           title: "Настройте панель",
-          beforeLevels: "Создайте",
-          afterLevels: "в проекте, который нужно проверить.",
+          beforeLevels: "Один раз создайте",
+          afterPath: ".",
           levels: "Требуются минимум две проверяющие модели. Для каждой указывается уровень рассуждения:",
         },
         ask: {

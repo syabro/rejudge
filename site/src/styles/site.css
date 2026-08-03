@@ -22,7 +22,7 @@ a:hover{text-decoration:underline}
 
 code,pre{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 code{background:var(--soft);padding:.05em .35em;font-size:var(--text-small)}
-pre{margin:0 0 18px;padding:16px 18px;overflow-x:auto;border-radius:12px;background:var(--soft);font-size:var(--text-small);line-height:1.7}
+pre{margin:0 0 18px;padding:16px 18px;overflow-x:auto;border-radius:6px;background:var(--soft);font-size:var(--text-small);line-height:1.7}
 pre code{background:transparent;color:inherit;font:inherit;padding:0}
 .cmt{color:var(--ink-2)}
 
@@ -44,7 +44,7 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 .hero .links .npm-icon{width:16px}
 
 .run{margin:0 0 96px}
-.run pre{background:var(--term-bg);color:var(--term-ink);padding:22px 24px;border-radius:14px;margin-bottom:14px}
+.run pre{background:var(--term-bg);color:var(--term-ink);padding:22px 24px;border-radius:6px;margin-bottom:14px}
 .run .dim{color:var(--term-dim)}
 .run .ok{color:var(--term-ok)}
 .run .err{color:var(--term-err)}
@@ -74,7 +74,7 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 
 .env-line code{display:inline-block;margin:0 0 4px 8px;padding:.25em .5em}
 .env-line a{margin-left:4px;text-decoration:underline;text-underline-offset:2px}
-.personal-note{margin:12px 0 24px;color:var(--ink-2);text-align:right}
+.personal-note{margin:12px 0 24px;color:var(--ink-2);font-size:var(--text-small);text-align:right}
 .personal-note p{margin-bottom:0;font-style:italic}
 .personal-note a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 .personal-note cite{font-style:normal}
