@@ -33,10 +33,10 @@ section:last-of-type{margin-bottom:64px}
 h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:600;letter-spacing:-.01em;text-align:center}
 
 .hero{margin:0 0 56px}
-.hero .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;margin:0 0 6px}
+.hero .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;margin:0 0 28px}
 .hero h1{margin:0;font-size:clamp(36px,6vw,56px);line-height:1.05;font-weight:700;letter-spacing:-.025em}
+.hero .wordmark{text-decoration-line:underline;text-decoration-thickness:3px;text-underline-offset:12px;text-decoration-skip-ink:none}
 .hero .links{display:flex;align-items:center;gap:20px}
-.hero .rule{width:56px;height:3px;margin:0 0 22px;background:var(--ink);border-radius:2px}
 .hero .tagline{margin:0 0 32px;color:var(--ink)}
 .hero .links a{display:inline-flex;align-items:center;gap:6px;padding:4px 0;color:var(--ink);font-size:var(--text-small);font-weight:700}
 .hero .links a:hover{text-decoration:underline}

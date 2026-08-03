@@ -10,7 +10,7 @@ const { content } = Astro.props;
 
 <header class="hero">
   <div class="top">
-    <h1>Rejudge</h1>
+    <h1 class="wordmark">Rejudge</h1>
     <nav class="links" aria-label={content.hero.linksLabel}>
       <a href={content.alternatePath} hreflang={content.locale === "en" ? "ru" : "en"}>{content.alternateLabel}</a>
       <a href="#install">{content.install.eyebrow}</a>
@@ -29,6 +29,5 @@ const { content } = Astro.props;
       </a>
     </nav>
   </div>
-  <div class="rule"></div>
   <p class="tagline">{content.hero.tagline}</p>
 </header>
