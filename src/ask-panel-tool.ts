@@ -1,9 +1,9 @@
 import { Type } from "typebox";
 import { defineTool, type AgentSession } from "@earendil-works/pi-coding-agent";
-import { attachActivityLog } from "./activity.ts";
-import { attachDebugLog, type DebugLog } from "./debug-log.ts";
+import type { DebugLog } from "./debug-log.ts";
 import type { ActivitySink, RunStatus } from "./events.ts";
 import type { ReviewerResult } from "./runner.ts";
+import { attachSessionLogs, bridgeSessionAbort } from "./session-instrumentation.ts";
 
 /**
  * The custom `ask_panel` tool lets the judge re-query the live sessions of one or more reviewers
@@ -72,15 +72,13 @@ export function makeAskPanelTool(
     }
 
     const startedAt = Date.now();
-    let detach: () => void = () => {};
-    let detachDebug: () => void = () => {};
+    let detachLogs = (): void => {};
     let endStatus: RunStatus = "error";
     let endError: string | undefined;
 
     // Bridge the tool-call signal (the judge turn's signal — fires when the whole review is
     // cancelled) to this session; session.prompt() takes no signal of its own.
-    const onAbort = () => void session.abort();
-    signal?.addEventListener("abort", onAbort, { once: true });
+    const detachAbort = bridgeSessionAbort(session, signal);
     activitySink?.({
       kind: "model_start",
       t: startedAt,
@@ -90,12 +88,13 @@ export function makeAskPanelTool(
     });
 
     try {
-      if (activitySink) {
-        detach = attachActivityLog(session, target.roleKey, target.modelId, activitySink);
-      }
-      if (debugLog) {
-        detachDebug = attachDebugLog(session, target.roleKey, target.modelId, debugLog);
-      }
+      detachLogs = attachSessionLogs({
+        session,
+        roleKey: target.roleKey,
+        modelId: target.modelId,
+        activitySink,
+        debugLog,
+      });
       if (signal?.aborted) {
         endStatus = "cancelled";
         endError = `"${subject}" was cancelled and can't be re-queried.`;
@@ -129,9 +128,8 @@ export function makeAskPanelTool(
       endError = `Re-querying "${subject}" failed: ${msg}`;
       return label(endError);
     } finally {
-      signal?.removeEventListener("abort", onAbort);
-      detachDebug();
-      detach();
+      detachAbort();
+      detachLogs();
       if (activitySink) {
         const t = Date.now();
         activitySink({

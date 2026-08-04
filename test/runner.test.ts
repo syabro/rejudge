@@ -1,5 +1,10 @@
 import { test, expect } from "vitest";
-import { createAgentSession, ModelRuntime, type AgentSession } from "@earendil-works/pi-coding-agent";
+import {
+  createAgentSession,
+  ModelRuntime,
+  type AgentSession,
+  type AgentSessionEvent,
+} from "@earendil-works/pi-coding-agent";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -13,6 +18,7 @@ import {
 } from "../src/runner.ts";
 import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "../src/git-diff-tool.ts";
 import { ASK_PANEL_TOOL_NAME, makeAskPanelTool } from "../src/ask-panel-tool.ts";
+import type { ProgressEvent } from "../src/events.ts";
 import { integrationTest } from "./integration.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
@@ -23,6 +29,7 @@ interface FakePromptTurn {
   text?: string;
   errorMessage?: string;
   beforeMessage?: () => void;
+  events?: AgentSessionEvent[];
 }
 
 type FakeRunSession = AgentSession & {
@@ -34,6 +41,7 @@ type FakeRunSession = AgentSession & {
 function fakeRunSession(turns: FakePromptTurn[]): FakeRunSession {
   const messages: Record<string, unknown>[] = [];
   let latestText = "";
+  let subscriber: ((event: AgentSessionEvent) => void) | undefined;
   const pendingTurns = [...turns];
 
   const session = {
@@ -53,11 +61,20 @@ function fakeRunSession(turns: FakePromptTurn[]): FakeRunSession {
       }
       messages.push(message);
       latestText = turn.text ?? "";
+      for (const event of turn.events ?? []) {
+        subscriber?.(event);
+      }
     },
     getLastAssistantText() {
       return latestText;
     },
     abort() {},
+    subscribe(callback: (event: AgentSessionEvent) => void) {
+      subscriber = callback;
+      return () => {
+        subscriber = undefined;
+      };
+    },
     dispose() {
       session.disposed = true;
       session.disposeCount += 1;
@@ -171,6 +188,61 @@ test("resolveModel rejects malformed and unknown model ids", async () => {
   await expect(resolveModel("no-slash", modelRuntime)).rejects.toThrow();
   await expect(resolveModel("opencode-go/", modelRuntime)).rejects.toThrow();
   await expect(resolveModel("opencode-go/not-a-real-model", modelRuntime)).rejects.toThrow();
+});
+
+test("runReviewer emits one lifecycle pair when session creation fails", async () => {
+  const events: ProgressEvent[] = [];
+
+  const result = await runReviewer("invalid-model-id", "original prompt", {
+    activitySink: (event) => events.push(event),
+  });
+
+  expect(result.isErr()).toBe(true);
+  expect(events.map((event) => event.kind)).toEqual(["model_start", "model_end"]);
+  expect(events[1]).toMatchObject({
+    kind: "model_end",
+    model: "invalid-model-id",
+    role: "reviewer",
+    status: "error",
+  });
+});
+
+test("runReviewer flushes open activity before model_end", async () => {
+  const session = fakeRunSession([
+    {
+      stopReason: "stop",
+      text: "visible answer",
+      events: [
+        {
+          type: "message_update",
+          assistantMessageEvent: { type: "text_start" },
+        } as AgentSessionEvent,
+      ],
+    },
+  ]);
+  const events: ProgressEvent[] = [];
+
+  const result = await runReviewer("provider/model", "original prompt", {
+    existingSession: session,
+    activitySink: (event) => events.push(event),
+  });
+
+  expect(result.isOk()).toBe(true);
+  const activityStart = events.findIndex(
+    (event) => event.kind === "activity" && event.phase === "start",
+  );
+  const activityEnd = events.findIndex(
+    (event) => event.kind === "activity" && event.phase === "end",
+  );
+  const modelEnd = events.findIndex((event) => event.kind === "model_end");
+  expect(activityStart).toBeGreaterThan(0);
+  expect(activityEnd).toBeGreaterThan(activityStart);
+  expect(events[activityEnd]).toMatchObject({ kind: "activity", aborted: true });
+  expect(modelEnd).toBeGreaterThan(activityEnd);
+
+  if (result.isOk()) {
+    result.value.session.dispose();
+  }
 });
 
 test("runReviewer retries one clean empty response in the same session", async () => {

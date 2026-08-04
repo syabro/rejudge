@@ -247,9 +247,12 @@ test("ask_panel marks an in-flight re-query as cancelled", async () => {
   );
 
   const modelEnd = events.find((event) => event.kind === "model_end");
+  const activityEnd = events.findIndex((event) => event.kind === "activity" && event.phase === "end");
+  const modelEndIndex = events.findIndex((event) => event.kind === "model_end");
   expect(abortCalled).toBe(true);
   expect(resultText(result)).toContain("stopReason: aborted");
   expect(events).toContainEqual(expect.objectContaining({ kind: "activity", phase: "end", aborted: true }));
+  expect(modelEndIndex).toBeGreaterThan(activityEnd);
   expect(modelEnd).toMatchObject({ kind: "model_end", status: "cancelled" });
 });
 

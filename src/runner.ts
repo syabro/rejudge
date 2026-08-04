@@ -10,8 +10,7 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { Model, ThinkingLevel } from "@earendil-works/pi-ai";
 import { err, ok, type Result } from "neverthrow";
-import { attachActivityLog } from "./activity.ts";
-import { attachDebugLog, type DebugLog } from "./debug-log.ts";
+import type { DebugLog } from "./debug-log.ts";
 import {
   JUDGE_ROLE_KEY,
   panelRoleKey,
@@ -22,6 +21,7 @@ import {
 } from "./events.ts";
 import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "./git-diff-tool.ts";
 import { DANGEROUS_REVIEWER_TOOLS } from "./review-mode.ts";
+import { attachSessionLogs, bridgeSessionAbort } from "./session-instrumentation.ts";
 
 /**
  * The read-only subset (the SDK's read-only tools): read plus the dedicated
@@ -273,7 +273,7 @@ export async function createInnerSession(
  * is left open (the caller disposes it) so the judge can re-query it later.
  *
  * When an `activitySink` is given the agent emits `model_start`/`activity`/`model_end`
- * progress events through it (see {@link attachActivityLog}); with no sink it is silent and
+ * progress events through it (see {@link attachSessionLogs}); with no sink it is silent and
  * writes nothing to stdout/stderr.
  */
 export async function runReviewer(
@@ -321,21 +321,21 @@ export async function runReviewer(
     // Cleanup handles are assigned inside the try below so that a throw from the setup
     // calls (attach*/addEventListener) is caught too — keeping the no-throw contract that
     // runPanel's Promise.all relies on. Declared here so `finally` can always run them.
-    let detach: () => void = () => {};
-    let detachDebug: (() => void) | undefined;
-    const onAbort = () => void session.abort();
+    let detachLogs = (): void => {};
+    let detachAbort = (): void => {};
     try {
       // Emit this agent's activity changes through the sink (only when one is set — the
       // engine is otherwise silent); persist a richer per-run debug log when runReview enabled
       // it (config.debugLog); bridge the cancel signal to session.abort() (an abort makes
       // prompt() resolve with stopReason "aborted", caught as a failed run).
-      if (sink) {
-        detach = attachActivityLog(session, roleKey, modelId, sink);
-      }
-      if (options.debugLog) {
-        detachDebug = attachDebugLog(session, roleKey, modelId, options.debugLog);
-      }
-      options.signal?.addEventListener("abort", onAbort, { once: true });
+      detachLogs = attachSessionLogs({
+        session,
+        roleKey,
+        modelId,
+        activitySink: sink,
+        debugLog: options.debugLog,
+      });
+      detachAbort = bridgeSessionAbort(session, options.signal);
 
       // If the signal fired during the async createAgentSession above, the listener's
       // session.abort() is a no-op (prompt() hasn't created an abortable run yet), so
@@ -419,12 +419,9 @@ export async function runReviewer(
       endError = error;
       return fail(error, aborted);
     } finally {
-      options.signal?.removeEventListener("abort", onAbort);
-      if (detachDebug) {
-        detachDebug();
-      }
+      detachAbort();
       // Flush still-open activity steps (emits their aborted ends) before model_end below.
-      detach();
+      detachLogs();
     }
   } finally {
     if (sink) {
