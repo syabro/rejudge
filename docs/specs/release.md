@@ -191,3 +191,14 @@ Technical completion does not verify the result. Separate initial sessions provi
   - npm serves the exact seven-file `rejudge@0.1.0` tarball verified before publication, with matching shasum and integrity metadata.
   - Clean Docker registry installs passed no-key discovery, live CLI and diff reviews, and a live Pi package/tool call without source or tarball mounts.
   - The published package provides the global CLI, Pi extension, and both workflows through the README installation commands; CI remains nonblocking post-release work in REL-059.
+
+- [ ] REL-072 Explain follow-up reviews and Run ID on the landing page
+  The mobile diagram and landing copy explain the complete review loop and how to continue a saved review.
+
+  The narrow diagram should preserve the Judge → Models follow-up path shown on desktop. The English copy should state that Rejudge prints a Run ID after a review and that `--resume <run-id>` continues that saved review. Leave the Russian translation unchanged.
+
+  DoD:
+  - the narrow diagram shows the judge returning follow-up questions to the models
+  - English copy explains where the Run ID comes from
+  - English copy shows that `--resume <run-id>` continues the saved review
+  - Russian copy remains unchanged
