@@ -230,3 +230,14 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - Read-only and unsafe runs are visually distinct; unsafe write and shell tools are highlighted in red.
   - Pi always displays and enforces a read-only reviewer policy, including optional `web_search` only when available.
   - Piped, redirected, and CI output keeps the existing full preamble and flat log.
+
+- [ ] CLI-073 Combine a positional instruction with piped input
+  `git diff | rejudge "review this change"` sends both the instruction and the diff to reviewers.
+
+  A positional prompt currently prevents stdin from being read. When both are present, treat the positional text as the instruction and stdin as its payload. Keep positional-only and stdin-only behavior unchanged.
+
+  DoD:
+  - a positional instruction and non-empty piped input become one review request, with the instruction before the payload
+  - neither the positional text nor stdin is discarded
+  - positional-only, file-only, and stdin-only input behave as before
+  - CLI documentation and automated behavior tests cover the combined form
