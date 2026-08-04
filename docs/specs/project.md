@@ -109,3 +109,12 @@ Pi loads the extension, `rejudge` tool, and both skills from that directory. It 
       Skills that launch Rejudge or another command using OAuth-backed models must select an execution mode that can access the host's persisted provider authorization. The mechanism is agent-specific and must not be hardcoded to Codex terminology.
 
       DoD: skill instructions require host OAuth access, explain when it is needed, and leave each agent to use its own sandbox-bypass mechanism.
+
+- [ ] PRJ-070 Migrate to Pi SDK 0.83
+  Rejudge builds and tests against Pi SDK 0.83.
+
+  Update the Pi SDK dependencies and adapt the source code to the 0.83 API.
+
+  DoD:
+  - Pi SDK dependencies use version 0.83.
+  - Unit tests, typecheck, CLI build, extension build, and package smoke tests pass.
