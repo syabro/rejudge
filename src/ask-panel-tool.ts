@@ -1,9 +1,8 @@
 import { Type } from "typebox";
 import { defineTool, type AgentSession } from "@earendil-works/pi-coding-agent";
 import type { DebugLog } from "./debug-log.ts";
-import type { ActivitySink, RunStatus } from "./events.ts";
-import type { ReviewerResult } from "./runner.ts";
-import { attachSessionLogs, bridgeSessionAbort } from "./session-instrumentation.ts";
+import type { ActivitySink } from "./events.ts";
+import { rerunAgent, type AgentResult } from "./runner.ts";
 
 /**
  * The custom `ask_panel` tool lets the judge re-query the live sessions of one or more reviewers
@@ -27,9 +26,6 @@ import { attachSessionLogs, bridgeSessionAbort } from "./session-instrumentation
 
 export const ASK_PANEL_TOOL_NAME = "ask_panel";
 
-/** The only stop reason that means a clean completion; everything else is a partial/failed turn. */
-const CLEAN_STOP = "stop";
-
 /** The session's most recent assistant message, or undefined if it has none yet. */
 function lastAssistant(session: AgentSession) {
   return [...session.state.messages]
@@ -38,7 +34,7 @@ function lastAssistant(session: AgentSession) {
 }
 
 export function makeAskPanelTool(
-  panel: ReviewerResult[],
+  panel: AgentResult[],
   activitySink?: ActivitySink,
   debugLog?: DebugLog,
 ) {
@@ -71,79 +67,11 @@ export function makeAskPanelTool(
       return label(`"${subject}" was cancelled and can't be re-queried.`);
     }
 
-    const startedAt = Date.now();
-    let detachLogs = (): void => {};
-    let endStatus: RunStatus = "error";
-    let endError: string | undefined;
-
-    // Bridge the tool-call signal (the judge turn's signal — fires when the whole review is
-    // cancelled) to this session; session.prompt() takes no signal of its own.
-    const detachAbort = bridgeSessionAbort(session, signal);
-    activitySink?.({
-      kind: "model_start",
-      t: startedAt,
-      roleKey: target.roleKey,
-      model: target.modelId,
-      role: "reviewer",
-    });
-
-    try {
-      detachLogs = attachSessionLogs({
-        session,
-        roleKey: target.roleKey,
-        modelId: target.modelId,
-        activitySink,
-        debugLog,
-      });
-      if (signal?.aborted) {
-        endStatus = "cancelled";
-        endError = `"${subject}" was cancelled and can't be re-queried.`;
-        return label(endError);
-      }
-      await session.prompt(question);
-
-      const last = lastAssistant(session);
-      if (!last) {
-        endError = `"${subject}" produced no response.`;
-        return label(endError);
-      }
-      if (last.stopReason !== CLEAN_STOP) {
-        const detail = last.errorMessage ? `: ${last.errorMessage}` : "";
-        endStatus = signal?.aborted ? "cancelled" : "error";
-        endError = `"${subject}" did not answer cleanly (stopReason: ${last.stopReason})${detail}.`;
-        return label(endError);
-      }
-
-      const answer = session.getLastAssistantText();
-      if (!answer || answer.trim() === "") {
-        endError = `"${subject}" returned empty text.`;
-        return label(endError);
-      }
-
-      endStatus = "done";
-      return label(answer);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      endStatus = signal?.aborted ? "cancelled" : "error";
-      endError = `Re-querying "${subject}" failed: ${msg}`;
-      return label(endError);
-    } finally {
-      detachAbort();
-      detachLogs();
-      if (activitySink) {
-        const t = Date.now();
-        activitySink({
-          kind: "model_end",
-          t,
-          roleKey: target.roleKey,
-          model: target.modelId,
-          role: "reviewer",
-          status: endStatus,
-          durationMs: t - startedAt,
-          ...(endError ? { error: endError } : {}),
-        });
-      }
+    const result = await rerunAgent(target, question, { signal, activitySink, debugLog });
+    if (result.isErr()) {
+      return label(`Re-querying "${subject}" failed: ${result.error.error}`);
     }
+    return label(result.value.text);
   }
 
   const parameters = Type.Object({

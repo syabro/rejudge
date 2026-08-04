@@ -11,10 +11,10 @@ import { tmpdir } from "node:os";
 import {
   REVIEWER_TOOLS,
   READONLY_TOOLS,
-  createInnerSession,
+  createInnerAgentSession,
   resolveModel,
   reviewerToolNames,
-  runReviewer,
+  runAgent,
 } from "../src/runner.ts";
 import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "../src/git-diff-tool.ts";
 import { ASK_PANEL_TOOL_NAME, makeAskPanelTool } from "../src/ask-panel-tool.ts";
@@ -134,7 +134,7 @@ test("a session built from REVIEWER_TOOLS activates the dedicated grep/find/ls t
 // Real SDK, no model call: the custom read-only git_diff tool (TLS-026) is wired into a
 // session via customTools + its name in the allow-list, so it actually activates alongside
 // the read-only built-ins. This proves the SDK enables a custom tool only when both
-// registered AND allow-listed (the wiring runReviewer uses).
+// registered AND allow-listed (the wiring runAgent uses).
 test("a session with git_diff in customTools + allow-list activates it", async () => {
   const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
   const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
@@ -156,7 +156,7 @@ test("a session with git_diff in customTools + allow-list activates it", async (
 test("a pre-resolved read-only policy is the session's exact allow-list", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
   const reviewerTools = reviewerToolNames(false, []);
-  const session = await createInnerSession(STUB, { cwd, fullTools: true, reviewerTools });
+  const session = await createInnerAgentSession(STUB, { cwd, fullTools: true, reviewerTools });
 
   try {
     expect(session.getActiveToolNames()).toEqual(reviewerTools);
@@ -165,14 +165,12 @@ test("a pre-resolved read-only policy is the session's exact allow-list", async 
   }
 }, 30_000);
 
-// Real SDK, no model call: a judge session activates exactly [ask_panel] — its sole tool — and
-// fullTools leaves that set unchanged. Asserted directly, independent of model behavior.
+// Real SDK, no model call: a judge session activates exactly [ask_panel] — its sole tool.
 test("a judge session exposes ask_panel and nothing else", async () => {
   const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
-  const session = await createInnerSession(STUB, {
+  const session = await createInnerAgentSession(STUB, {
     cwd,
     role: "judge",
-    fullTools: true, // proves the judge stays at [ask_panel] regardless
     askPanel: makeAskPanelTool([]),
   });
   try {
@@ -190,10 +188,10 @@ test("resolveModel rejects malformed and unknown model ids", async () => {
   await expect(resolveModel("opencode-go/not-a-real-model", modelRuntime)).rejects.toThrow();
 });
 
-test("runReviewer emits one lifecycle pair when session creation fails", async () => {
+test("runAgent emits one lifecycle pair when session creation fails", async () => {
   const events: ProgressEvent[] = [];
 
-  const result = await runReviewer("invalid-model-id", "original prompt", {
+  const result = await runAgent("invalid-model-id", "original prompt", {
     activitySink: (event) => events.push(event),
   });
 
@@ -207,7 +205,7 @@ test("runReviewer emits one lifecycle pair when session creation fails", async (
   });
 });
 
-test("runReviewer flushes open activity before model_end", async () => {
+test("runAgent flushes open activity before model_end", async () => {
   const session = fakeRunSession([
     {
       stopReason: "stop",
@@ -222,7 +220,7 @@ test("runReviewer flushes open activity before model_end", async () => {
   ]);
   const events: ProgressEvent[] = [];
 
-  const result = await runReviewer("provider/model", "original prompt", {
+  const result = await runAgent("provider/model", "original prompt", {
     existingSession: session,
     activitySink: (event) => events.push(event),
   });
@@ -245,13 +243,13 @@ test("runReviewer flushes open activity before model_end", async () => {
   }
 });
 
-test("runReviewer retries one clean empty response in the same session", async () => {
+test("runAgent retries one clean empty response in the same session", async () => {
   const session = fakeRunSession([
     { stopReason: "stop", text: "  " },
     { stopReason: "stop", text: "visible answer" },
   ]);
 
-  const result = await runReviewer("provider/model", "original prompt", { existingSession: session });
+  const result = await runAgent("provider/model", "original prompt", { existingSession: session });
 
   expect(result.isOk()).toBe(true);
   expect(session.prompts).toHaveLength(2);
@@ -265,13 +263,13 @@ test("runReviewer retries one clean empty response in the same session", async (
   }
 });
 
-test("runReviewer fails explicitly when the retry is still empty", async () => {
+test("runAgent fails explicitly when the retry is still empty", async () => {
   const session = fakeRunSession([
     { stopReason: "stop", text: "" },
     { stopReason: "stop", text: "\t" },
   ]);
 
-  const result = await runReviewer("provider/model", "original prompt", { existingSession: session });
+  const result = await runAgent("provider/model", "original prompt", { existingSession: session });
 
   expect(result.isErr()).toBe(true);
   expect(session.prompts).toHaveLength(2);
@@ -281,13 +279,13 @@ test("runReviewer fails explicitly when the retry is still empty", async () => {
   }
 });
 
-test("runReviewer reports a non-clean empty-output retry", async () => {
+test("runAgent reports a non-clean empty-output retry", async () => {
   const session = fakeRunSession([
     { stopReason: "stop", text: "" },
     { stopReason: "length", errorMessage: "too long" },
   ]);
 
-  const result = await runReviewer("provider/model", "original prompt", { existingSession: session });
+  const result = await runAgent("provider/model", "original prompt", { existingSession: session });
 
   expect(result.isErr()).toBe(true);
   expect(session.prompts).toHaveLength(2);
@@ -299,10 +297,10 @@ test("runReviewer reports a non-clean empty-output retry", async () => {
   }
 });
 
-test("runReviewer does not retry an initially non-clean response", async () => {
+test("runAgent does not retry an initially non-clean response", async () => {
   const session = fakeRunSession([{ stopReason: "length", errorMessage: "too long" }]);
 
-  const result = await runReviewer("provider/model", "original prompt", { existingSession: session });
+  const result = await runAgent("provider/model", "original prompt", { existingSession: session });
 
   expect(result.isErr()).toBe(true);
   expect(session.prompts).toHaveLength(1);
@@ -313,7 +311,7 @@ test("runReviewer does not retry an initially non-clean response", async () => {
   }
 });
 
-test("runReviewer marks an SDK-aborted prompt as cancelled", async () => {
+test("runAgent marks an SDK-aborted prompt as cancelled", async () => {
   const controller = new AbortController();
   const session = fakeRunSession([
     {
@@ -323,7 +321,7 @@ test("runReviewer marks an SDK-aborted prompt as cancelled", async () => {
     },
   ]);
 
-  const result = await runReviewer("provider/model", "original prompt", {
+  const result = await runAgent("provider/model", "original prompt", {
     existingSession: session,
     signal: controller.signal,
   });
@@ -332,7 +330,7 @@ test("runReviewer marks an SDK-aborted prompt as cancelled", async () => {
   if (result.isErr()) expect(result.error.aborted).toBe(true);
 });
 
-test("runReviewer keeps a technical failure technical after a late abort", async () => {
+test("runAgent keeps a technical failure technical after a late abort", async () => {
   const controller = new AbortController();
   const session = fakeRunSession([
     {
@@ -342,7 +340,7 @@ test("runReviewer keeps a technical failure technical after a late abort", async
     },
   ]);
 
-  const result = await runReviewer("provider/model", "original prompt", {
+  const result = await runAgent("provider/model", "original prompt", {
     existingSession: session,
     signal: controller.signal,
   });
@@ -359,8 +357,8 @@ test("runReviewer keeps a technical failure technical after a late abort", async
 // bash are absent, so a review cannot change files or run shell
 // in its cwd. createAgentSession({tools}) is an allowlist, so the active set is
 // exactly READONLY_TOOLS, nothing more.
-integrationTest("runReviewer defaults to read-only (read/grep/find/ls only)", async () => {
-  const result = await runReviewer(STUB, "Reply with exactly the word: PONG. Nothing else.");
+integrationTest("runAgent defaults to read-only (read/grep/find/ls only)", async () => {
+  const result = await runAgent(STUB, "Reply with exactly the word: PONG. Nothing else.");
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     try {
@@ -377,8 +375,8 @@ integrationTest("runReviewer defaults to read-only (read/grep/find/ls only)", as
 
 // Real run, no mocks: opting in with fullTools gives the full local set (the
 // read-only tools plus edit/write/bash), so writing is an explicit choice.
-integrationTest("runReviewer with fullTools gives the full local tool set", async () => {
-  const result = await runReviewer(STUB, "Reply with exactly the word: PONG. Nothing else.", {
+integrationTest("runAgent with fullTools gives the full local tool set", async () => {
+  const result = await runAgent(STUB, "Reply with exactly the word: PONG. Nothing else.", {
     fullTools: true,
   });
   expect(result.isOk()).toBe(true);
@@ -393,8 +391,8 @@ integrationTest("runReviewer with fullTools gives the full local tool set", asyn
 }, 60_000);
 
 // Real run, no mocks: one agent runs end-to-end on a real model and returns text.
-integrationTest("runReviewer runs one model end-to-end and returns finished text", async () => {
-  const result = await runReviewer(STUB, "Reply with exactly the word: PONG. Nothing else.");
+integrationTest("runAgent runs one model end-to-end and returns finished text", async () => {
+  const result = await runAgent(STUB, "Reply with exactly the word: PONG. Nothing else.");
   expect(result.isOk()).toBe(true);
   if (result.isOk()) {
     try {

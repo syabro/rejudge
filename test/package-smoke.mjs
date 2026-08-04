@@ -256,6 +256,104 @@ async function assertPathMissing(path, label) {
   await assert.rejects(access(path), (error) => error?.code === "ENOENT", `${label} must not exist`);
 }
 
+async function resolveSmokeArtifact(options, manifest, hostTemp, cleanEnv) {
+  let tarball;
+
+  if (options.source === "npm") {
+    console.log(`[smoke] using public npm package ${manifest.name}@${manifest.version}`);
+  } else if (options.tarball) {
+    tarball = await realpath(resolve(process.cwd(), options.tarball));
+    await access(tarball);
+    console.log(`[smoke] using prebuilt tarball ${tarball}`);
+  } else {
+    console.log("[smoke] building public artifacts");
+    await runChecked("bun", ["run", "build"], {
+      cwd: ROOT,
+      env: cleanEnv,
+      timeoutMs: SETUP_TIMEOUT_MS,
+    });
+
+    console.log("[smoke] packing npm artifact without lifecycle scripts");
+    const packed = await runChecked(
+      "npm",
+      ["pack", "--json", "--ignore-scripts", "--pack-destination", hostTemp],
+      { cwd: ROOT, env: cleanEnv, timeoutMs: SETUP_TIMEOUT_MS },
+    );
+    const report = JSON.parse(packed.stdout);
+    assert.equal(Array.isArray(report) && report.length === 1, true, "npm pack must return one artifact");
+
+    const files = report[0].files.map((file) => file.path).sort();
+    assert.deepEqual(files, [...EXPECTED_PACKAGE_FILES].sort(), "npm tarball file list changed");
+
+    tarball = join(hostTemp, report[0].filename);
+    await access(tarball);
+  }
+
+  return { tarball, initialDigest: tarball ? await sha512File(tarball) : undefined };
+}
+
+async function buildSmokeImage(buildContext, dockerEnv) {
+  console.log("[smoke] preparing Node 22.19 Docker image");
+  await runChecked(
+    "docker",
+    ["build", "--file", DOCKERFILE_PATH, "--tag", IMAGE, buildContext],
+    { cwd: ROOT, env: dockerEnv, timeoutMs: SETUP_TIMEOUT_MS },
+  );
+}
+
+function buildDockerArgs(options, manifest, containerName, tarball) {
+  const args = [
+    "run", "--rm", "--name", containerName,
+    "--env", "HOME=/tmp/rejudge-home",
+    "--env", "XDG_CONFIG_HOME=/tmp/rejudge-xdg",
+    "--env", "PI_CODING_AGENT_DIR=/tmp/rejudge-agent",
+    "--env", `REJUDGE_SMOKE_PACKAGE_NAME=${manifest.name}`,
+    "--env", `REJUDGE_SMOKE_PACKAGE_VERSION=${manifest.version}`,
+  ];
+  if (!options.noKey) {
+    for (const name of CREDENTIAL_ENV) {
+      args.push("--env", name);
+    }
+  }
+  if (tarball) {
+    args.push("--mount", `type=bind,src=${tarball},dst=/artifact/rejudge.tgz,readonly`);
+  }
+  args.push(
+    "--mount", `type=bind,src=${RUNNER_PATH},dst=/smoke/package-smoke.mjs,readonly`,
+    "--workdir", "/smoke",
+    IMAGE, "node", "/smoke/package-smoke.mjs",
+    "--container", options.target,
+    "--source", options.source,
+  );
+  if (options.noKey) {
+    args.push("--no-key");
+  }
+  return args;
+}
+
+async function runDockerSmoke(options, dockerArgs, key) {
+  const mode = options.noKey ? "without credentials" : "live";
+  console.log(`[smoke] running ${options.target} target from ${options.source} ${mode}`);
+  const result = await runProcess("docker", dockerArgs, {
+    cwd: ROOT,
+    env: dockerClientEnvironment(!options.noKey),
+    timeoutMs: CONTAINER_TIMEOUT_MS,
+  });
+  const captured = `${result.stdout}\n${result.stderr}`;
+
+  if (key && captured.includes(key)) {
+    throw new Error("credential value appeared in captured smoke output");
+  }
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
+  if (result.timedOut) {
+    throw new Error(`Docker smoke timed out after ${CONTAINER_TIMEOUT_MS}ms`);
+  }
+  if (result.code !== 0) {
+    throw new Error(`Docker smoke exited ${result.code ?? result.signal ?? "without a status"}`);
+  }
+}
+
 async function runHost(options) {
   const key = process.env.OPENCODE_API_KEY?.trim();
   if (!options.noKey && !key) {
@@ -265,125 +363,21 @@ async function runHost(options) {
   const manifest = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8"));
   const hostTemp = await mkdtemp(join(tmpdir(), "rejudge-package-smoke-"));
   const buildContext = join(hostTemp, "docker-context");
-  const cleanEnv = withoutCredentials(process.env);
   const dockerCleanEnv = dockerClientEnvironment(false);
   const containerName = `rejudge-package-smoke-${process.pid}-${Date.now()}`;
   let dockerStarted = false;
-  let tarball;
 
   try {
     await mkdir(buildContext);
+    const artifact = await resolveSmokeArtifact(options, manifest, hostTemp, withoutCredentials(process.env));
+    await buildSmokeImage(buildContext, dockerCleanEnv);
 
-    if (options.source === "npm") {
-      console.log(`[smoke] using public npm package ${manifest.name}@${manifest.version}`);
-    } else if (options.tarball) {
-      tarball = await realpath(resolve(process.cwd(), options.tarball));
-      await access(tarball);
-      console.log(`[smoke] using prebuilt tarball ${tarball}`);
-    } else {
-      console.log("[smoke] building public artifacts");
-      await runChecked("bun", ["run", "build"], {
-        cwd: ROOT,
-        env: cleanEnv,
-        timeoutMs: SETUP_TIMEOUT_MS,
-      });
-
-      console.log("[smoke] packing npm artifact without lifecycle scripts");
-      const packed = await runChecked(
-        "npm",
-        ["pack", "--json", "--ignore-scripts", "--pack-destination", hostTemp],
-        { cwd: ROOT, env: cleanEnv, timeoutMs: SETUP_TIMEOUT_MS },
-      );
-      const report = JSON.parse(packed.stdout);
-      assert.equal(Array.isArray(report) && report.length === 1, true, "npm pack must return one artifact");
-
-      const files = report[0].files.map((file) => file.path).sort();
-      assert.deepEqual(files, [...EXPECTED_PACKAGE_FILES].sort(), "npm tarball file list changed");
-
-      tarball = join(hostTemp, report[0].filename);
-      await access(tarball);
-    }
-
-    const initialDigest = tarball ? await sha512File(tarball) : undefined;
-
-    console.log("[smoke] preparing Node 22.19 Docker image");
-    await runChecked(
-      "docker",
-      ["build", "--file", DOCKERFILE_PATH, "--tag", IMAGE, buildContext],
-      { cwd: ROOT, env: dockerCleanEnv, timeoutMs: SETUP_TIMEOUT_MS },
-    );
-
-    const dockerArgs = [
-      "run",
-      "--rm",
-      "--name",
-      containerName,
-      "--env",
-      "HOME=/tmp/rejudge-home",
-      "--env",
-      "XDG_CONFIG_HOME=/tmp/rejudge-xdg",
-      "--env",
-      "PI_CODING_AGENT_DIR=/tmp/rejudge-agent",
-      "--env",
-      `REJUDGE_SMOKE_PACKAGE_NAME=${manifest.name}`,
-      "--env",
-      `REJUDGE_SMOKE_PACKAGE_VERSION=${manifest.version}`,
-    ];
-    if (!options.noKey) {
-      for (const name of CREDENTIAL_ENV) {
-        dockerArgs.push("--env", name);
-      }
-    }
-    if (tarball) {
-      dockerArgs.push("--mount", `type=bind,src=${tarball},dst=/artifact/rejudge.tgz,readonly`);
-    }
-    dockerArgs.push(
-      "--mount",
-      `type=bind,src=${RUNNER_PATH},dst=/smoke/package-smoke.mjs,readonly`,
-      "--workdir",
-      "/smoke",
-      IMAGE,
-      "node",
-      "/smoke/package-smoke.mjs",
-      "--container",
-      options.target,
-      "--source",
-      options.source,
-    );
-    if (options.noKey) {
-      dockerArgs.push("--no-key");
-    }
-
-    const mode = options.noKey ? "without credentials" : "live";
-    console.log(`[smoke] running ${options.target} target from ${options.source} ${mode}`);
     dockerStarted = true;
-    const dockerEnv = dockerClientEnvironment(!options.noKey);
-    const result = await runProcess("docker", dockerArgs, {
-      cwd: ROOT,
-      env: dockerEnv,
-      timeoutMs: CONTAINER_TIMEOUT_MS,
-    });
-    const captured = `${result.stdout}\n${result.stderr}`;
+    await runDockerSmoke(options, buildDockerArgs(options, manifest, containerName, artifact.tarball), key);
 
-    if (key && captured.includes(key)) {
-      throw new Error("credential value appeared in captured smoke output");
-    }
-    if (result.stdout) {
-      process.stdout.write(result.stdout);
-    }
-    if (result.stderr) {
-      process.stderr.write(result.stderr);
-    }
-    if (result.timedOut) {
-      throw new Error(`Docker smoke timed out after ${CONTAINER_TIMEOUT_MS}ms`);
-    }
-    if (result.code !== 0) {
-      throw new Error(`Docker smoke exited ${result.code ?? result.signal ?? "without a status"}`);
-    }
-
-    if (tarball && initialDigest) {
-      assert.equal(await sha512File(tarball), initialDigest, "tarball changed while smoke was running");
-      console.log(`[smoke] tarball sha512 ${initialDigest}`);
+    if (artifact.tarball && artifact.initialDigest) {
+      assert.equal(await sha512File(artifact.tarball), artifact.initialDigest, "tarball changed while smoke was running");
+      console.log(`[smoke] tarball sha512 ${artifact.initialDigest}`);
     }
     console.log(`[smoke] ${options.target} target from ${options.source} passed`);
   } finally {
@@ -493,9 +487,8 @@ async function installRegistryCli(context) {
   const realBin = await realpath(resolvedBin);
   assert.equal(realBin.startsWith(`${packageRoot}/`), true, "bare rejudge must resolve into the registry package");
 
-  context.cliRuntimeEnv = runtimeEnv;
-  context.cliPackageRoot = packageRoot;
   console.log(`[smoke] npm installed ${registrySpec(context)} for CLI at ${packageRoot}`);
+  return { ...context, cliRuntimeEnv: runtimeEnv, cliPackageRoot: packageRoot };
 }
 
 async function importGlobalPiSdk(installEnv) {
@@ -508,15 +501,16 @@ async function importGlobalPiSdk(installEnv) {
 
 async function connectPiToRejudge(context) {
   const installEnv = withoutCredentials(process.env);
+  let prepared = context;
   if (!context.cliPackageRoot && !context.piPackageRoot) {
-    await installRegistryCli(context);
+    prepared = await installRegistryCli(context);
   }
   await runChecked("npm", ["install", "-g", "--ignore-scripts", PI_PACKAGE], {
     env: installEnv,
     timeoutMs: SETUP_TIMEOUT_MS,
   });
 
-  const packageRoot = await realpath(context.cliPackageRoot ?? context.piPackageRoot);
+  const packageRoot = await realpath(prepared.cliPackageRoot ?? prepared.piPackageRoot);
   await runChecked("pi", ["install", packageRoot], {
     env: installEnv,
     timeoutMs: SETUP_TIMEOUT_MS,
@@ -546,17 +540,16 @@ async function connectPiToRejudge(context) {
   }
 
   const { piRoot, sdk } = await importGlobalPiSdk(installEnv);
-  context.piPackageRoot = packageRoot;
-  context.piPackageSource = packageSource;
-  context.piSdk = sdk;
   console.log(`[smoke] Pi connected ${packageRoot} using SDK ${piRoot}`);
+  return { ...prepared, piPackageRoot: packageRoot, piPackageSource: packageSource, piSdk: sdk };
 }
 
 async function runCliTarget(context, live) {
+  let prepared = context;
   if (context.source === "npm") {
-    await installRegistryCli(context);
+    prepared = await installRegistryCli(context);
   }
-  const runtimeEnv = context.cliRuntimeEnv;
+  const runtimeEnv = prepared.cliRuntimeEnv;
   assert.ok(runtimeEnv, "CLI runtime environment is required");
 
   const help = await runChecked("rejudge", ["--help"], { env: runtimeEnv });
@@ -564,7 +557,7 @@ async function runCliTarget(context, live) {
   console.log("[smoke] cli help passed");
 
   if (!live) {
-    return;
+    return prepared;
   }
 
   const ordinaryCwd = "/tmp/rejudge-cli";
@@ -602,6 +595,7 @@ async function runCliTarget(context, live) {
   });
   assertExactLine(diffReview.stdout, "DIFF_SMOKE_OK: after", "CLI diff review");
   console.log("[smoke] live cli diff review passed");
+  return prepared;
 }
 
 function assertRegistrySourceInfo(sourceInfo, context, label) {
@@ -619,18 +613,18 @@ async function runPiTarget(context, live) {
   await mkdir(cwd, { recursive: true });
   await writeSmokeConfig(cwd);
 
-  await connectPiToRejudge(context);
-  const packageRoot = context.piPackageRoot;
-  const packageSource = context.piPackageSource;
+  const prepared = await connectPiToRejudge(context);
+  const packageRoot = prepared.piPackageRoot;
+  const packageSource = prepared.piPackageSource;
   assert.ok(packageRoot && packageSource, "Pi package root and source are required");
 
-  const sdk = context.piSdk;
+  const sdk = prepared.piSdk;
   const { DefaultPackageManager, DefaultResourceLoader, SettingsManager } = sdk;
-  const settingsManager = SettingsManager.create(cwd, context.agentDir, { projectTrusted: true });
+  const settingsManager = SettingsManager.create(cwd, prepared.agentDir, { projectTrusted: true });
   await settingsManager.reload();
   assert.deepEqual(settingsManager.getGlobalSettings().packages, [packageSource]);
 
-  const packageManager = new DefaultPackageManager({ cwd, agentDir: context.agentDir, settingsManager });
+  const packageManager = new DefaultPackageManager({ cwd, agentDir: prepared.agentDir, settingsManager });
   const resolved = await packageManager.resolve();
   const packageExtensions = resolved.extensions.filter(
     (resource) => resource.enabled && resource.path.startsWith(packageRoot),
@@ -645,12 +639,12 @@ async function runPiTarget(context, live) {
     [join(packageRoot, "docs/skills/rejudge-diff/SKILL.md"), join(packageRoot, "docs/skills/rejudge/SKILL.md")].sort(),
   );
   for (const resource of [...packageExtensions, ...packageSkills]) {
-    assertRegistrySourceInfo({ ...resource.metadata, path: resource.path }, context, "resolved Pi resource");
+    assertRegistrySourceInfo({ ...resource.metadata, path: resource.path }, prepared, "resolved Pi resource");
   }
 
   const loader = new DefaultResourceLoader({
     cwd,
-    agentDir: context.agentDir,
+    agentDir: prepared.agentDir,
     settingsManager,
     noContextFiles: true,
     noPromptTemplates: true,
@@ -662,27 +656,27 @@ async function runPiTarget(context, live) {
   assert.deepEqual(extensions.errors, []);
   const packageExtension = extensions.extensions.find((extension) => extension.path.startsWith(packageRoot));
   assert.ok(packageExtension, "installed Pi extension must load from the package root");
-  assertRegistrySourceInfo(packageExtension.sourceInfo, context, "loaded extension");
+  assertRegistrySourceInfo(packageExtension.sourceInfo, prepared, "loaded extension");
 
   const tool = [...packageExtension.tools.values()].find((candidate) => candidate.definition.name === "rejudge");
   assert.ok(tool, "installed Pi extension must register rejudge");
-  assertRegistrySourceInfo(tool.sourceInfo, context, "registered tool");
+  assertRegistrySourceInfo(tool.sourceInfo, prepared, "registered tool");
 
   const loadedSkills = loader.getSkills();
   const skills = loadedSkills.skills.filter((skill) => skill.filePath.startsWith(packageRoot));
   assert.deepEqual(skills.map((skill) => skill.name).sort(), ["rejudge", "rejudge-diff"]);
   for (const skill of skills) {
-    assertRegistrySourceInfo(skill.sourceInfo, context, `loaded skill ${skill.name}`);
+    assertRegistrySourceInfo(skill.sourceInfo, prepared, `loaded skill ${skill.name}`);
   }
   assert.deepEqual(
     loadedSkills.diagnostics.filter((diagnostic) => String(diagnostic.path ?? "").startsWith(packageRoot)),
     [],
   );
-  context.piTool = tool;
+  const resultContext = { ...prepared, piTool: tool };
   console.log("[smoke] Pi package, extension, tool, and skills discovery passed");
 
   if (!live) {
-    return;
+    return resultContext;
   }
 
   const result = await tool.definition.execute(
@@ -701,6 +695,7 @@ async function runPiTarget(context, live) {
     .join("\n");
   assertExactLine(text, "PI_SMOKE_OK: 7", "Pi rejudge tool");
   console.log("[smoke] live Pi tool call passed");
+  return resultContext;
 }
 
 async function runNoKeyProbe(context) {
@@ -749,12 +744,12 @@ async function runNoKeyProbe(context) {
 }
 
 async function runContainer(options) {
-  const context = await prepareContainer(options);
+  let context = await prepareContainer(options);
   const selected = options.target === "all" ? TARGETS : [options.target];
   const handlers = { cli: runCliTarget, pi: runPiTarget };
 
   for (const target of selected) {
-    await handlers[target](context, !options.noKey);
+    context = await handlers[target](context, !options.noKey);
   }
   if (options.noKey) {
     await runNoKeyProbe(context);

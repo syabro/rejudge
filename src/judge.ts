@@ -1,19 +1,29 @@
 import { type Result } from "neverthrow";
-import { type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import { type SessionManager, type ToolDefinition } from "@earendil-works/pi-coding-agent";
+import type { ThinkingLevel } from "@earendil-works/pi-ai";
+import type { DebugLog } from "./debug-log.ts";
 import {
-  runReviewer,
+  runAgent,
   type AgentFailure,
-  type ReviewerResult,
-  type RunReviewerOptions,
+  type AgentResult,
 } from "./runner.ts";
 import { ASK_PANEL_TOOL_NAME } from "./ask-panel-tool.ts";
-import { JUDGE_ROLE_KEY } from "./events.ts";
+import { JUDGE_ROLE_KEY, type ActivitySink } from "./events.ts";
 
 /**
  * The slice of a reviewer result the judge consumes: the finished text, its stable role key,
  * and the model that produced it. The judge does not take ownership of reviewer sessions.
  */
-export type ReviewerOutput = Pick<ReviewerResult, "roleKey" | "modelId" | "text">;
+export type ReviewerOutput = Pick<AgentResult, "roleKey" | "modelId" | "text">;
+
+export interface RunJudgeOptions {
+  cwd?: string;
+  thinkingLevel?: ThinkingLevel;
+  signal?: AbortSignal;
+  debugLog?: DebugLog;
+  activitySink?: ActivitySink;
+  sessionManager?: SessionManager;
+}
 
 /**
  * Build the judge prompt. The judge receives only the analyses; it fuses them into the final
@@ -69,11 +79,11 @@ export async function runJudge(
   judgeModelId: string,
   panel: ReviewerOutput[],
   askPanel: ToolDefinition,
-  options: RunReviewerOptions = {},
+  options: RunJudgeOptions = {},
 ): Promise<Result<string, AgentFailure>> {
   // The judge reaches the task, files, and checks through ask_panel; it has no direct host tools.
   const judgePrompt = buildJudgePrompt(panel);
-  const result = await runReviewer(judgeModelId, judgePrompt, {
+  const result = await runAgent(judgeModelId, judgePrompt, {
     ...options,
     role: "judge",
     roleKey: JUDGE_ROLE_KEY,

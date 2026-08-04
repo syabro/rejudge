@@ -3,19 +3,20 @@ import { type Component, truncateToWidth, visibleWidth, wrapTextWithAnsi } from 
 import {
   JUDGE_ROLE_KEY,
   panelRoleKey,
-  type ModelRole,
-  type ProgressEvent,
-  type RoleKey,
   formatDur,
   shortModel,
 } from "./events.ts";
 import {
   formatLiveReviewMode,
   formatReviewMode,
-  reviewMode,
-  type ReviewerToolPolicy,
-  type ReviewMode,
 } from "./review-mode.ts";
+import {
+  type ModelProgress,
+  type ModelStatus,
+  type ProgressSnapshot,
+} from "./progress-state.ts";
+
+export { applyEvent, createProgressState, type ProgressSnapshot } from "./progress-state.ts";
 
 /**
  * The live-progress model and renderer for the `rejudge` tool block: a snapshot built
@@ -23,8 +24,6 @@ import {
  * tree ({@link renderProgress}). Kept out of the extension entry so the entry stays just
  * registration + plumbing.
  */
-
-type ModelStatus = "running" | "done" | "error" | "cancelled";
 
 /**
  * The slice of Pi's `Theme` this renderer actually uses. Narrowed to a structural interface so
@@ -48,166 +47,6 @@ export function progressTitle(question: string, title?: string): string {
   const firstLine = question.trim().split("\n", 1)[0]?.trim() ?? "";
   return firstLine.length > 120 ? `${firstLine.slice(0, 119)}…` : firstLine;
 }
-
-/** Live state of one inner agent, built up from its progress events. */
-interface ModelProgress {
-  /** Stable internal address for this agent slot. */
-  roleKey: RoleKey;
-  /** Full "provider/model" id. */
-  model: string;
-  role: ModelRole;
-  status: ModelStatus;
-  /** Current step while running (a tool name, or "thinking"/"writing"); cleared when it ends. */
-  activity?: string;
-  /** Short params of the current/last step (a read's path, …), shown dimmed. */
-  detail?: string;
-  /** When the current/last step started — for its duration. */
-  activityStartedAt?: number;
-  /** When the last step ended; set means it's finished and shown frozen until the next starts. */
-  activityEndedAt?: number;
-  startedAt: number;
-  endedAt?: number;
-  /** How many tool calls this agent has started (thinking/writing don't count). */
-  toolCount: number;
-  /** Failure reason, when status is "error". */
-  error?: string;
-}
-
-/**
- * Snapshot of a review's progress, carried in the tool result's `details` and drawn by
- * {@link renderProgress}. The reviewers and judge are seeded up front so the whole tree
- * shows from the first paint (each row "waiting…" until its model starts).
- */
-export interface ProgressSnapshot {
-  startedAt: number;
-  endedAt?: number;
-  status: ModelStatus;
-  /** Whether this invocation started a new panel or restored a specific prior run. Absent on legacy snapshots. */
-  mode?: ReviewMode;
-  /** Exact tools granted to panel agents. Absent on legacy snapshots. */
-  toolPolicy?: ReviewerToolPolicy;
-  /** Short title shown in the header (`Rejudge <title>`); what this run is about. */
-  title?: string;
-  /** Full request sent to the panel (`buildInvocationPrompt(question, outputInstructions)`),
-   *  shown in the header when expanded (Ctrl+O); falls back to {@link title} when blank. */
-  request?: string;
-  /** Full reviewer model ids, in config order. */
-  reviewerModels: string[];
-  /** Full judge model id. */
-  judgeModel: string;
-  /** Per-role live state, for agent slots that have started. */
-  models: ModelProgress[];
-  diagnostics: { severity: "info" | "warn" | "error"; message: string }[];
-}
-
-/**
- * A fresh snapshot with the full tree seeded — every row present, none started yet.
- * `startedAt` is injectable so a caller driving its own clock (the CLI renderer, tests) keeps
- * the run's elapsed time on that same time source.
- */
-export function createProgressState(
-  reviewerModels: string[],
-  judgeModel: string,
-  title?: string,
-  request?: string,
-  mode: ReviewMode = reviewMode(),
-  toolPolicy?: ReviewerToolPolicy,
-  startedAt: number = Date.now(),
-): ProgressSnapshot {
-  return {
-    startedAt,
-    status: "running",
-    mode,
-    toolPolicy,
-    title,
-    request,
-    reviewerModels: [...reviewerModels],
-    judgeModel,
-    models: [],
-    diagnostics: [],
-  };
-}
-
-/** Apply one engine event to the snapshot (mutates in place). */
-export function applyEvent(state: ProgressSnapshot, event: ProgressEvent): void {
-  const find = (roleKey: RoleKey): ModelProgress | undefined =>
-    state.models.find((model) => model.roleKey === roleKey);
-  switch (event.kind) {
-    case "model_start": {
-      const existing = find(event.roleKey);
-      const fresh: ModelProgress = {
-        roleKey: event.roleKey,
-        model: event.model,
-        role: event.role,
-        status: "running",
-        startedAt: event.t,
-        toolCount: 0,
-      };
-      if (existing) {
-        Object.assign(existing, fresh);
-        existing.activity = undefined;
-        existing.detail = undefined;
-        existing.activityStartedAt = undefined;
-        existing.activityEndedAt = undefined;
-        existing.endedAt = undefined;
-        existing.error = undefined;
-      } else {
-        state.models.push(fresh);
-      }
-      return;
-    }
-
-    case "activity": {
-      const m = find(event.roleKey);
-      if (!m || m.status !== "running") return;
-
-      if (event.phase === "start") {
-        m.activity = event.activity;
-        m.detail = event.detail;
-        m.activityStartedAt = event.t;
-        m.activityEndedAt = undefined;
-        if (event.activity !== "thinking" && event.activity !== "writing") {
-          m.toolCount++;
-        }
-      } else if (event.phase === "update") {
-        if (m.activity === event.activity) m.detail = event.detail;
-      } else if (m.activity === event.activity) {
-        // Step ended: keep showing it (frozen at its final duration) until the next starts —
-        // so the gap between calls shows the previous tool, not a blank.
-        m.activityEndedAt = event.t;
-      }
-      return;
-    }
-
-    case "model_end": {
-      const m = find(event.roleKey);
-      if (m) {
-        m.status = event.status;
-        m.endedAt = event.t;
-        m.activity = undefined;
-        m.detail = undefined;
-        m.activityStartedAt = undefined;
-        m.activityEndedAt = undefined;
-        if (event.error) {
-          m.error = event.error;
-        }
-      }
-      return;
-    }
-
-    case "total":
-      state.status = event.status;
-      state.endedAt = event.t;
-      return;
-
-    case "diagnostic":
-      state.diagnostics.push({ severity: event.severity, message: event.message });
-      return;
-    // stage_end carries timing only — the per-model and root clocks already cover it.
-  }
-}
-
-// ── Rendering ────────────────────────────────────────────────────────────────────────────
 
 /** Pad to a visible width with trailing spaces (no truncation — width is the row max). */
 function padTo(text: string, width: number): string {

@@ -48,7 +48,7 @@ export const WEB_SEARCH_TOOL = "web_search";
 
 /**
  * Host extension tools an inner agent is allowed to opt into. Only the host extensions that
- * provide one of these are loaded into an inner session (see {@link runReviewer}); every
+ * provide one of these are loaded into an inner session (see {@link runAgent}); every
  * other host extension is filtered out so its lifecycle handlers never fire for a reviewer or
  * judge — which is what made a host like Herdr or a session indicator flash on each inner
  * agent's completion. Today the only opt-in is `web_search`.
@@ -100,18 +100,18 @@ export async function resolveReviewerToolNames(cwd: string, fullTools: boolean):
 const EMPTY_VISIBLE_TEXT_RETRY_PROMPT =
   "Your previous turn had no visible final answer. Please provide the final answer now in visible assistant text only. Do not use hidden thinking as the answer.";
 
-export interface ReviewerResult {
-  /** Stable internal address for this reviewer slot. */
+export interface AgentResult {
+  /** Stable internal address for this agent slot. */
   roleKey: RoleKey;
-  /** The "provider/model" id this reviewer ran on. */
+  /** The "provider/model" id this agent ran on. */
   modelId: string;
-  /** The reviewer's finished answer text. */
+  /** The agent's finished answer text. */
   text: string;
-  /** Live session, left open for a later judge re-query; the caller disposes it. */
+  /** Live session, left open for a later prompt; the caller disposes it. */
   session: AgentSession;
 }
 
-export interface RunReviewerOptions {
+interface CommonAgentOptions {
   /** Working directory the agent's tools operate in. Default: process.cwd(). */
   cwd?: string;
   /** Reasoning level for this agent. Default: "xhigh". */
@@ -128,30 +128,14 @@ export interface RunReviewerOptions {
    */
   debugLog?: DebugLog;
   /**
-   * Give a reviewer the full local tool set ({@link REVIEWER_TOOLS}: adds edit/write/bash
-   * on top of read/grep/find/ls) so it can change files and run shell commands in its
-   * cwd. `runReview` forwards it to every reviewer; the judge remains restricted to
-   * `ask_panel`. Default: false → {@link READONLY_TOOLS}.
-   */
-  fullTools?: boolean;
-  /** Exact pre-resolved reviewer tools; keeps the rendered policy and session allow-list identical. */
-  reviewerTools?: readonly string[];
-  /**
    * Progress sink. When set, this agent emits `model_start`/`activity`/`model_end`
    * {@link ActivitySink} events through it so a consumer can render live progress. When
    * omitted the agent is silent — it writes nothing to stdout/stderr itself. `runReview`
    * forwards it (and tags each agent's {@link role}) to every reviewer and the judge.
    */
   activitySink?: ActivitySink;
-  /**
-   * This agent's role. Stamped on progress events; for `"judge"` it also scopes the agent's tools to
-   * {@link askPanel}. Default: "reviewer".
-   */
-  role?: ModelRole;
   /** Stable internal address for this agent slot. Defaults to `judge` or `panel-1`. */
   roleKey?: RoleKey;
-  /** The judge's only tool, `ask_panel`; reviewers run their standard tool set. */
-  askPanel?: ToolDefinition;
   /**
    * Where this agent's session is persisted. Default: {@link SessionManager.inMemory} — nothing
    * on disk, so the host's `/resume` list stays clean. `runReview` passes a disk-backed manager
@@ -160,26 +144,32 @@ export interface RunReviewerOptions {
    */
   sessionManager?: SessionManager;
   /**
-   * Per-agent session managers for {@link runPanel} only — index-aligned with `models`. runPanel
-   * distributes `sessionManagers[i]` into each agent's {@link sessionManager}. Ignored elsewhere.
-   */
-  sessionManagers?: SessionManager[];
-  /**
-   * TESTING-ONLY ({@link runPanel} only; never set by the `rejudge` tool). A per-reviewer prompt
-   * suffix, index-aligned with `models` (`undefined` = no suffix for that slot). When set, runPanel
-   * appends `promptAdds[i]` to agent `i`'s prompt — deliberately breaking the "every agent gets the
-   * byte-identical prompt" invariant to force panel divergence and reproduce cross-examination
-   * scenarios. Driven by the CLI's `--prompt-add-N` flag; ignored by every other caller.
-   */
-  promptAdds?: (string | undefined)[];
-  /**
    * A pre-built, possibly already-populated session to prompt instead of constructing a new one.
    * `runReview` uses this to resume a judge session opened from disk (SYN-029): the run skips
-   * {@link createInnerSession} and prompts the supplied session, which already carries round-1
+   * {@link createInnerAgentSession} and prompts the supplied session, which already carries round-1
    * context. Default: build a fresh session.
    */
   existingSession?: AgentSession;
 }
+
+interface ReviewerAgentOptions {
+  role?: "reviewer";
+  /**
+   * Give a reviewer the full local tool set ({@link REVIEWER_TOOLS}: adds edit/write/bash
+   * on top of read/grep/find/ls). Default: false → {@link READONLY_TOOLS}.
+   */
+  fullTools?: boolean;
+  /** Exact pre-resolved reviewer tools; keeps the rendered policy and session allow-list identical. */
+  reviewerTools?: readonly string[];
+}
+
+interface JudgeAgentOptions {
+  role: "judge";
+  /** The judge's only tool, `ask_panel`. */
+  askPanel?: ToolDefinition;
+}
+
+export type RunAgentOptions = CommonAgentOptions & (ReviewerAgentOptions | JudgeAgentOptions);
 
 /**
  * Resolve a `"provider/model"` id (e.g. `opencode-go/kimi-k2.6`) into a pi model.
@@ -199,7 +189,7 @@ export async function resolveModel(modelId: string, modelRuntime: ModelRuntime):
 
 /**
  * A failure from a single inner agent: which model broke and why. Carried in the `Err`
- * arm of {@link runReviewer}'s result so a caller reports the failing model as
+ * arm of {@link runAgent}'s result so a caller reports the failing model as
  * structured data instead of parsing a message.
  */
 export interface AgentFailure {
@@ -220,30 +210,31 @@ export interface AgentFailure {
  *
  * A reviewer gets the local tool set: read/grep/find/ls + `git_diff` (TLS-026), `fullTools` adds
  * edit/write/bash, plus `web_search` when the host has it. The judge gets only `askPanel`.
- * In-memory unless a `sessionManager` is given (SYN-029). Shared by {@link runReviewer}
+ * In-memory unless a `sessionManager` is given (SYN-029). Shared by {@link runAgent}
  * and the resume path.
  */
-export async function createInnerSession(
+export async function createInnerAgentSession(
   modelId: string,
-  options: RunReviewerOptions = {},
+  options: RunAgentOptions = {},
 ): Promise<AgentSession> {
   const modelRuntime = await ModelRuntime.create();
   const model = await resolveModel(modelId, modelRuntime);
   const cwd = options.cwd ?? process.cwd();
 
-  // The judge gets only ask_panel; a reviewer gets the local tool set
-  // (read-only or, on opt-in, full) plus git_diff.
-  const judge = options.role === "judge";
-  const askPanel = options.askPanel;
-  const customTools = judge ? (askPanel ? [askPanel] : []) : [gitDiffTool];
   const { resourceLoader, settingsManager } = innerResourceLoader(cwd);
   await resourceLoader.reload();
 
-  const tools = judge
-    ? askPanel ? [askPanel.name] : []
-    : options.reviewerTools
+  let customTools: ToolDefinition[];
+  let tools: string[];
+  if (options.role === "judge") {
+    customTools = options.askPanel ? [options.askPanel] : [];
+    tools = options.askPanel ? [options.askPanel.name] : [];
+  } else {
+    customTools = [gitDiffTool];
+    tools = options.reviewerTools
       ? [...options.reviewerTools]
       : reviewerToolNames(Boolean(options.fullTools), availableHostTools(resourceLoader));
+  }
 
   const { session } = await createAgentSession({
     model,
@@ -263,25 +254,19 @@ export async function createInnerSession(
   return session;
 }
 
-/**
- * Run one panel agent end-to-end on a single model.
- *
- * The reviewer runs in the local environment with the read-only {@link READONLY_TOOLS}
- * set by default, or the full {@link REVIEWER_TOOLS} set when `fullTools` is passed. Returns
- * `ok(result)` only on a clean run; any model/tool/runtime failure (or a cancel) becomes
- * `err({ model, error })` — never a throw, never a silent partial. On success the session
- * is left open (the caller disposes it) so the judge can re-query it later.
- *
- * When an `activitySink` is given the agent emits `model_start`/`activity`/`model_end`
- * progress events through it (see {@link attachSessionLogs}); with no sink it is silent and
- * writes nothing to stdout/stderr.
- */
-export async function runReviewer(
+interface AgentExecutionPolicy {
+  retryEmpty: boolean;
+  disposeOnFailure: boolean;
+}
+
+/** Execute one agent prompt with shared logging, abort, progress, and cleanup handling. */
+async function executeAgent(
   modelId: string,
   prompt: string,
-  options: RunReviewerOptions = {},
-): Promise<Result<ReviewerResult, AgentFailure>> {
-  const fail = (error: string, aborted = false): Result<ReviewerResult, AgentFailure> =>
+  options: RunAgentOptions,
+  policy: AgentExecutionPolicy,
+): Promise<Result<AgentResult, AgentFailure>> {
+  const fail = (error: string, aborted = false): Result<AgentResult, AgentFailure> =>
     err({ model: modelId, error, aborted });
   const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
   const isSignalAbort = (e: unknown): boolean =>
@@ -303,12 +288,12 @@ export async function runReviewer(
     try {
       options.signal?.throwIfAborted(); // already cancelled → don't even spin up a session
       // Resume (SYN-029) supplies a session opened from disk; otherwise build a fresh one.
-      session = options.existingSession ?? (await createInnerSession(modelId, options));
+      session = options.existingSession ?? (await createInnerAgentSession(modelId, options));
     } catch (e) {
       // resolveModel / createAgentSession / a pre-start abort. A freshly built session didn't
       // survive to assignment, but a caller-supplied existingSession (resume) is ours now —
       // dispose it so a failed resume doesn't leak the reopened judge session.
-      if (options.existingSession) {
+      if (options.existingSession && policy.disposeOnFailure) {
         options.existingSession.dispose();
       }
       const error = message(e);
@@ -385,11 +370,13 @@ export async function runReviewer(
       options.signal?.throwIfAborted();
       const firstTurn = await runPromptTurn(prompt, false);
 
-      let outcome: Result<ReviewerResult, AgentFailure>;
+      let outcome: Result<AgentResult, AgentFailure>;
       if (firstTurn.kind === "success") {
         outcome = ok({ roleKey, modelId, text: firstTurn.text, session });
       } else if (firstTurn.kind === "failure") {
         outcome = fail(firstTurn.error, firstTurn.aborted);
+      } else if (!policy.retryEmpty) {
+        outcome = fail("returned empty text");
       } else {
         options.signal?.throwIfAborted();
         const retryTurn = await runPromptTurn(EMPTY_VISIBLE_TEXT_RETRY_PROMPT, true);
@@ -404,7 +391,9 @@ export async function runReviewer(
 
       // Keep the session alive only on success; the caller disposes it then.
       if (outcome.isErr()) {
-        session.dispose();
+        if (policy.disposeOnFailure) {
+          session.dispose();
+        }
         endStatus = outcome.error.aborted ? "cancelled" : "error";
         endError = outcome.error.error;
       } else {
@@ -412,7 +401,9 @@ export async function runReviewer(
       }
       return outcome;
     } catch (e) {
-      session.dispose();
+      if (policy.disposeOnFailure) {
+        session.dispose();
+      }
       const error = message(e);
       const aborted = isSignalAbort(e);
       endStatus = aborted ? "cancelled" : "error";
@@ -438,4 +429,30 @@ export async function runReviewer(
       });
     }
   }
+}
+
+/**
+ * Run a reviewer or judge end-to-end. Returns a structured failure instead of throwing and
+ * retains the session only on success so the caller can continue or dispose it.
+ */
+export function runAgent(
+  modelId: string,
+  prompt: string,
+  options: RunAgentOptions = {},
+): Promise<Result<AgentResult, AgentFailure>> {
+  return executeAgent(modelId, prompt, options, { retryEmpty: true, disposeOnFailure: true });
+}
+
+/** Prompt a live reviewer session again without taking ownership of it. */
+export function rerunAgent(
+  agent: AgentResult,
+  prompt: string,
+  options: Pick<CommonAgentOptions, "signal" | "debugLog" | "activitySink"> = {},
+): Promise<Result<AgentResult, AgentFailure>> {
+  return executeAgent(agent.modelId, prompt, {
+    ...options,
+    role: "reviewer",
+    roleKey: agent.roleKey,
+    existingSession: agent.session,
+  }, { retryEmpty: false, disposeOnFailure: false });
 }

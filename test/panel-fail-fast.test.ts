@@ -1,31 +1,31 @@
 import { beforeEach, expect, test, vi } from "vitest";
 import { err, ok, type Result } from "neverthrow";
 import type { ModelSpec } from "../src/config.ts";
-import type { AgentFailure, ReviewerResult } from "../src/runner.ts";
+import type { AgentFailure, AgentResult } from "../src/runner.ts";
 
 vi.mock("../src/runner.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/runner.ts")>();
-  return { ...actual, runReviewer: vi.fn() };
+  return { ...actual, runAgent: vi.fn() };
 });
 
-const { runReviewer } = await import("../src/runner.ts");
+const { runAgent } = await import("../src/runner.ts");
 const { runPanel } = await import("../src/panel.ts");
 
-const mockedRunReviewer = vi.mocked(runReviewer);
+const mockedRunAgent = vi.mocked(runAgent);
 const SLOW: ModelSpec = { id: "provider/slow", level: "minimal" };
 const FAILS: ModelSpec = { id: "provider/fails", level: "minimal" };
 
-function fakeResult(modelId: string): ReviewerResult {
+function fakeResult(modelId: string): AgentResult {
   return {
     roleKey: "panel-1",
     modelId,
     text: "late success",
-    session: { dispose: vi.fn() } as unknown as ReviewerResult["session"],
+    session: { dispose: vi.fn() } as unknown as AgentResult["session"],
   };
 }
 
 beforeEach(() => {
-  mockedRunReviewer.mockReset();
+  mockedRunAgent.mockReset();
 });
 
 test("runPanel aborts in-flight siblings when the first agent fails", async () => {
@@ -36,7 +36,7 @@ test("runPanel aborts in-flight siblings when the first agent fails", async () =
   let slowObservedAbort = false;
   let slowCleanupDone = false;
 
-  mockedRunReviewer.mockImplementation(async (modelId, _prompt, options): Promise<Result<ReviewerResult, AgentFailure>> => {
+  mockedRunAgent.mockImplementation(async (modelId, _prompt, options): Promise<Result<AgentResult, AgentFailure>> => {
     if (modelId === SLOW.id) {
       markSlowStarted();
       const signal = options?.signal;

@@ -4,7 +4,7 @@ import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ASK_PANEL_TOOL_NAME, makeAskPanelTool } from "../src/ask-panel-tool.ts";
-import { READONLY_TOOLS, resolveModel, type ReviewerResult } from "../src/runner.ts";
+import { READONLY_TOOLS, resolveModel, type AgentResult } from "../src/runner.ts";
 import { gitDiffTool, GIT_DIFF_TOOL_NAME } from "../src/git-diff-tool.ts";
 import { runPanel } from "../src/panel.ts";
 import type { ProgressEvent } from "../src/events.ts";
@@ -26,7 +26,7 @@ function resultText(result: { content: { type: string }[] }): string {
 function fakePanelSession(
   promptBody: (ctx: { question: string; messages: Record<string, unknown>[]; emit: (event: unknown) => void }) => Promise<void> | void,
   options: { text?: string | ((question: string) => string); onAbort?: () => void } = {},
-): ReviewerResult["session"] {
+): AgentResult["session"] {
   const messages: Record<string, unknown>[] = [{ role: "assistant", stopReason: "stop" }];
   let subscriber: ((event: unknown) => void) | undefined;
   let lastQuestion = "";
@@ -48,7 +48,7 @@ function fakePanelSession(
     abort() {
       options.onAbort?.();
     },
-  } as unknown as ReviewerResult["session"];
+  } as unknown as AgentResult["session"];
 }
 
 // Deterministic (no session touched, no model): an unknown role key short-circuits before any
@@ -56,9 +56,9 @@ function fakePanelSession(
 // learns which sessions it can actually re-query. The dummy entries are a typed input, not a mock of
 // the runner/Pi/models (the not-found branch never reads the session).
 test("ask_panel returns an error listing valid roles for an unknown role", async () => {
-  const panel: ReviewerResult[] = [
-    { roleKey: "panel-1", modelId: "provider/alpha", text: "a", session: {} as ReviewerResult["session"] },
-    { roleKey: "panel-2", modelId: "provider/beta", text: "b", session: {} as ReviewerResult["session"] },
+  const panel: AgentResult[] = [
+    { roleKey: "panel-1", modelId: "provider/alpha", text: "a", session: {} as AgentResult["session"] },
+    { roleKey: "panel-2", modelId: "provider/beta", text: "b", session: {} as AgentResult["session"] },
   ];
   const tool = makeAskPanelTool(panel);
 
@@ -86,7 +86,7 @@ test("ask_panel targets a stable panel role when model ids are duplicated", asyn
   const panel = [
     { roleKey: "panel-1", modelId: "provider/shared", text: "a", session: makeSession(0) },
     { roleKey: "panel-2", modelId: "provider/shared", text: "b", session: makeSession(1) },
-  ] as ReviewerResult[];
+  ] as AgentResult[];
   const tool = makeAskPanelTool(panel);
 
   const result = await tool.execute(

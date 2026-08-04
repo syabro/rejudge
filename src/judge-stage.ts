@@ -3,10 +3,10 @@ import type { Result } from "neverthrow";
 import { makeAskPanelTool } from "./ask-panel-tool.ts";
 import type { DebugLog } from "./debug-log.ts";
 import type { ActivitySink } from "./events.ts";
-import type { ReviewerResult } from "./runner.ts";
+import type { AgentResult } from "./runner.ts";
 
 export async function runJudgeStage<T, E>(
-  panel: ReviewerResult[],
+  panel: AgentResult[],
   activitySink: ActivitySink | undefined,
   debugLog: DebugLog | undefined,
   executeJudge: (askPanel: ToolDefinition) => Promise<Result<T, E>>,

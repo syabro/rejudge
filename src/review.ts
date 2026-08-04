@@ -7,13 +7,12 @@ import { runPanel } from "./panel.ts";
 import { runJudge } from "./judge.ts";
 import { runJudgeStage } from "./judge-stage.ts";
 import {
-  createInnerSession,
-  runReviewer,
+  createInnerAgentSession,
+  runAgent,
   type AgentFailure,
-  type ReviewerResult,
-  type RunReviewerOptions,
+  type AgentResult,
 } from "./runner.ts";
-import { JUDGE_ROLE_KEY, type RunStatus } from "./events.ts";
+import { JUDGE_ROLE_KEY, type ActivitySink, type RunStatus } from "./events.ts";
 import { createDebugLog } from "./debug-log.ts";
 import {
   gcExpired,
@@ -50,10 +49,16 @@ export interface ReviewSuccess {
 export type ReviewResult = Result<ReviewSuccess, ReviewFailure>;
 
 /** Options for {@link runReview}, including the persisted-run resume handle. */
-export type ReviewOptions = RunReviewerOptions & {
+export interface ReviewOptions {
+  cwd?: string;
+  signal?: AbortSignal;
+  activitySink?: ActivitySink;
+  fullTools?: boolean;
+  reviewerTools?: readonly string[];
+  promptAdds?: (string | undefined)[];
   /** Resume a prior run instead of starting fresh; `prompt` is the follow-up for its judge. */
   resumeRunId?: string;
-};
+}
 
 function message(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
@@ -136,10 +141,13 @@ async function freshRun(
   const judgeManager = SessionManager.create(cwd, dir);
 
   const panel = await runPanel(config.reviewers, prompt, {
-    ...options,
     cwd,
+    signal: options.signal,
+    activitySink: options.activitySink,
     debugLog,
-    role: "reviewer",
+    fullTools: options.fullTools,
+    reviewerTools: options.reviewerTools,
+    promptAdds: options.promptAdds,
     sessionManagers: reviewerManagers,
   });
   if (panel.isErr()) {
@@ -151,10 +159,10 @@ async function freshRun(
   try {
     const judge = await runJudgeStage(panel.value, sink, debugLog, (askPanel) =>
       runJudge(config.judge.id, panel.value, askPanel, {
-        ...options,
         cwd,
+        signal: options.signal,
+        activitySink: options.activitySink,
         debugLog,
-        role: "judge",
         thinkingLevel: config.judge.level,
         sessionManager: judgeManager,
       }),
@@ -225,10 +233,10 @@ async function resumeRun(
 
   // Reopen reviewer sessions — live but unprompted — so ask_panel can re-query them. Restore the
   // same tool policy the run used; resume never widens it.
-  const panel: ReviewerResult[] = [];
+  const panel: AgentResult[] = [];
   try {
     for (const ref of manifest.reviewers) {
-      const session = await createInnerSession(ref.modelId, {
+      const session = await createInnerAgentSession(ref.modelId, {
         cwd,
         role: "reviewer",
         fullTools: manifest.fullTools,
@@ -257,7 +265,7 @@ async function resumeRun(
     const judge = await runJudgeStage<string, ReviewFailure>(panel, sink, debugLog, async (askPanel) => {
       let judgeSession: AgentSession;
       try {
-        judgeSession = await createInnerSession(manifest.judge.modelId, {
+        judgeSession = await createInnerAgentSession(manifest.judge.modelId, {
           cwd,
           role: "judge",
           thinkingLevel: manifest.judge.level,
@@ -272,10 +280,11 @@ async function resumeRun(
         return err(resumeFailure(runId, "judge session is empty (corrupt or wiped)"));
       }
 
-      // runReviewer prompts the restored judge session and emits its normal lifecycle events.
-      const result = await runReviewer(manifest.judge.modelId, prompt, {
-        ...options,
+      // runAgent prompts the restored judge session and emits its normal lifecycle events.
+      const result = await runAgent(manifest.judge.modelId, prompt, {
         cwd,
+        signal: options.signal,
+        activitySink: options.activitySink,
         debugLog,
         role: "judge",
         roleKey: manifest.judge.roleKey,

@@ -2,16 +2,16 @@ import { err, ok } from "neverthrow";
 import { expect, test, vi } from "vitest";
 import type { ProgressEvent } from "../src/events.ts";
 import { runJudgeStage } from "../src/judge-stage.ts";
-import type { ReviewerResult } from "../src/runner.ts";
+import type { AgentResult } from "../src/runner.ts";
 
 function fakePanel() {
   const dispose = vi.fn();
-  const panel: ReviewerResult[] = [
+  const panel: AgentResult[] = [
     {
       roleKey: "panel-1",
       modelId: "provider/model",
       text: "review",
-      session: { dispose } as unknown as ReviewerResult["session"],
+      session: { dispose } as unknown as AgentResult["session"],
     },
   ];
 

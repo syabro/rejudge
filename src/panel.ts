@@ -1,12 +1,24 @@
 import { err, Result } from "neverthrow";
+import type { SessionManager } from "@earendil-works/pi-coding-agent";
 import type { ModelSpec } from "./config.ts";
-import { panelRoleKey } from "./events.ts";
+import { panelRoleKey, type ActivitySink } from "./events.ts";
+import type { DebugLog } from "./debug-log.ts";
 import {
-  runReviewer,
+  runAgent,
   type AgentFailure,
-  type ReviewerResult,
-  type RunReviewerOptions,
+  type AgentResult,
 } from "./runner.ts";
+
+export interface RunPanelOptions {
+  cwd?: string;
+  signal?: AbortSignal;
+  debugLog?: DebugLog;
+  activitySink?: ActivitySink;
+  fullTools?: boolean;
+  reviewerTools?: readonly string[];
+  sessionManagers?: SessionManager[];
+  promptAdds?: (string | undefined)[];
+}
 
 /**
  * Fan the identical prompt out to the whole panel and collect one finished
@@ -14,7 +26,7 @@ import {
  *
  * Every agent receives the byte-identical `prompt` — diversity comes only from
  * the model and the tool-use path it takes, never from the input. Agents run
- * concurrently; on success this returns one {@link ReviewerResult} per model
+ * concurrently; on success this returns one {@link AgentResult} per model
  * in input order, each with its session left alive for the judge
  * step (the caller disposes them).
  *
@@ -28,9 +40,9 @@ import {
 export async function runPanel(
   models: ModelSpec[],
   prompt: string,
-  options: RunReviewerOptions = {},
-): Promise<Result<ReviewerResult[], AgentFailure>> {
-  // runReviewer never throws (it returns a Result), so Promise.all is safe. The panel still
+  options: RunPanelOptions = {},
+): Promise<Result<AgentResult[], AgentFailure>> {
+  // runAgent never throws (it returns a Result), so Promise.all is safe. The panel still
   // owns its own abort controller: the caller's signal cancels the whole panel, and the first
   // agent failure also cancels every sibling through the same signal.
   const managers = options.sessionManagers;
@@ -56,8 +68,12 @@ export async function runPanel(
       models.map(async (m, i) => {
         const add = adds?.[i];
         const agentPrompt = add ? `${prompt}\n\n${add}` : prompt;
-        const result = await runReviewer(m.id, agentPrompt, {
-          ...options,
+        const result = await runAgent(m.id, agentPrompt, {
+          cwd: options.cwd,
+          debugLog: options.debugLog,
+          activitySink: options.activitySink,
+          fullTools: options.fullTools,
+          reviewerTools: options.reviewerTools,
           signal: controller.signal,
           roleKey: panelRoleKey(i),
           thinkingLevel: m.level,
@@ -73,7 +89,7 @@ export async function runPanel(
     );
 
     // On any failure, dispose the sessions that DID succeed so nothing leaks. Failed/aborted
-    // reviewers dispose themselves in runReviewer.
+    // reviewers dispose themselves in runAgent.
     if (firstFailure) {
       for (const r of results) {
         if (r.isErr()) continue;
