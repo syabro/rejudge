@@ -17,12 +17,13 @@ rejudge "your question here"     # prompt as a positional argument
 rejudge -f prompt.txt            # read the prompt from a file
 rejudge <<'EOF' … EOF            # or use a heredoc/pipe
 cmd | rejudge
+git diff | rejudge "review this change"
 rejudge --resume <run-id> "..."  # continue a saved review
 rejudge --unsafe "..."           # let reviewers edit/write/run shell commands
 rejudge --help
 ```
 
-The prompt comes from exactly one source: a positional question, else `-f <file>`, else stdin. A bare terminal with no prompt prints usage instead of blocking; empty stdin and an empty prompt file are errors. `-f -` means a file literally named `-`, not stdin.
+Without `-f`, a positional question can be combined with piped stdin: Rejudge puts the positional instruction first, then a blank line, then the piped payload. With no positional, stdin is the whole prompt. Empty piped stdin leaves a positional prompt unchanged, while empty stdin without a positional prompt is an error. In a non-interactive environment, a positional prompt waits for stdin to reach EOF. A bare terminal with no prompt prints usage instead of blocking. `-f -` means a file literally named `-`, not stdin.
 
 The review answer goes to stdout. Configuration, progress, diagnostics, and the run ID go to stderr. Exit status is `0` on success and non-zero on failure, with a readable reason.
 
@@ -231,7 +232,7 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - Pi always displays and enforces a read-only reviewer policy, including optional `web_search` only when available.
   - Piped, redirected, and CI output keeps the existing full preamble and flat log.
 
-- [ ] CLI-073 Combine a positional instruction with piped input
+- [x] CLI-073 Combine a positional instruction with piped input
   `git diff | rejudge "review this change"` sends both the instruction and the diff to reviewers.
 
   A positional prompt currently prevents stdin from being read. When both are present, treat the positional text as the instruction and stdin as its payload. Keep positional-only and stdin-only behavior unchanged.
@@ -241,3 +242,9 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - neither the positional text nor stdin is discarded
   - positional-only, file-only, and stdin-only input behave as before
   - CLI documentation and automated behavior tests cover the combined form
+
+  **Implemented:**
+  - A positional instruction and piped stdin now reach reviewers as one request, with the instruction first.
+  - Empty or whitespace-only piped stdin leaves the positional prompt unchanged.
+  - CLI help, README, and the feature guide document the combined form and its EOF behavior.
+  - Deterministic tests cover exact prompt assembly and the spawned CLI path; a real review returned a marker supplied only through stdin.

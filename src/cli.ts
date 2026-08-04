@@ -12,7 +12,7 @@
 import { readFileSync, realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
-import { parseCliArgs, USAGE } from "./cli-args.ts";
+import { combinePromptInput, parseCliArgs, USAGE } from "./cli-args.ts";
 import { resolveRejudgeConfig } from "./config.ts";
 import { progressTitle } from "./progress.ts";
 import { formatFailure, runReview } from "./review.ts";
@@ -56,7 +56,8 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  // Resolve the prompt text from its source: a positional, a file (-f), or stdin.
+  // Resolve the prompt text from a file, stdin, or a positional instruction with optional
+  // non-TTY stdin payload.
   // All of this runs before config resolution, so a bad/empty prompt fails early.
   let prompt: string;
   if (args.kind === "file") {
@@ -89,6 +90,14 @@ async function main(): Promise<number> {
     }
   } else {
     prompt = args.text;
+    if (!process.stdin.isTTY) {
+      try {
+        prompt = combinePromptInput(prompt, await readStdin());
+      } catch (err) {
+        console.error(`rejudge: cannot read prompt payload from stdin (${msg(err)})`);
+        return 1;
+      }
+    }
   }
 
   // Resolve config: project's .pi/, else ~/.config/. A missing/invalid config is a setup

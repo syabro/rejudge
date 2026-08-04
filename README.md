@@ -102,9 +102,12 @@ Other prompt forms:
 rejudge "review this decision"
 rejudge -f prompt.txt
 cmd | rejudge
+git diff | rejudge "review this change"
 rejudge --resume <run-id> "follow-up question"
 rejudge --unsafe "..."   # also --full; lets reviewers edit and run shell commands
 ```
+
+With a positional instruction and piped stdin, Rejudge sends both as one request: the instruction first, then a blank line, then the piped payload. In a non-interactive environment this form waits for stdin to reach EOF; empty piped stdin leaves the positional prompt unchanged.
 
 Reviews are read-only by default. `--unsafe` and `--full` remove that boundary for reviewers and should be used only when file changes and shell access are intended.
 

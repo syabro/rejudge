@@ -2,12 +2,14 @@
 // `cli.ts` (the bin entry) imports these and does the actual file/config/review I/O.
 import { parseArgs } from "node:util";
 
-export const USAGE = `usage: rejudge ["your question"] | rejudge -f <file> | rejudge <<'EOF' … EOF
+export const USAGE = `usage: rejudge ["your question"] | rejudge -f <file>
+       command | rejudge ["instruction"]
 
-  positional       the question/instruction (quote multi-word questions)
+  positional       the question/instruction; when stdin is piped, it comes first
+                   and the piped content follows after a blank line
   -f, --file       read the prompt from a file instead of the command line
-  (stdin)          with no positional and no -f, the prompt is read from stdin
-                   (e.g. \`rejudge <<'EOF' … EOF\` or \`cmd | rejudge\`)
+  (stdin)          with no -f, stdin is the prompt or the positional payload
+                   (e.g. \`cmd | rejudge\` or \`cmd | rejudge "instruction"\`)
       --unsafe,    give reviewers the full tool set (edit/write/bash) — they can
       --full       change files and run shell in the cwd; default is read-only
                    (read/grep/find/ls)
@@ -27,6 +29,10 @@ export type CliArgs =
   | { kind: "file"; path: string; fullTools: boolean; resume?: string; promptAdds?: (string | undefined)[] }
   | { kind: "stdin"; fullTools: boolean; resume?: string; promptAdds?: (string | undefined)[] }
   | { kind: "error"; message: string };
+
+export function combinePromptInput(instruction: string, input: string): string {
+  return input.trim() === "" ? instruction : `${instruction}\n\n${input}`;
+}
 
 /** Matches a `--prompt-add-<N>` flag, optionally with an `=value`. The `s` flag lets a `=value` span newlines. */
 const PROMPT_ADD_RE = /^--prompt-add-(\d+)(?:=(.*))?$/s;
@@ -83,8 +89,9 @@ function extractPromptAdds(
 /**
  * Parse argv (without the node/script prefix) into an intent. Never throws — a parse
  * failure (unknown flag, `-f` without a value) comes back as `{ kind: "error" }`.
- * A prompt comes from a positional question, `-f`, OR stdin, never more than one. With no
- * positional and no `-f` the source is stdin (`cli.ts` does the actual read + TTY guard).
+ * A prompt comes from a positional question, `-f`, or stdin. A positional question can also
+ * carry piped stdin as its payload; `cli.ts` does the actual read and combines both parts.
+ * With no positional and no `-f`, stdin is the whole prompt.
  * `--unsafe` and `--full` are synonyms that enable the full tool set; absent → false
  * (read-only default).
  */

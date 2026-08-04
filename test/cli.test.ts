@@ -4,7 +4,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseCliArgs } from "../src/cli-args.ts";
+import { combinePromptInput, parseCliArgs } from "../src/cli-args.ts";
 
 test("a single positional becomes the prompt (read-only by default)", () => {
   expect(parseCliArgs(["hello"])).toEqual({ kind: "prompt", text: "hello", fullTools: false });
@@ -67,6 +67,24 @@ test("no positional and no -f means read from stdin", () => {
   expect(parseCliArgs(["--full"])).toEqual({ kind: "stdin", fullTools: true });
 });
 
+test("a positional instruction combines with non-empty piped input", () => {
+  expect(combinePromptInput("review this change", "diff --git a/file b/file\n")).toBe(
+    "review this change\n\ndiff --git a/file b/file\n",
+  );
+  expect(combinePromptInput("review this change", " \n ")).toBe("review this change");
+
+  const args = parseCliArgs(["--resume", "run-123", "--unsafe", "check this"]);
+  expect(args).toEqual({
+    kind: "prompt",
+    text: "check this",
+    fullTools: true,
+    resume: "run-123",
+  });
+  if (args.kind === "prompt") {
+    expect(combinePromptInput(args.text, "payload")).toBe("check this\n\npayload");
+  }
+});
+
 test("an unknown flag is an error, not a throw", () => {
   expect(parseCliArgs(["--nope"]).kind).toBe("error");
 });
@@ -121,6 +139,27 @@ test("-f without a value is an error, not a throw", () => {
 });
 
 const SOURCE_CLI = fileURLToPath(new URL("../src/cli.ts", import.meta.url));
+
+test("source CLI accepts a positional instruction with piped input", () => {
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-cli-combined-input-"));
+  const env: NodeJS.ProcessEnv = { ...process.env, HOME: join(cwd, "home"), XDG_CONFIG_HOME: join(cwd, "xdg") };
+
+  try {
+    const run = spawnSync("bun", [SOURCE_CLI, "review this change"], {
+      cwd,
+      env,
+      input: "diff payload\n",
+      encoding: "utf8",
+      timeout: 10_000,
+    });
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain("no config found");
+    expect(run.stderr).not.toContain("cannot read prompt payload from stdin");
+    expect(run.stderr).not.toContain("prompt on stdin is empty");
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
 
 test("source CLI reports fresh and resumed mode before starting review work", () => {
   const cwd = mkdtempSync(join(tmpdir(), "rejudge-cli-mode-"));
