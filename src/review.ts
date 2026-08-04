@@ -5,7 +5,7 @@ import { SessionManager, type AgentSession } from "@earendil-works/pi-coding-age
 import type { RejudgeConfig } from "./config.ts";
 import { runPanel } from "./panel.ts";
 import { runJudge } from "./judge.ts";
-import { makeAskPanelTool } from "./ask-panel-tool.ts";
+import { runJudgeStage } from "./judge-stage.ts";
 import {
   createInnerSession,
   runReviewer,
@@ -148,24 +148,20 @@ async function freshRun(
   const panelEnd = Date.now();
   sink?.({ kind: "stage_end", t: panelEnd, stage: "panel", durationMs: panelEnd - runStart });
 
-  // SYN-011: the judge can re-query a live panel via ask_panel before fusing.
-  const askPanel = makeAskPanelTool(panel.value, sink, debugLog);
-
-  const judgeStart = Date.now();
   try {
-    const judge = await runJudge(config.judge.id, panel.value, askPanel, {
-      ...options,
-      cwd,
-      debugLog,
-      role: "judge",
-      thinkingLevel: config.judge.level,
-      sessionManager: judgeManager,
-    });
+    const judge = await runJudgeStage(panel.value, sink, debugLog, (askPanel) =>
+      runJudge(config.judge.id, panel.value, askPanel, {
+        ...options,
+        cwd,
+        debugLog,
+        role: "judge",
+        thinkingLevel: config.judge.level,
+        sessionManager: judgeManager,
+      }),
+    );
     if (judge.isErr()) {
       return err(toReviewFailure("judge", judge.error));
     }
-    const judgeEnd = Date.now();
-    sink?.({ kind: "stage_end", t: judgeEnd, stage: "judge", durationMs: judgeEnd - judgeStart });
 
     // Run complete → write the manifest (the commit marker) so this run is resumable.
     writeManifest({
@@ -257,43 +253,46 @@ async function resumeRun(
     return err(resumeFailure(runId, `could not reopen reviewer sessions: ${message(e)}`));
   }
 
-  const askPanel = makeAskPanelTool(panel, sink, debugLog);
-  const judgeStart = Date.now();
   try {
-    let judgeSession: AgentSession;
-    try {
-      judgeSession = await createInnerSession(manifest.judge.modelId, {
-        cwd,
-        role: "judge",
-        thinkingLevel: manifest.judge.level,
-        askPanel,
-        sessionManager: SessionManager.open(manifest.judge.file),
-      });
-    } catch (e) {
-      return err(resumeFailure(runId, `could not reopen judge session: ${message(e)}`));
-    }
-    if (judgeSession.state.messages.length === 0) {
-      judgeSession.dispose();
-      return err(resumeFailure(runId, "judge session is empty (corrupt or wiped)"));
-    }
+    const judge = await runJudgeStage<string, ReviewFailure>(panel, sink, debugLog, async (askPanel) => {
+      let judgeSession: AgentSession;
+      try {
+        judgeSession = await createInnerSession(manifest.judge.modelId, {
+          cwd,
+          role: "judge",
+          thinkingLevel: manifest.judge.level,
+          askPanel,
+          sessionManager: SessionManager.open(manifest.judge.file),
+        });
+      } catch (e) {
+        return err(resumeFailure(runId, `could not reopen judge session: ${message(e)}`));
+      }
+      if (judgeSession.state.messages.length === 0) {
+        judgeSession.dispose();
+        return err(resumeFailure(runId, "judge session is empty (corrupt or wiped)"));
+      }
 
-    // runReviewer prompts the restored judge session and emits its normal lifecycle events.
-    const judge = await runReviewer(manifest.judge.modelId, prompt, {
-      ...options,
-      cwd,
-      debugLog,
-      role: "judge",
-      roleKey: manifest.judge.roleKey,
-      thinkingLevel: manifest.judge.level,
-      existingSession: judgeSession,
+      // runReviewer prompts the restored judge session and emits its normal lifecycle events.
+      const result = await runReviewer(manifest.judge.modelId, prompt, {
+        ...options,
+        cwd,
+        debugLog,
+        role: "judge",
+        roleKey: manifest.judge.roleKey,
+        thinkingLevel: manifest.judge.level,
+        existingSession: judgeSession,
+      });
+      if (result.isErr()) {
+        return err(toReviewFailure("judge", result.error));
+      }
+
+      result.value.session.dispose();
+      return ok(result.value.text);
     });
     if (judge.isErr()) {
-      return err(toReviewFailure("judge", judge.error));
+      return err(judge.error);
     }
-    const judgeEnd = Date.now();
-    sink?.({ kind: "stage_end", t: judgeEnd, stage: "judge", durationMs: judgeEnd - judgeStart });
-    judge.value.session.dispose();
-    return ok({ answer: judge.value.text, runId });
+    return ok({ answer: judge.value, runId });
   } finally {
     for (const reviewer of panel) reviewer.session.dispose();
   }
