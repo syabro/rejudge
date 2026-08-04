@@ -87,3 +87,10 @@ Source lives in `src/`. Pi loads the bundled `dist/extension.js` declared under 
   - a global Rejudge install runs the CLI without Pi installed
   - the latest Pi connects the same installation and loads the tool and both skills without creating another Rejudge or nested Pi copy
   - README and the landing page document the verified installation flow
+
+- [ ] PRJ-069 Preserve host OAuth access when skills launch review commands #workflow
+      Review commands can use provider authorization saved on the host in every supported agent environment.
+
+      Skills that launch Rejudge or another command using OAuth-backed models must select an execution mode that can access the host's persisted provider authorization. The mechanism is agent-specific and must not be hardcoded to Codex terminology.
+
+      DoD: skill instructions require host OAuth access, explain when it is needed, and leave each agent to use its own sandbox-bypass mechanism.
