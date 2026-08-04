@@ -305,7 +305,7 @@ test("a session with ask_panel in customTools + allow-list activates it", async 
   const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
   const askPanel = makeAskPanelTool([]);
   const { session } = await createAgentSession({
-    model: resolveModel(STUB),
+    model: await resolveModel(STUB),
     cwd,
     agentDir,
     tools: [...READONLY_TOOLS, GIT_DIFF_TOOL_NAME, ASK_PANEL_TOOL_NAME],

@@ -4,6 +4,7 @@
 
 Rejudge is a Node-first TypeScript review engine distributed as one npm package, `rejudge`, containing the local CLI, Pi adapter, and both public workflows. Bun is the development package manager and build runner; the built code runs on plain Node. `README.md` is the one-page overview.
 
+- Pi SDK: 0.83
 - Install: `bun install` (or `npm install`)
 - Test: `npm test` / `bun run test` — full Vitest suite
 - Unit only: `npm run test:unit` — deterministic tests, no model calls
@@ -110,7 +111,7 @@ Pi loads the extension, `rejudge` tool, and both skills from that directory. It 
 
       DoD: skill instructions require host OAuth access, explain when it is needed, and leave each agent to use its own sandbox-bypass mechanism.
 
-- [ ] PRJ-070 Migrate to Pi SDK 0.83
+- [x] PRJ-070 Migrate to Pi SDK 0.83
   Rejudge builds and tests against Pi SDK 0.83.
 
   Update the Pi SDK dependencies and adapt the source code to the 0.83 API.
@@ -118,3 +119,8 @@ Pi loads the extension, `rejudge` tool, and both skills from that directory. It 
   DoD:
   - Pi SDK dependencies use version 0.83.
   - Unit tests, typecheck, CLI build, extension build, and package smoke tests pass.
+
+  **Implemented:**
+  - Rejudge builds and tests against Pi SDK 0.83.
+  - The bundled standalone CLI keeps saved OAuth model access.
+  - A clean tarball loads the CLI, Pi extension, tool, and skills on Node 22.19.

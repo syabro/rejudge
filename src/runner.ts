@@ -1,9 +1,8 @@
 import {
-  AuthStorage,
   createAgentSession,
   DefaultResourceLoader,
   getAgentDir,
-  ModelRegistry,
+  ModelRuntime,
   SessionManager,
   SettingsManager,
   type AgentSession,
@@ -186,14 +185,15 @@ export interface RunReviewerOptions {
  * Resolve a `"provider/model"` id (e.g. `opencode-go/kimi-k2.6`) into a pi model.
  * Throws a clear error on a malformed id or an unknown model.
  */
-export function resolveModel(modelId: string): Model<any> {
+export async function resolveModel(modelId: string, modelRuntime?: ModelRuntime): Promise<Model<any>> {
   const slash = modelId.indexOf("/");
   if (slash < 1 || slash === modelId.length - 1) {
     throw new Error(`Invalid model id "${modelId}" (expected "provider/model")`);
   }
   const provider = modelId.slice(0, slash);
   const id = modelId.slice(slash + 1);
-  const model = ModelRegistry.create(AuthStorage.create()).find(provider, id);
+  const runtime = modelRuntime ?? await ModelRuntime.create();
+  const model = runtime.getModel(provider, id);
   if (!model) throw new Error(`Unknown model "${modelId}"`);
   return model;
 }
@@ -228,7 +228,8 @@ export async function createInnerSession(
   modelId: string,
   options: RunReviewerOptions = {},
 ): Promise<AgentSession> {
-  const model = resolveModel(modelId);
+  const modelRuntime = await ModelRuntime.create();
+  const model = await resolveModel(modelId, modelRuntime);
   const cwd = options.cwd ?? process.cwd();
 
   // The judge gets only ask_panel; a reviewer gets the local tool set
@@ -247,6 +248,7 @@ export async function createInnerSession(
 
   const { session } = await createAgentSession({
     model,
+    modelRuntime,
     cwd,
     tools,
     customTools,

@@ -99,7 +99,7 @@ test("a session built from REVIEWER_TOOLS activates the dedicated grep/find/ls t
   const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
   const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
   const { session } = await createAgentSession({
-    model: resolveModel(STUB),
+    model: await resolveModel(STUB),
     cwd,
     agentDir,
     tools: [...REVIEWER_TOOLS],
@@ -121,7 +121,7 @@ test("a session with git_diff in customTools + allow-list activates it", async (
   const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
   const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
   const { session } = await createAgentSession({
-    model: resolveModel(STUB),
+    model: await resolveModel(STUB),
     cwd,
     agentDir,
     tools: [...READONLY_TOOLS, GIT_DIFF_TOOL_NAME],
@@ -163,10 +163,10 @@ test("a judge session exposes ask_panel and nothing else", async () => {
   }
 }, 30_000);
 
-test("resolveModel rejects malformed and unknown model ids", () => {
-  expect(() => resolveModel("no-slash")).toThrow();
-  expect(() => resolveModel("opencode-go/")).toThrow();
-  expect(() => resolveModel("opencode-go/not-a-real-model")).toThrow();
+test("resolveModel rejects malformed and unknown model ids", async () => {
+  await expect(resolveModel("no-slash")).rejects.toThrow();
+  await expect(resolveModel("opencode-go/")).rejects.toThrow();
+  await expect(resolveModel("opencode-go/not-a-real-model")).rejects.toThrow();
 });
 
 test("runReviewer retries one clean empty response in the same session", async () => {
