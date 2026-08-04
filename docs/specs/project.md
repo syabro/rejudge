@@ -124,3 +124,20 @@ Pi loads the extension, `rejudge` tool, and both skills from that directory. It 
   - Rejudge builds and tests against Pi SDK 0.83.
   - The bundled standalone CLI keeps saved OAuth model access.
   - A clean tarball loads the CLI, Pi extension, tool, and skills on Node 22.19.
+
+- [ ] PRJ-071 Preserve lifecycle behavior while sharing orchestration
+  Model-session and judge-stage orchestration becomes easier to change without differences between ordinary runs, `ask_panel`, fresh, and resume.
+
+  Extract only shared session logging, abort bridging, `ask_panel` construction, and judge timing. Keep prompt execution, retry policy, assistant-message lookup, errors, event ordering, session ownership, manifests, and resume behavior in their existing callers.
+
+  User decisions:
+  - this is a refactor with no observable behavior change
+  - product documentation does not change
+  - `runReviewer` and `ask_panel` retain their different retry, event, error, and session-ownership rules
+  - fresh and resume retain their different prompt and persistence flows
+
+  DoD:
+  - shared session instrumentation removes duplicated logging and abort wiring without changing either caller's event order
+  - shared judge-stage orchestration removes duplicated `ask_panel` and timing code without taking ownership of sessions, prompts, manifests, or error mapping
+  - focused lifecycle and judge-stage tests preserve the existing behavioral differences
+  - typecheck, unit tests, build, and final Rejudge diff review pass
