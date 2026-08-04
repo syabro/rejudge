@@ -237,8 +237,8 @@ function assertExactLine(text, expected, label) {
   assert.equal(found, true, `${label} did not return the exact marker line ${JSON.stringify(expected)}`);
 }
 
-async function writeSmokeConfig(cwd) {
-  const configDir = join(cwd, ".rejudge");
+async function writeGlobalSmokeConfig(xdg) {
+  const configDir = join(xdg, "rejudge");
   await mkdir(configDir, { recursive: true });
   await writeFile(
     join(configDir, "config.json"),
@@ -279,8 +279,9 @@ async function resolveSmokeArtifact(options, manifest, hostTemp, cleanEnv) {
       ["pack", "--json", "--ignore-scripts", "--pack-destination", hostTemp],
       { cwd: ROOT, env: cleanEnv, timeoutMs: SETUP_TIMEOUT_MS },
     );
-    const report = JSON.parse(packed.stdout);
-    assert.equal(Array.isArray(report) && report.length === 1, true, "npm pack must return one artifact");
+    const parsed = JSON.parse(packed.stdout);
+    const report = Array.isArray(parsed) ? parsed : Object.values(parsed);
+    assert.equal(report.length, 1, "npm pack must return one artifact");
 
     const files = report[0].files.map((file) => file.path).sort();
     assert.deepEqual(files, [...EXPECTED_PACKAGE_FILES].sort(), "npm tarball file list changed");
@@ -409,53 +410,15 @@ async function prepareContainer(options) {
     await assertEmptyDirectory(agentDir, "Pi agent directory");
   }
 
-  const context = { agentDir, packageName, packageVersion, source: options.source };
+  const context = { agentDir, xdg, packageName, packageVersion, source: options.source };
   if (options.source === "npm") {
     await assert.rejects(access("/artifact/rejudge.tgz"), (error) => error?.code === "ENOENT");
     console.log(`[smoke] no tarball mounted; registry source is ${packageName}@${packageVersion}`);
-    return context;
+  } else {
+    await access("/artifact/rejudge.tgz");
+    console.log("[smoke] tarball mounted for global installation");
   }
-
-  await writeFile(
-    "/smoke/package.json",
-    `${JSON.stringify({ private: true, type: "module" }, null, 2)}\n`,
-  );
-  await runChecked(
-    "npm",
-    [
-      "install",
-      "--ignore-scripts",
-      "--no-audit",
-      "--no-fund",
-      "--package-lock=false",
-      "/artifact/rejudge.tgz",
-    ],
-    {
-      cwd: "/smoke",
-      env: withoutCredentials(process.env),
-      timeoutMs: SETUP_TIMEOUT_MS,
-    },
-  );
-
-  const packageRoot = join("/smoke/node_modules", packageName);
-  const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
-  assert.equal(manifest.name, packageName);
-  assert.equal(manifest.version, packageVersion);
-
-  const runtimeEnv = {
-    ...process.env,
-    PATH: `/smoke/node_modules/.bin:${process.env.PATH ?? ""}`,
-  };
-  const resolvedBin = await runChecked("sh", ["-c", "command -v rejudge"], { env: runtimeEnv });
-  assert.equal(resolvedBin.stdout.trim(), "/smoke/node_modules/.bin/rejudge");
-
-  console.log(`[smoke] installed ${manifest.name}@${manifest.version} tarball and resolved bare rejudge from PATH`);
-  return {
-    ...context,
-    cliRuntimeEnv: runtimeEnv,
-    piPackageRoot: packageRoot,
-    piPackageSource: packageRoot,
-  };
+  return context;
 }
 
 async function readExpectedManifest(packageRoot, context) {
@@ -465,13 +428,16 @@ async function readExpectedManifest(packageRoot, context) {
   return manifest;
 }
 
-function registrySpec(context) {
-  return `${context.packageName}@${context.packageVersion}`;
+function installSpec(context) {
+  return context.source === "npm"
+    ? `${context.packageName}@${context.packageVersion}`
+    : "/artifact/rejudge.tgz";
 }
 
-async function installRegistryCli(context) {
+async function installCli(context) {
   const installEnv = withoutCredentials(process.env);
-  await runChecked("npm", ["install", "-g", registrySpec(context)], {
+  const spec = installSpec(context);
+  await runChecked("npm", ["install", "-g", spec], {
     env: installEnv,
     timeoutMs: SETUP_TIMEOUT_MS,
   });
@@ -487,7 +453,7 @@ async function installRegistryCli(context) {
   const realBin = await realpath(resolvedBin);
   assert.equal(realBin.startsWith(`${packageRoot}/`), true, "bare rejudge must resolve into the registry package");
 
-  console.log(`[smoke] npm installed ${registrySpec(context)} for CLI at ${packageRoot}`);
+  console.log(`[smoke] npm installed ${spec} globally at ${packageRoot}`);
   return { ...context, cliRuntimeEnv: runtimeEnv, cliPackageRoot: packageRoot };
 }
 
@@ -502,15 +468,15 @@ async function importGlobalPiSdk(installEnv) {
 async function connectPiToRejudge(context) {
   const installEnv = withoutCredentials(process.env);
   let prepared = context;
-  if (!context.cliPackageRoot && !context.piPackageRoot) {
-    prepared = await installRegistryCli(context);
+  if (!context.cliPackageRoot) {
+    prepared = await installCli(context);
   }
   await runChecked("npm", ["install", "-g", "--ignore-scripts", PI_PACKAGE], {
     env: installEnv,
     timeoutMs: SETUP_TIMEOUT_MS,
   });
 
-  const packageRoot = await realpath(prepared.cliPackageRoot ?? prepared.piPackageRoot);
+  const packageRoot = await realpath(prepared.cliPackageRoot);
   await runChecked("pi", ["install", packageRoot], {
     env: installEnv,
     timeoutMs: SETUP_TIMEOUT_MS,
@@ -546,8 +512,8 @@ async function connectPiToRejudge(context) {
 
 async function runCliTarget(context, live) {
   let prepared = context;
-  if (context.source === "npm") {
-    prepared = await installRegistryCli(context);
+  if (!context.cliPackageRoot) {
+    prepared = await installCli(context);
   }
   const runtimeEnv = prepared.cliRuntimeEnv;
   assert.ok(runtimeEnv, "CLI runtime environment is required");
@@ -562,7 +528,6 @@ async function runCliTarget(context, live) {
 
   const ordinaryCwd = "/tmp/rejudge-cli";
   await mkdir(ordinaryCwd, { recursive: true });
-  await writeSmokeConfig(ordinaryCwd);
   const ordinary = await runChecked("rejudge", [], {
     cwd: ordinaryCwd,
     env: runtimeEnv,
@@ -582,7 +547,6 @@ async function runCliTarget(context, live) {
   await runChecked("git", ["add", "fixture.js"], { cwd: diffCwd, env: gitEnv });
   await runChecked("git", ["commit", "--quiet", "-m", "initial fixture"], { cwd: diffCwd, env: gitEnv });
   await writeFile(join(diffCwd, "fixture.js"), 'export const releaseMode = "after";\n');
-  await writeSmokeConfig(diffCwd);
 
   const diffReview = await runChecked("rejudge", [], {
     cwd: diffCwd,
@@ -611,7 +575,6 @@ function assertRegistrySourceInfo(sourceInfo, context, label) {
 async function runPiTarget(context, live) {
   const cwd = "/tmp/rejudge-pi";
   await mkdir(cwd, { recursive: true });
-  await writeSmokeConfig(cwd);
 
   const prepared = await connectPiToRejudge(context);
   const packageRoot = prepared.piPackageRoot;
@@ -705,7 +668,6 @@ async function runNoKeyProbe(context) {
 
   const cwd = "/tmp/rejudge-no-key";
   await mkdir(cwd, { recursive: true });
-  await writeSmokeConfig(cwd);
 
   if (!context.cliRuntimeEnv) {
     assert.ok(context.piTool, "Pi tool is required when the CLI target was not installed");
@@ -745,6 +707,7 @@ async function runNoKeyProbe(context) {
 
 async function runContainer(options) {
   let context = await prepareContainer(options);
+  await writeGlobalSmokeConfig(context.xdg);
   const selected = options.target === "all" ? TARGETS : [options.target];
   const handlers = { cli: runCliTarget, pi: runPiTarget };
 
