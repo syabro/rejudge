@@ -17,7 +17,7 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 ## Runtime & layout
 - bun = dev only (deps + tests). No Bun APIs (`bun:*`, `Bun.*`) in code; runs on npm + plain Node.
 - Tests: Vitest.
-- Package: one unscoped npm package, `rejudge`, containing the CLI, Pi extension, and both public workflows. Source lives in `src/`; `pi.extensions` points at `dist/extension.js` (a bundled build of `src/index.ts` with `neverthrow` inlined; Pi SDK + typebox external/host-provided). `bun run build` creates the extension and `bin/rejudge.js`; `prepare` rebuilds on `bun install`. Pi loads the bundle, not `src/`, because Pi 0.80's loader resolves the Pi SDK + typebox but not arbitrary project dependencies.
+- Package: one unscoped npm package, `rejudge`, containing the CLI, Pi extension, and both public workflows. Source lives in `src/`. `bin/rejudge.js` bundles the complete CLI runtime, so the global command runs without Pi installed. `pi.extensions` points at `dist/extension.js`, which bundles Rejudge code but leaves the Pi SDK, Pi TUI, and typebox external for the host. Pi registers the absolute global Rejudge package root instead of installing another copy. `bun run build` creates both artifacts; `prepare` rebuilds on `bun install`.
 - Landing page: Astro builds static HTML from shared components and locale data in `site/src/`. English is served at `/`, Russian at `/ru/`. `bun run site:build` writes the deployable site to `site/dist/`.
 - Provider: `OPENCODE_GO` (not `opencode`).
 

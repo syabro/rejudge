@@ -31,7 +31,7 @@ const DOCKER_CLIENT_ENV = [
 ];
 const TARGETS = ["cli", "pi"];
 const SOURCES = ["tarball", "npm"];
-const PI_PACKAGE = "@earendil-works/pi-coding-agent@0.80.6";
+const PI_PACKAGE = "@earendil-works/pi-coding-agent@0.83.0";
 const MODEL = "opencode-go/kimi-k2.6@minimal";
 const PROCESS_TIMEOUT_MS = 6 * 60_000;
 const SETUP_TIMEOUT_MS = 10 * 60_000;
@@ -252,6 +252,10 @@ async function assertEmptyDirectory(path, label) {
   assert.deepEqual(entries, [], `${label} must start empty`);
 }
 
+async function assertPathMissing(path, label) {
+  await assert.rejects(access(path), (error) => error?.code === "ENOENT", `${label} must not exist`);
+}
+
 async function runHost(options) {
   const key = process.env.OPENCODE_API_KEY?.trim();
   if (!options.noKey && !key) {
@@ -464,6 +468,7 @@ async function readExpectedManifest(packageRoot, context) {
   const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
   assert.equal(manifest.name, context.packageName);
   assert.equal(manifest.version, context.packageVersion);
+  return manifest;
 }
 
 function registrySpec(context) {
@@ -501,34 +506,50 @@ async function importGlobalPiSdk(installEnv) {
   return { piRoot, sdk: await import(pathToFileURL(sdkEntry).href) };
 }
 
-async function installRegistryPi(context) {
+async function connectPiToRejudge(context) {
   const installEnv = withoutCredentials(process.env);
+  if (!context.cliPackageRoot && !context.piPackageRoot) {
+    await installRegistryCli(context);
+  }
   await runChecked("npm", ["install", "-g", "--ignore-scripts", PI_PACKAGE], {
     env: installEnv,
     timeoutMs: SETUP_TIMEOUT_MS,
   });
 
-  const packageSource = `npm:${registrySpec(context)}`;
-  await runChecked("pi", ["install", packageSource], {
+  const packageRoot = await realpath(context.cliPackageRoot ?? context.piPackageRoot);
+  await runChecked("pi", ["install", packageRoot], {
     env: installEnv,
     timeoutMs: SETUP_TIMEOUT_MS,
   });
 
   const settingsPath = join(context.agentDir, "settings.json");
   const persisted = JSON.parse(await readFile(settingsPath, "utf8"));
-  assert.deepEqual(persisted.packages, [packageSource], "Pi must persist only the exact npm package source");
+  assert.equal(persisted.packages.length, 1, "Pi must persist exactly one Rejudge package source");
+  const [packageSource] = persisted.packages;
+  assert.equal(typeof packageSource, "string", "Pi package source must be a path string");
+  assert.equal(
+    await realpath(resolve(dirname(settingsPath), packageSource)),
+    packageRoot,
+    "Pi package source must resolve to the installed Rejudge root",
+  );
+  const manifest = await readExpectedManifest(packageRoot, context);
 
-  const packageRoot = await realpath(join(context.agentDir, "npm/node_modules", context.packageName));
-  const expectedRoot = join(context.agentDir, "npm/node_modules");
-  assert.equal(packageRoot.startsWith(`${expectedRoot}/`), true, "Pi package must live under isolated npm state");
-  assert.equal(packageRoot.startsWith("/smoke/"), false, "Pi package resolved from smoke workspace");
-  await readExpectedManifest(packageRoot, context);
+  await assertPathMissing(
+    join(context.agentDir, "npm/node_modules", context.packageName),
+    "second Rejudge copy under Pi state",
+  );
+  for (const packageName of Object.keys(manifest.peerDependencies)) {
+    await assertPathMissing(
+      join(packageRoot, "node_modules", ...packageName.split("/")),
+      `nested ${packageName} under Rejudge`,
+    );
+  }
 
   const { piRoot, sdk } = await importGlobalPiSdk(installEnv);
   context.piPackageRoot = packageRoot;
   context.piPackageSource = packageSource;
   context.piSdk = sdk;
-  console.log(`[smoke] Pi installed ${packageSource} at ${packageRoot} using SDK ${piRoot}`);
+  console.log(`[smoke] Pi connected ${packageRoot} using SDK ${piRoot}`);
 }
 
 async function runCliTarget(context, live) {
@@ -598,22 +619,16 @@ async function runPiTarget(context, live) {
   await mkdir(cwd, { recursive: true });
   await writeSmokeConfig(cwd);
 
-  if (context.source === "npm") {
-    await installRegistryPi(context);
-  }
+  await connectPiToRejudge(context);
   const packageRoot = context.piPackageRoot;
   const packageSource = context.piPackageSource;
   assert.ok(packageRoot && packageSource, "Pi package root and source are required");
 
-  const sdk = context.piSdk ?? await import("@earendil-works/pi-coding-agent");
+  const sdk = context.piSdk;
   const { DefaultPackageManager, DefaultResourceLoader, SettingsManager } = sdk;
-  const settingsManager = context.source === "npm"
-    ? SettingsManager.create(cwd, context.agentDir, { projectTrusted: true })
-    : SettingsManager.inMemory({ packages: [packageSource] });
-  if (context.source === "npm") {
-    await settingsManager.reload();
-    assert.deepEqual(settingsManager.getGlobalSettings().packages, [packageSource]);
-  }
+  const settingsManager = SettingsManager.create(cwd, context.agentDir, { projectTrusted: true });
+  await settingsManager.reload();
+  assert.deepEqual(settingsManager.getGlobalSettings().packages, [packageSource]);
 
   const packageManager = new DefaultPackageManager({ cwd, agentDir: context.agentDir, settingsManager });
   const resolved = await packageManager.resolve();

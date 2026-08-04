@@ -39,7 +39,7 @@
     "test": "vitest run",
     "test:unit": "PI_TEST_UNIT_ONLY=1 vitest run",
     "typecheck": "tsc --noEmit",
-    "build:cli": "bun build src/cli.ts --target=node --packages=external --outfile bin/rejudge.js && chmod +x bin/rejudge.js",
+    "build:cli": "bun build src/cli.ts --target=node --outfile bin/rejudge.js && chmod +x bin/rejudge.js",
     "build:ext": "bun build src/index.ts --target=node --outfile dist/extension.js --external @earendil-works/pi-coding-agent --external @earendil-works/pi-ai --external @earendil-works/pi-tui --external typebox",
     "build": "bun run build:cli && bun run build:ext",
     "prepare": "bun run build",
@@ -53,18 +53,30 @@
       "./docs/skills"
     ]
   },
-  "dependencies": {
-    "neverthrow": "^8.2.0"
-  },
   "peerDependencies": {
-    "@earendil-works/pi-coding-agent": "*",
-    "@earendil-works/pi-tui": "*",
-    "typebox": "*"
+    "@earendil-works/pi-coding-agent": ">=0.80.2 <1",
+    "@earendil-works/pi-tui": ">=0.80.2 <1",
+    "typebox": ">=1.1.38 <2"
   },
   "devDependencies": {
     "@types/node": "^25.9.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.8",
-    "@earendil-works/pi-ai": "^0.80.2"
+    "@earendil-works/pi-ai": "^0.80.2",
+    "@earendil-works/pi-coding-agent": "^0.80.2",
+    "@earendil-works/pi-tui": "^0.80.2",
+    "typebox": "^1.2.16",
+    "neverthrow": "^8.2.0"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
   }
 }

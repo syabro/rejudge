@@ -7,7 +7,7 @@ The public `rejudge` command and the Pi `rejudge` tool run the same review engin
 Install the prebuilt public command with Node 22.19.0 or newer:
 
 ```
-npm install -g rejudge@0.1.0
+npm install -g rejudge
 ```
 
 Run it from the project whose files and config should be visible to reviewers:
@@ -54,13 +54,13 @@ Which one you get depends only on whether **stderr** is a terminal. Progress bel
 
 ## Packaged workflows
 
-Pi installs the same package with:
+Register the existing global Rejudge installation with Pi:
 
 ```
-pi install npm:rejudge@0.1.0
+pi install "$(npm root -g)/rejudge"
 ```
 
-The package manifest loads the bundled extension and recursively discovers `rejudge` and `rejudge-diff`. Inside Pi, `/skill:rejudge` uses the native tool; `/skill:rejudge-diff` reviews the selected Git diff through that tool. No checkout links are required. Outside Pi, a harness that loads the packaged skills uses the installed `rejudge` command.
+Pi records a path to that directory without copying it. The package manifest loads the bundled extension and recursively discovers `rejudge` and `rejudge-diff` from the same physical package root used by the CLI. Inside Pi, `/skill:rejudge` uses the native tool; `/skill:rejudge-diff` reviews the selected Git diff through that tool. Outside Pi, a harness that loads the packaged skills uses the installed `rejudge` command.
 
 ## Source development
 
@@ -68,7 +68,7 @@ Bun is only the source build runner; built and published code runs on Node:
 
 ```
 bun install
-bun run build:cli      # → ./bin/rejudge.js (gitignored)
+bun run build:cli      # → bundled ./bin/rejudge.js (gitignored)
 bun run build:ext      # → ./dist/extension.js (gitignored)
 ```
 

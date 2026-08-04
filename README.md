@@ -43,7 +43,7 @@ Technical success means the required reviewers and judge completed, not that the
 
 The npm package contains prebuilt CLI and extension files, so installing and using it does not require Bun. Building from source requires Bun.
 
-Release checks run the packed artifact in Node 22.19.0 Docker containers. Source development is tested with Node 24.14.0, npm 11.14.1, and Bun 1.3.13. The Pi package path is tested with Pi 0.80.6.
+Release checks run the packed artifact in Node 22.19.0 Docker containers. Source development is tested with Node 24.14.0, npm 11.14.1, and Bun 1.3.13. The Pi package path is tested with Pi 0.83.0.
 
 ## Configure Rejudge
 
@@ -73,7 +73,7 @@ A project config wins over the global fallback at `~/.config/rejudge/config.json
 Install the public package globally:
 
 ```bash
-npm install -g rejudge@0.1.0
+npm install -g rejudge
 rejudge --help
 ```
 
@@ -110,13 +110,15 @@ Reviews are read-only by default. `--unsafe` and `--full` remove that boundary f
 
 ## Pi quickstart
 
-Install Pi if it is not already available, then install the same Rejudge package through Pi:
+Install Rejudge globally once. With Pi already installed, register the existing global Rejudge directory:
 
 ```bash
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent@0.80.6
-pi install npm:rejudge@0.1.0
+npm install -g rejudge
+pi install "$(npm root -g)/rejudge"
 pi list
 ```
+
+Pi records a path to that directory without copying it. The `rejudge` command, native Pi tool, and both skills therefore come from one physical Rejudge installation.
 
 Keep `OPENCODE_API_KEY` exported in the shell, enter the project containing `.rejudge/config.json`, and start Pi:
 
@@ -158,10 +160,10 @@ pi install "$PWD"
 ## Common setup failures
 
 - **Unsupported Node version:** install Node 22.19.0 or newer, then reinstall Rejudge.
-- **`rejudge: command not found`:** confirm `npm install -g rejudge@0.1.0` succeeded and that the `bin` directory under `npm prefix -g` is on `PATH`.
+- **`rejudge: command not found`:** confirm `npm install -g rejudge` succeeded and that the `bin` directory under `npm prefix -g` is on `PATH`.
 - **`rejudge: no config found`:** create `.rejudge/config.json` in the current project or a global config in the XDG path shown above.
 - **Authentication failure:** export `OPENCODE_API_KEY` in the same shell that launches `rejudge` or Pi. For CLI runs, read the final stderr line; inside Pi, read the Rejudge tool result. It identifies the failed stage and usually contains `API key`, `authentication`, `credentials`, or `unauthorized`.
-- **Pi does not show Rejudge:** run `pi list`, confirm `npm:rejudge@0.1.0` is installed, then restart Pi. The package should provide the `rejudge` tool and both skills.
+- **Pi does not show Rejudge:** run `pi list`, confirm the Rejudge path matches `$(npm root -g)/rejudge`, then restart Pi. The package should provide the `rejudge` tool and both skills.
 - **A model or stage fails:** read the final stderr reason from the CLI or the Rejudge tool result inside Pi. Check the configured model ID, provider access, rate limits, and network before retrying.
 
 ## Development commands

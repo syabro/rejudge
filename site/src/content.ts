@@ -48,6 +48,7 @@ export type SiteContent = {
     steps: {
       install: {
         title: string;
+        piIntro: string;
       };
       connect: {
         title: string;
@@ -129,7 +130,8 @@ export const content: Record<Locale, SiteContent> = {
       },
       steps: {
         install: {
-          title: "Install the CLI",
+          title: "Install Rejudge",
+          piIntro: "Already use Pi? Connect this installation:",
         },
         connect: {
           title: "Provide model access",
@@ -224,7 +226,8 @@ export const content: Record<Locale, SiteContent> = {
       },
       steps: {
         install: {
-          title: "Установите CLI",
+          title: "Установите Rejudge",
+          piIntro: "Pi уже установлен? Подключите эту установку:",
         },
         connect: {
           title: "Предоставьте доступ к моделям",

@@ -14,6 +14,15 @@ Tests are split into deterministic checks and integration tests that make real m
 
 Source lives in `src/`. Pi loads the bundled `dist/extension.js` declared under `pi.extensions`; the local CLI is built from `src/cli.ts`. Configuration lives in `.rejudge/config.json`, with `~/.config/rejudge/config.json` as the global fallback.
 
+Install `rejudge` globally once to use the standalone CLI without Pi. With Pi already installed, register the existing Rejudge directory:
+
+```bash
+npm install -g rejudge
+pi install "$(npm root -g)/rejudge"
+```
+
+Pi loads the extension, `rejudge` tool, and both skills from that directory. It does not install another Rejudge copy or nested Pi runtime.
+
 # Tasks
 
 - [x] PRJ-012 Project bootstrap: package, TypeScript, bun test, deps, layout		#poc
@@ -74,8 +83,8 @@ Source lives in `src/`. Pi loads the bundled `dist/extension.js` declared under 
   - New `README.md`: what the extension is, install, the dev commands, the CLI (with the read-only default and `--unsafe`/`--full` opt-in), and where the model key + config live.
   - No remaining justfile references in the repo.
 
-- [ ] PRJ-068 Make one Rejudge installation serve CLI and Pi #packaging !high
-  One Rejudge installation provides the CLI and Pi integration without duplicate packages or version drift.
+- [x] PRJ-068 Make one Rejudge installation serve CLI and Pi #packaging !high
+      One Rejudge installation provides the CLI and Pi integration without duplicate packages or version drift.
 
   Bundle the Pi runtime into the CLI. Keep Pi host imports external only in the extension. Use `devDependencies` for build-time SDK packages; any peer metadata must be optional, version-bounded, and must not install Pi inside Rejudge.
 
@@ -84,9 +93,15 @@ Source lives in `src/`. Pi loads the bundled `dist/extension.js` declared under 
   - support the latest published Pi version, not a pinned older workaround
 
   DoD:
-  - a global Rejudge install runs the CLI without Pi installed
-  - the latest Pi connects the same installation and loads the tool and both skills without creating another Rejudge or nested Pi copy
-  - README and the landing page document the verified installation flow
+      - a global Rejudge install runs the CLI without Pi installed
+      - the latest Pi connects the same installation and loads the tool and both skills without creating another Rejudge or nested Pi copy
+      - README and the landing page document the verified installation flow
+
+      **Implemented:**
+      - One global Rejudge installation provides both the standalone CLI and Pi integration.
+      - The CLI runs without Pi installed; Pi 0.83 loads the extension, tool, and both skills from the same Rejudge directory.
+      - Package metadata keeps Pi host dependencies optional and version-bounded without nesting them under Rejudge.
+      - README, CLI documentation, technical documentation, and both landing-page locales describe the verified installation flow.
 
 - [ ] PRJ-069 Preserve host OAuth access when skills launch review commands #workflow
       Review commands can use provider authorization saved on the host in every supported agent environment.
