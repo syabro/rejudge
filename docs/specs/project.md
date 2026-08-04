@@ -73,3 +73,17 @@ Source lives in `src/`. Pi loads the bundled `dist/extension.js` declared under 
   - AGENTS.md's opening no longer points at a non-existent justfile; it names the real npm/bun scripts (`test`, `test:unit`, `typecheck`, `build:cli`) and links `README.md`.
   - New `README.md`: what the extension is, install, the dev commands, the CLI (with the read-only default and `--unsafe`/`--full` opt-in), and where the model key + config live.
   - No remaining justfile references in the repo.
+
+- [ ] PRJ-068 Make one Rejudge installation serve CLI and Pi #packaging !high
+  One Rejudge installation provides the CLI and Pi integration without duplicate packages or version drift.
+
+  Bundle the Pi runtime into the CLI. Keep Pi host imports external only in the extension. Use `devDependencies` for build-time SDK packages; any peer metadata must be optional, version-bounded, and must not install Pi inside Rejudge.
+
+  User decisions:
+  - CLI and Pi use one physical Rejudge installation
+  - support the latest published Pi version, not a pinned older workaround
+
+  DoD:
+  - a global Rejudge install runs the CLI without Pi installed
+  - the latest Pi connects the same installation and loads the tool and both skills without creating another Rejudge or nested Pi copy
+  - README and the landing page document the verified installation flow
