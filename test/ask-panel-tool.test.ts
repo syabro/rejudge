@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { createAgentSession } from "@earendil-works/pi-coding-agent";
+import { createAgentSession, ModelRuntime } from "@earendil-works/pi-coding-agent";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -304,8 +304,9 @@ test("a session with ask_panel in customTools + allow-list activates it", async 
   const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
   const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
   const askPanel = makeAskPanelTool([]);
+  const modelRuntime = await ModelRuntime.create();
   const { session } = await createAgentSession({
-    model: await resolveModel(STUB),
+    model: await resolveModel(STUB, modelRuntime),
     cwd,
     agentDir,
     tools: [...READONLY_TOOLS, GIT_DIFF_TOOL_NAME, ASK_PANEL_TOOL_NAME],

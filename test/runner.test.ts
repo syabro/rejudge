@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { createAgentSession, type AgentSession } from "@earendil-works/pi-coding-agent";
+import { createAgentSession, ModelRuntime, type AgentSession } from "@earendil-works/pi-coding-agent";
 import { mkdtempSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -98,8 +98,9 @@ test("reviewer tool names reflect the granted safety mode and available host too
 test("a session built from REVIEWER_TOOLS activates the dedicated grep/find/ls tools", async () => {
   const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
   const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
+  const modelRuntime = await ModelRuntime.create();
   const { session } = await createAgentSession({
-    model: await resolveModel(STUB),
+    model: await resolveModel(STUB, modelRuntime),
     cwd,
     agentDir,
     tools: [...REVIEWER_TOOLS],
@@ -120,8 +121,9 @@ test("a session built from REVIEWER_TOOLS activates the dedicated grep/find/ls t
 test("a session with git_diff in customTools + allow-list activates it", async () => {
   const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
   const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
+  const modelRuntime = await ModelRuntime.create();
   const { session } = await createAgentSession({
-    model: await resolveModel(STUB),
+    model: await resolveModel(STUB, modelRuntime),
     cwd,
     agentDir,
     tools: [...READONLY_TOOLS, GIT_DIFF_TOOL_NAME],
@@ -164,9 +166,11 @@ test("a judge session exposes ask_panel and nothing else", async () => {
 }, 30_000);
 
 test("resolveModel rejects malformed and unknown model ids", async () => {
-  await expect(resolveModel("no-slash")).rejects.toThrow();
-  await expect(resolveModel("opencode-go/")).rejects.toThrow();
-  await expect(resolveModel("opencode-go/not-a-real-model")).rejects.toThrow();
+  const modelRuntime = await ModelRuntime.create();
+
+  await expect(resolveModel("no-slash", modelRuntime)).rejects.toThrow();
+  await expect(resolveModel("opencode-go/", modelRuntime)).rejects.toThrow();
+  await expect(resolveModel("opencode-go/not-a-real-model", modelRuntime)).rejects.toThrow();
 });
 
 test("runReviewer retries one clean empty response in the same session", async () => {

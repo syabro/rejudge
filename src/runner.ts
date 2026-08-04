@@ -185,15 +185,14 @@ export interface RunReviewerOptions {
  * Resolve a `"provider/model"` id (e.g. `opencode-go/kimi-k2.6`) into a pi model.
  * Throws a clear error on a malformed id or an unknown model.
  */
-export async function resolveModel(modelId: string, modelRuntime?: ModelRuntime): Promise<Model<any>> {
+export async function resolveModel(modelId: string, modelRuntime: ModelRuntime): Promise<Model<any>> {
   const slash = modelId.indexOf("/");
   if (slash < 1 || slash === modelId.length - 1) {
     throw new Error(`Invalid model id "${modelId}" (expected "provider/model")`);
   }
   const provider = modelId.slice(0, slash);
   const id = modelId.slice(slash + 1);
-  const runtime = modelRuntime ?? await ModelRuntime.create();
-  const model = runtime.getModel(provider, id);
+  const model = modelRuntime.getModel(provider, id);
   if (!model) throw new Error(`Unknown model "${modelId}"`);
   return model;
 }
