@@ -67,7 +67,7 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 
 .command-copy{position:relative}
 .command-copy pre{padding-right:110px}
-.copy-command{position:absolute;top:12px;right:18px;padding:4px 0;border:0;background:transparent;color:var(--ink-2);font:inherit;font-size:var(--text-small);cursor:pointer}
+.copy-command{position:absolute;top:12px;right:18px;padding:4px 0 4px 8px;border:0;background:var(--soft);color:var(--ink-2);font:inherit;font-size:var(--text-small);cursor:pointer}
 .copy-command:hover{color:var(--ink)}
 
 .env-line code{display:inline-block;margin:0 0 4px 8px;padding:.25em .5em}

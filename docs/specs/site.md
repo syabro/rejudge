@@ -35,7 +35,7 @@ The Rejudge landing site has an English page at `rejudge.syabro.com` and a Russi
 
   DoD: the site is built and deployed; `https://rejudge.syabro.com/` and `https://rejudge.syabro.com/ru/` load and match the current build.
 
-- [ ] SITE-083 Translate and review the Russian landing page		#public-release @blocked_by:SITE-081
+- [x] SITE-083 Translate and review the Russian landing page		#public-release
   The Russian page matches the final English page in meaning and reads naturally in Russian.
 
   Translate the approved English copy after `SITE-081` is complete. Review the whole Russian page for missing text, mistranslations, inconsistent terms, and unnatural wording.
@@ -43,3 +43,8 @@ The Rejudge landing site has an English page at `rejudge.syabro.com` and a Russi
   User decision: replace the current Russian copy with a translation of the finalized English version.
 
   DoD: every user-facing English text has a Russian counterpart, both versions describe the same product behavior, and the Russian page passes a full language review.
+
+  **Implemented:**
+  - the Russian page now matches the final English copy, including Run ID continuation, Pi login, and reasoning-level behavior
+  - the translation uses consistent product terms without narrowing Rejudge to code review or promising a trustworthy answer
+  - the Russian layout works at desktop, 375 px, and 320 px
