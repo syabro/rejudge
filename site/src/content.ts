@@ -50,6 +50,7 @@ export type SiteContent = {
         title: string;
         skillsIntro: string;
         skillsNote: string;
+        skillsUpdate: string;
         piIntro: string;
       };
       connect: {
@@ -135,6 +136,7 @@ export const content: Record<Locale, SiteContent> = {
           title: "Install Rejudge",
           skillsIntro: "To connect Rejudge to a compatible coding agent outside Pi, install its Agent Skills with the",
           skillsNote: "This path does not require Pi.",
+          skillsUpdate: "After a Rejudge release, update these separate copies with",
           piIntro: "Already use Pi? Connect this installation:",
         },
         connect: {
@@ -232,6 +234,7 @@ export const content: Record<Locale, SiteContent> = {
           title: "Установите Rejudge",
           skillsIntro: "Чтобы подключить Rejudge к совместимому агенту вне Pi, установите Agent Skills через",
           skillsNote: "Для этого Pi не нужен.",
+          skillsUpdate: "После нового выпуска Rejudge обновите эти отдельные копии командой",
           piIntro: "Уже пользуетесь Pi? Подключите эту установку:",
         },
         connect: {

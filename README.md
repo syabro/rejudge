@@ -121,6 +121,12 @@ npx skills add syabro/rejudge -g
 
 The Skills CLI supports multiple coding agents and detects installed agents automatically. This path does not require Pi.
 
+Agent Skills installed outside Pi are separate copies. After a Rejudge release, update global Agent Skills separately:
+
+```bash
+npx skills update -g -y
+```
+
 ## Pi quickstart
 
 Install Rejudge globally once. With Pi already installed, register the existing global Rejudge directory:

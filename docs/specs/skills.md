@@ -18,7 +18,7 @@ Both routes resolve the same project or global configuration and create the same
 
 ## Updates
 
-When Pi is registered to the npm-installed package directory, that package supplies the review engine, Pi extension, and Pi-discovered skills, so npm updates them together. Skills copied into other agents are separate copies and are not updated by npm.
+When Pi is registered to the npm-installed package directory, that package supplies the review engine, Pi extension, and Pi-discovered skills, so npm updates them together. Skills copied into other agents are separate copies and are not updated by npm. After a Rejudge release, update global Agent Skills with `npx skills update -g -y`.
 
 # Tasks
 
@@ -72,9 +72,13 @@ When Pi is registered to the npm-installed package directory, that package suppl
   - README and current specifications use `/rejudge` and `/rejudge-diff`.
   - The old namespaced command form no longer appears in current Markdown.
 
-- [ ] SKL-079 Define Agent Skills updates		#public-release
+- [x] SKL-079 Define Agent Skills updates		#public-release
   Existing Agent Skills can be updated independently from the npm package through a documented and verified command.
 
   npm updates the Rejudge engine and Pi extension but does not update skills installed into other coding agents.
 
   DoD: public instructions contain a verified Agent Skills update path and explain when it is needed.
+
+  **Implemented:**
+  - README and the landing page show `npx skills update -g -y`.
+  - The instructions explain that copies installed outside Pi require a separate update after a Rejudge release.
