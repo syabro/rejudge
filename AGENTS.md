@@ -1,8 +1,8 @@
 # Rejudge
 
-Dev commands are npm/bun scripts in `package.json` — `bun run test`, `bun run test:unit`, `bun run typecheck`, `bun run build:cli`. See @README.md for what this is and how to run it.
+The root `justfile` is the command interface for repository work — `just test`, `just test-unit`, `just typecheck`, `just build-cli`. Package scripts remain the implementation owned by each package. See @README.md for the complete workflow list.
 
-After committing code changes, rebuild: `bun run build` (CLI + extension). `bin/rejudge.js` (from `src/cli.ts`) and `dist/extension.js` (from `src/index.ts`, with `neverthrow` inlined) are gitignored bundles that won't reflect `src/` changes until rebuilt; `bun install` also rebuilds them via the `prepare` script. The Pi extension is loaded as the built bundle, not from `src/` — Pi 0.80's loader only resolves the pi SDK + typebox, so third-party deps must be bundled in.
+After committing code changes, rebuild with `just build` (CLI + extension). `bin/rejudge.js` (from `src/cli.ts`) and `dist/extension.js` (from `src/index.ts`, with `neverthrow` inlined) are gitignored bundles that won't reflect `src/` changes until rebuilt; `bun install` also rebuilds them via the `prepare` script. The Pi extension is loaded as the built bundle, not from `src/` — Pi 0.80's loader only resolves the pi SDK + typebox, so third-party deps must be bundled in.
 
 ## Release publishing
 

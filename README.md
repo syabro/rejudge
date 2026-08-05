@@ -147,18 +147,17 @@ Use `/skill:rejudge-diff` for a review of the current working-tree diff. Restart
 
 ## Install from source
 
-Source installation needs Git, Node, npm, and Bun:
+Source installation needs Git, Node, npm, Bun, and [just](https://just.systems/):
 
 ```bash
 git clone https://github.com/syabro/rejudge.git
 cd rejudge
-bun install
-bun run build
+just setup
 npm link
 pi install "$PWD"
 ```
 
-`npm link` exposes the current checkout's CLI globally, so later `bun run build` commands update it. The Pi command registers the same local package's extension and skills. Rebuild after changing `src/`.
+`npm link` exposes the current checkout's CLI globally, so later `just build` commands update it. The Pi command registers the same local package's extension and skills. Rebuild after changing `src/`.
 
 ## Common setup failures
 
@@ -174,13 +173,20 @@ pi install "$PWD"
 Docker is required only for the package smoke checks, not for installing or using Rejudge.
 
 ```bash
-bun run test                     # full Vitest suite; live tests need credentials
-bun run test:unit                # deterministic tests only
-bun run typecheck                # tsc --noEmit
-bun run build                    # CLI + Pi extension
-bun run build:cli                # bin/rejudge.js only
-bun run smoke:package -- all     # live packaged CLI and Pi checks in Docker
-bun run smoke:package -- all --no-key
-bun run smoke:package -- all --tarball /tmp/rejudge-release-0.1.0/rejudge-0.1.0.tgz
-bun run smoke:package -- all --source npm   # verify the published manifest version
+just                            # list repository workflows
+just setup                      # install root and site dependencies
+just test                       # full Vitest suite; live tests need credentials
+just test-unit                  # deterministic tests only
+just typecheck                  # tsc --noEmit
+just build                      # CLI + Pi extension
+just build-cli                  # bin/rejudge.js only
+just check                      # deterministic checks and all builds
+just site-dev                   # landing-page development server
+just site-build                 # build the landing page
+just site-preview               # preview the built landing page
+just site-deploy                # deploy through Cloudflare Pages
+just smoke-package -- all       # live packaged CLI and Pi checks in Docker
+just smoke-package -- all --no-key
+just smoke-package -- all --tarball /tmp/rejudge-release-0.1.0/rejudge-0.1.0.tgz
+just smoke-package -- all --source npm   # verify the published manifest version
 ```

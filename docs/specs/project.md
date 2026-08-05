@@ -5,11 +5,12 @@
 Rejudge is a Node-first TypeScript review engine distributed as one npm package, `rejudge`, containing the local CLI, Pi adapter, and both public workflows. Bun is the development package manager and build runner; the built code runs on plain Node. `README.md` is the one-page overview.
 
 - Pi SDK: 0.83
-- Install: `bun install` (or `npm install`)
-- Test: `npm test` / `bun run test` — full Vitest suite
-- Unit only: `npm run test:unit` — deterministic tests, no model calls
-- Typecheck: `npm run typecheck` (`tsc --noEmit`)
-- Build: `npm run build` / `bun run build` — `bin/rejudge.js` plus `dist/extension.js`
+- Workflows: `just` lists the root repository commands
+- Install: `just setup`
+- Test: `just test` — full Vitest suite
+- Unit only: `just test-unit` — deterministic tests, no model calls
+- Typecheck: `just typecheck` (`tsc --noEmit`)
+- Build: `just build` — `bin/rejudge.js` plus `dist/extension.js`
 
 Tests are split into deterministic checks and integration tests that make real model calls. Integration tests run when `OPENCODE_API_KEY` is set or `PI_TEST_INTEGRATION=1`; `PI_TEST_UNIT_ONLY=1` forces the deterministic suite.
 
@@ -155,7 +156,7 @@ Pi loads the extension, `rejudge` tool, and both skills from that directory. It 
   - Added behavioral coverage for lifecycle cleanup and judge-stage success/error contracts.
   - Verified 117 unit tests, typecheck, both builds, and a final Rejudge diff review with verdict `ship` and no P0, P1, or P2 findings.
 
-- [ ] PRJ-074 Add a root `justfile` for repository workflows
+- [x] PRJ-074 Add a root `justfile` for repository workflows
   Rejudge and the site are managed from the repository root through one discoverable workflow interface.
 
   Keep all existing scripts in the root and site `package.json`. They remain the implementation owned by each package, including npm lifecycle and Cloudflare deployment. Add a root `justfile` that delegates to those scripts and combines them only where one repository-level action requires several package steps.
@@ -163,3 +164,9 @@ Pi loads the extension, `rejudge` tool, and both skills from that directory. It 
   User decision: package scripts remain package-local; the root `justfile` is the human-facing entry point for repository work.
 
   DoD: the root `justfile` exposes the complete set of routine repository workflows, delegates every operation to the owning package script, contains no duplicated build or deployment implementation, and is documented as the primary command interface.
+
+  **Implemented:**
+  - The root `justfile` exposes setup, test, typecheck, build, package smoke, site, deployment, and combined check workflows.
+  - Recipes delegate to the scripts owned by the root and site packages; setup and check combine only repository-level steps.
+  - Current project documentation uses `just` as the primary command interface.
+  - Setup, argument forwarding, deploy delegation, unit tests, typecheck, CLI and extension builds, and the site build were verified.

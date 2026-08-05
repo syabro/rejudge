@@ -12,7 +12,7 @@ Install the CLI with `npm install -g rejudge@0.1.0`, create `.rejudge/config.jso
 
 ## Packaged interface smoke tests
 
-Run `bun run smoke:package -- <cli|pi|all>` with `OPENCODE_API_KEY` available to test a fresh tarball through real CLI or Pi model calls in a disposable Node 22.19 Docker container. `--tarball <path>` verifies one immutable artifact without rebuilding it; `--source npm` installs the manifest's exact published version through global npm and isolated Pi state without mounting any product artifact. Use `--no-key` to verify installation and the handled authentication failure without forwarding credentials. The runner accepts only allowlisted runtime credentials and never mounts the project source tree.
+Run `just smoke-package -- <cli|pi|all>` with `OPENCODE_API_KEY` available to test a fresh tarball through real CLI or Pi model calls in a disposable Node 22.19 Docker container. `--tarball <path>` verifies one immutable artifact without rebuilding it; `--source npm` installs the manifest's exact published version through global npm and isolated Pi state without mounting any product artifact. Use `--no-key` to verify installation and the handled authentication failure without forwarding credentials. The runner accepts only allowlisted runtime credentials and never mounts the project source tree.
 
 ## Public repository hygiene
 

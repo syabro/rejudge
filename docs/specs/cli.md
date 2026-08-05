@@ -68,10 +68,11 @@ Pi records a path to that directory without copying it. The package manifest loa
 Bun is only the source build runner; built and published code runs on Node:
 
 ```
-bun install
-bun run build:cli      # → bundled ./bin/rejudge.js (gitignored)
-bun run build:ext      # → ./dist/extension.js (gitignored)
+just setup
+just build          # → CLI plus ./dist/extension.js (gitignored)
 ```
+
+Use `just build-cli` when only the standalone CLI bundle needs rebuilding.
 
 Install the source package globally with `npm install -g --ignore-scripts .`, and register the local Pi package with `pi install "$PWD"` after building.
 

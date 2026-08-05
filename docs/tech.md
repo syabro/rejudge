@@ -7,7 +7,7 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 - Smoke tests only — real runs, no mocks/stubs of models, Pi, or the agent runner. No smoke test = no guarantee.
 - Config: tested with real config files (real input → accept/reject).
 - A working model is required to test anything past config.
-- Packaged interfaces use one extensible Docker smoke runner: `bun run smoke:package -- <cli|pi|all>` performs live checks with allowlisted runtime credentials. `--no-key` verifies installation and the handled authentication failure without credentials; the default `all` target also proves CLI startup and Pi discovery. Tarball mode receives only a package artifact in an isolated Node 22.19 environment; `--tarball <path>` skips rebuilding and verifies an exact immutable candidate. `--source npm` mounts no product artifact and instead verifies the manifest's exact published version through global npm and isolated Pi installs.
+- Packaged interfaces use one extensible Docker smoke runner: `just smoke-package -- <cli|pi|all>` performs live checks with allowlisted runtime credentials. `--no-key` verifies installation and the handled authentication failure without credentials; the default `all` target also proves CLI startup and Pi discovery. Tarball mode receives only a package artifact in an isolated Node 22.19 environment; `--tarball <path>` skips rebuilding and verifies an exact immutable candidate. `--source npm` mounts no product artifact and instead verifies the manifest's exact published version through global npm and isolated Pi installs.
 
 ## Agents
 - Native `@earendil-works/pi-coding-agent` SDK (`createAgentSession`), in-process. Not `pi -p`, not third-party (pi-subagents, oh-my-pi).
@@ -17,8 +17,9 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 ## Runtime & layout
 - bun = dev only (deps + tests). No Bun APIs (`bun:*`, `Bun.*`) in code; runs on npm + plain Node.
 - Tests: Vitest.
-- Package: one unscoped npm package, `rejudge`, containing the CLI, Pi extension, and both public workflows. Source lives in `src/`. `bin/rejudge.js` bundles the complete CLI runtime, so the global command runs without Pi installed. `pi.extensions` points at `dist/extension.js`, which bundles Rejudge code but leaves the Pi SDK, Pi TUI, and typebox external for the host. Pi registers the absolute global Rejudge package root instead of installing another copy. `bun run build` creates both artifacts; `prepare` rebuilds on `bun install`.
-- Landing page: Astro builds static HTML from shared components and locale data in `site/src/`. English is served at `/`, Russian at `/ru/`. `bun run site:build` writes the deployable site to `site/dist/`.
+- Workflows: the root `justfile` is the human-facing repository interface. Recipes delegate to the scripts owned by the root and site packages; `setup` is the lifecycle exception that installs both dependency trees.
+- Package: one unscoped npm package, `rejudge`, containing the CLI, Pi extension, and both public workflows. Source lives in `src/`. `bin/rejudge.js` bundles the complete CLI runtime, so the global command runs without Pi installed. `pi.extensions` points at `dist/extension.js`, which bundles Rejudge code but leaves the Pi SDK, Pi TUI, and typebox external for the host. Pi registers the absolute global Rejudge package root instead of installing another copy. `just build` creates both artifacts; `prepare` rebuilds on `bun install`.
+- Landing page: Astro builds static HTML from shared components and locale data in `site/src/`. English is served at `/`, Russian at `/ru/`. `just site-build` writes the deployable site to `site/dist/`.
 - Provider: `OPENCODE_GO` (not `opencode`).
 
 ## Error handling
