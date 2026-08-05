@@ -29,7 +29,7 @@ const DOCKER_CLIENT_ENV = [
   "DOCKER_CONFIG",
   "XDG_CONFIG_HOME",
 ];
-const TARGETS = ["cli", "pi"];
+const TARGETS = ["cli", "pi", "skills"];
 const SOURCES = ["tarball", "npm"];
 const PI_PACKAGE = "@earendil-works/pi-coding-agent@0.83.0";
 const MODEL = "opencode-go/kimi-k2.6@minimal";
@@ -46,11 +46,12 @@ const EXPECTED_PACKAGE_FILES = [
   "package.json",
 ];
 
-const USAGE = `usage: bun run smoke:package -- [cli|pi|all] [--source tarball|npm] [--tarball <path>] [--no-key]
+const USAGE = `usage: bun run smoke:package -- [cli|pi|skills|all] [--source tarball|npm] [--tarball <path>] [--no-key]
 
   cli               test the installed CLI, including ordinary and diff reviews
   pi                test Pi package discovery, resource loading, and the rejudge tool
-  all               run cli then pi (default)
+  skills            install Agent Skills and verify both skill files
+  all               run cli, pi, then skills (default)
   --source tarball  install a tarball in Docker (default)
   --source npm      install the manifest's exact version from public npm
   --tarball PATH    use this prebuilt tarball instead of building a temporary one
@@ -562,6 +563,23 @@ async function runCliTarget(context, live) {
   return prepared;
 }
 
+async function runSkillsTarget(context) {
+  const home = process.env.HOME;
+  assert.ok(home, "isolated HOME is required");
+
+  await mkdir(join(home, ".codex"), { recursive: true });
+  await runChecked("npx", ["--yes", "skills", "add", "syabro/rejudge", "-g"], {
+    env: withoutCredentials(process.env),
+    timeoutMs: SETUP_TIMEOUT_MS,
+  });
+
+  const skillsRoot = join(home, ".agents/skills");
+  await access(join(skillsRoot, "rejudge/SKILL.md"));
+  await access(join(skillsRoot, "rejudge-diff/SKILL.md"));
+  console.log(`[smoke] Agent Skills installed under ${skillsRoot}`);
+  return context;
+}
+
 function assertRegistrySourceInfo(sourceInfo, context, label) {
   if (context.source !== "npm") {
     return;
@@ -709,7 +727,7 @@ async function runContainer(options) {
   let context = await prepareContainer(options);
   await writeGlobalSmokeConfig(context.xdg);
   const selected = options.target === "all" ? TARGETS : [options.target];
-  const handlers = { cli: runCliTarget, pi: runPiTarget };
+  const handlers = { cli: runCliTarget, pi: runPiTarget, skills: runSkillsTarget };
 
   for (const target of selected) {
     context = await handlers[target](context, !options.noKey);

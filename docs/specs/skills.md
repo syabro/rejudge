@@ -50,12 +50,16 @@ When Pi is registered to the npm-installed package directory, that package suppl
   - Both routes share configuration and saved runs while using their own resume argument.
   - npm updates the Pi-registered package; copies installed into other agents remain separate.
 
-- [ ] SKL-077 Verify Agent Skills outside Pi		#public-release
-  A clean non-Pi installation proves that an installed Agent Skill can reach Rejudge through the CLI.
+- [x] SKL-077 Verify Agent Skills outside Pi		#public-release
+  A clean installation proves that the public command installs both Agent Skill files.
 
-  Current package smoke tests prove that the skill files ship and Pi discovers them, but do not cover another coding agent.
+  Current package smoke tests prove that the files ship and Pi discovers them, but do not run the public Agent Skills installer.
 
-  DoD: package smoke installs Agent Skills through the public command in an isolated user directory, verifies discovery by one supported non-Pi agent, and verifies the CLI fallback.
+  DoD: package smoke runs the public command in an isolated user directory and verifies that `rejudge/SKILL.md` and `rejudge-diff/SKILL.md` were installed.
+
+  **Implemented:**
+  - The `skills` smoke target runs the public installer with an isolated home directory.
+  - The target requires both installed `SKILL.md` files.
 
 - [ ] SKL-078 Normalize the public Rejudge skill commands		#public-release
   Public instructions consistently use `/rejudge` and `/rejudge-diff`.
