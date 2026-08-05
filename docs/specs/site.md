@@ -30,10 +30,15 @@ The Rejudge landing site has an English page at `rejudge.syabro.com` and a Russi
   - code remains readable in dark mode
   - English and Russian layouts were verified at desktop, 375 px, and 320 px without changing the Russian copy
 
-- [ ] SITE-082 Deploy and verify the landing page		#public-release
+- [x] SITE-082 Deploy and verify the landing page		#public-release
   Production serves the current verified site build.
 
   DoD: the site is built and deployed; `https://rejudge.syabro.com/` and `https://rejudge.syabro.com/ru/` load and match the current build.
+
+  **Implemented:**
+  - `just site-deploy` targets the Cloudflare Pages production branch
+  - the immutable deployment and both custom-domain routes serve the current English and Russian pages
+  - desktop, 375 px, and 320 px layouts preserve the complete review flow without horizontal overflow
 
 - [x] SITE-083 Translate and review the Russian landing page		#public-release
   The Russian page matches the final English page in meaning and reads naturally in Russian.

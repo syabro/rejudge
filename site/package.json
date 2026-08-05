@@ -6,7 +6,7 @@
     "dev": "astro dev",
     "build": "astro build",
     "preview": "astro preview",
-    "deploy": "bun run build && bunx wrangler pages deploy dist --project-name=rejudge"
+    "deploy": "bun run build && bunx wrangler pages deploy dist --project-name=rejudge --branch=main"
   },
   "devDependencies": {
     "asciinema-player": "3.6.3",
