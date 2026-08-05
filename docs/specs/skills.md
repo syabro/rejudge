@@ -1,10 +1,24 @@
 # Agent Skills — mdtask
 
-Rejudge includes Agent Skills that let coding agents use the installed Rejudge engine. Pi uses its native Rejudge tool; other agents use the CLI.
+Rejudge includes Agent Skills that let coding agents use the installed Rejudge engine.
 
 ## Installation
 
-Install Rejudge with npm. Outside Pi, connect it to supported coding agents with `npx skills add syabro/rejudge -g`; this path does not require Pi.
+Install Rejudge with npm. Pi discovers the skills through package registration; see [cli.md](cli.md) for the commands. Outside Pi, connect them to supported coding agents with `npx skills add syabro/rejudge -g`; this path does not require Pi.
+
+## Runtime
+
+The [`rejudge`](../skills/rejudge/SKILL.md) skill starts a general review. The [`rejudge-diff`](../skills/rejudge-diff/SKILL.md) skill applies a code-review prompt to a diff. They select different prompts, not different review engines.
+
+When the host exposes the native `rejudge` tool, the skills use it. Otherwise, they run the installed `rejudge` CLI from the project root being reviewed. The tool contract lives in [extension.md](extension.md); the command contract lives in [cli.md](cli.md).
+
+## Configuration and follow-ups
+
+Both routes resolve the same project or global configuration and create the same saved runs. A skill continues a run with the same run ID: `resumeRunId` through the Pi tool or `--resume` through the CLI. Configuration rules live in [config.md](config.md); each interface defines its resume argument in its own contract.
+
+## Updates
+
+When Pi is registered to the npm-installed package directory, that package supplies the review engine, Pi extension, and Pi-discovered skills, so npm updates them together. Skills copied into other agents are separate copies and are not updated by npm.
 
 # Tasks
 
@@ -24,12 +38,17 @@ Install Rejudge with npm. Outside Pi, connect it to supported coding agents with
   - README and both landing-page languages show the public Agent Skills installation command.
   - The instructions separate npm installation, non-Pi agent connection, and Pi connection.
 
-- [ ] SKL-076 Define the Agent Skills contract		#public-release
+- [x] SKL-076 Define the Agent Skills contract		#public-release
   Agent Skills have one documented relationship with the Pi tool, CLI, configuration, saved runs, and updates.
 
   The current behavior is split between the skill files, CLI spec, extension spec, and public documentation.
 
   DoD: this spec defines installation, Pi tool use, CLI fallback, configuration, follow-up runs, and updates without copying the CLI or extension specifications.
+
+  **Implemented:**
+  - The contract selects the native Pi tool when available and the installed CLI otherwise.
+  - Both routes share configuration and saved runs while using their own resume argument.
+  - npm updates the Pi-registered package; copies installed into other agents remain separate.
 
 - [ ] SKL-077 Verify Agent Skills outside Pi		#public-release
   A clean non-Pi installation proves that an installed Agent Skill can reach Rejudge through the CLI.
