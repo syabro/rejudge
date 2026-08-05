@@ -30,6 +30,10 @@ Reviewers default to read/search/list, `git_diff`, and optional `web_search`; th
 
 Technical completion does not verify the result. Separate initial sessions provide an independent review process, not statistically independent errors, guaranteed correctness, consensus truth, or measured improvement over one strong model.
 
+## Landing page review flow
+
+The landing page shows the complete path from the user's question through separate model conclusions and the judge to the final answer. Both wide and narrow diagrams include the judge's follow-up loop. After a review, Rejudge prints a Run ID; `--resume <run-id>` continues that saved review.
+
 # Tasks
 
 - [x] REL-054 Package Rejudge 0.1.0 for npm		#release
@@ -192,7 +196,7 @@ Technical completion does not verify the result. Separate initial sessions provi
   - Clean Docker registry installs passed no-key discovery, live CLI and diff reviews, and a live Pi package/tool call without source or tarball mounts.
   - The published package provides the global CLI, Pi extension, and both workflows through the README installation commands; CI remains nonblocking post-release work in REL-059.
 
-- [ ] REL-072 Explain follow-up reviews and Run ID on the landing page
+- [x] REL-072 Explain follow-up reviews and Run ID on the landing page
   The mobile diagram and landing copy explain the complete review loop and how to continue a saved review.
 
   The narrow diagram should preserve the Judge → Models follow-up path shown on desktop. The English copy should state that Rejudge prints a Run ID after a review and that `--resume <run-id>` continues that saved review. Leave the Russian translation unchanged.
@@ -202,3 +206,8 @@ Technical completion does not verify the result. Separate initial sessions provi
   - English copy explains where the Run ID comes from
   - English copy shows that `--resume <run-id>` continues the saved review
   - Russian copy remains unchanged
+
+  **Implemented:**
+  - The narrow diagram shows the judge returning follow-up questions to the models.
+  - English landing copy explains that each review prints a Run ID and shows the exact resume command.
+  - The wide diagram and Russian landing copy remain unchanged.

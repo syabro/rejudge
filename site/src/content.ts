@@ -120,7 +120,7 @@ export const content: Record<Locale, SiteContent> = {
       answerDescription: "based on all findings",
       runId: ["+ Run ID", "to resume"],
       followUp: ["asks follow-up questions", "when the reviewers disagree"],
-      summary: "Every reviewer gets the same request and works without seeing the others. The judge compares their answers and goes back with follow-up questions when they disagree.",
+      summary: "Every reviewer gets the same request and works without seeing the others. The judge compares their answers and goes back with follow-up questions when they disagree. Rejudge prints a Run ID after the review; use --resume <run-id> to continue the saved review.",
     },
     install: {
       eyebrow: "Quick start",

@@ -61,7 +61,7 @@ const narrowMarkerId = `narrow-arrow-${content.locale}`;
       </g>
     </svg>
 
-    <svg class="narrow" viewBox="0 0 420 490" role="img" aria-label={flow.ariaLabel}>
+    <svg class="narrow" viewBox="0 0 420 560" role="img" aria-label={flow.ariaLabel}>
       <defs>
         <marker id={narrowMarkerId} markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
           <path d="M0,0 L6,3 L0,6 z" class="head"></path>
@@ -89,13 +89,19 @@ const narrowMarkerId = `narrow-arrow-${content.locale}`;
       <text class="n" x="210" y="262" text-anchor="middle">{flow.judge}</text>
       <text class="d" x="210" y="282" text-anchor="middle">{flow.comparesFindings}</text>
 
+      <g class="follow-up">
+        <path class="l" d="M250 282 V356 H350 V172" marker-end={`url(#${narrowMarkerId})`}></path>
+        <text class="d" x="110" y="322" text-anchor="middle">{flow.followUp[0]}</text>
+        <text class="d" x="110" y="340" text-anchor="middle">{flow.followUp[1]}</text>
+      </g>
+
       <g class="result">
-        <line class="l" x1="210" y1="298" x2="210" y2="330" marker-end={`url(#${narrowMarkerId})`}></line>
-        <rect class="output-card" x="146" y="338" width="128" height="128"></rect>
-        <text class="output-answer" x="210" y="391" text-anchor="middle">{flow.answer}</text>
-        <text class="output-desc" x="210" y="424" text-anchor="middle">{flow.answerDescription}</text>
-        <text class="output-meta" x="210" y="470" text-anchor="middle">{flow.runId[0]}</text>
-        <text class="output-meta" x="210" y="484" text-anchor="middle">{flow.runId[1]}</text>
+        <line class="l" x1="210" y1="298" x2="210" y2="390" marker-end={`url(#${narrowMarkerId})`}></line>
+        <rect class="output-card" x="146" y="398" width="128" height="128"></rect>
+        <text class="output-answer" x="210" y="451" text-anchor="middle">{flow.answer}</text>
+        <text class="output-desc" x="210" y="484" text-anchor="middle">{flow.answerDescription}</text>
+        <text class="output-meta" x="210" y="530" text-anchor="middle">{flow.runId[0]}</text>
+        <text class="output-meta" x="210" y="544" text-anchor="middle">{flow.runId[1]}</text>
       </g>
     </svg>
 
