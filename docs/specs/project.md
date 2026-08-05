@@ -147,3 +147,12 @@ Pi loads the extension, `rejudge` tool, and both skills from that directory. It 
   - Shared `ask_panel` construction and successful judge-stage timing while fresh and resume retain their prompts, errors, manifests, and disposal.
   - Added behavioral coverage for lifecycle cleanup and judge-stage success/error contracts.
   - Verified 117 unit tests, typecheck, both builds, and a final Rejudge diff review with verdict `ship` and no P0, P1, or P2 findings.
+
+- [ ] PRJ-074 Add a root `justfile` for repository workflows
+  Rejudge and the site are managed from the repository root through one discoverable workflow interface.
+
+  Keep all existing scripts in the root and site `package.json`. They remain the implementation owned by each package, including npm lifecycle and Cloudflare deployment. Add a root `justfile` that delegates to those scripts and combines them only where one repository-level action requires several package steps.
+
+  User decision: package scripts remain package-local; the root `justfile` is the human-facing entry point for repository work.
+
+  DoD: the root `justfile` exposes the complete set of routine repository workflows, delegates every operation to the owning package script, contains no duplicated build or deployment implementation, and is documented as the primary command interface.
