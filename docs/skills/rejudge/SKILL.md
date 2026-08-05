@@ -17,6 +17,8 @@ If `rejudge` appears in the available tools, use it. Fall back to the CLI only w
 
 ## The CLI
 
+MUST NOT run the `rejudge` CLI inside a sandbox because the sandbox can hide the user’s saved provider login.
+
 `rejudge` is the installed command and runs from any project. The current directory controls config lookup and reviewer file access. When developing Rejudge from a source checkout, run `bun run build:cli` from that checkout's root after a fresh checkout, a pull, or any `src/` change.
 
 ## Prerequisites

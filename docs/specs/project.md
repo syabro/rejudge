@@ -15,6 +15,8 @@ Tests are split into deterministic checks and integration tests that make real m
 
 Source lives in `src/`. Pi loads the bundled `dist/extension.js` declared under `pi.extensions`; the local CLI is built from `src/cli.ts`. Configuration lives in `.rejudge/config.json`, with `~/.config/rejudge/config.json` as the global fallback.
 
+Skills launch the Rejudge CLI in the invoking user's normal environment so stored provider authorization remains available.
+
 Install `rejudge` globally once to use the standalone CLI without Pi. With Pi already installed, register the existing Rejudge directory:
 
 ```bash
@@ -104,12 +106,17 @@ Pi loads the extension, `rejudge` tool, and both skills from that directory. It 
       - Package metadata keeps Pi host dependencies optional and version-bounded without nesting them under Rejudge.
       - README, CLI documentation, technical documentation, and both landing-page locales describe the verified installation flow.
 
-- [ ] PRJ-069 Preserve host OAuth access when skills launch review commands #workflow
-      Review commands can use provider authorization saved on the host in every supported agent environment.
+- [x] PRJ-069 Preserve provider login when the Rejudge skill launches the CLI #workflow
+      Rejudge CLI reviews can use provider authorization saved in the invoking user's normal environment.
 
-      Skills that launch Rejudge or another command using OAuth-backed models must select an execution mode that can access the host's persisted provider authorization. The mechanism is agent-specific and must not be hardcoded to Codex terminology.
+      The Rejudge skill must tell every agent to launch the outer CLI process outside its sandbox because the sandbox can hide the user's saved provider login.
 
-      DoD: skill instructions require host OAuth access, explain when it is needed, and leave each agent to use its own sandbox-bypass mechanism.
+      User decision: express this as one short agent-independent rule beginning with `MUST NOT`.
+
+      DoD: the Rejudge skill states that the CLI must not run inside a sandbox and explains that the sandbox can hide the saved provider login.
+
+      **Implemented:**
+      - The Rejudge skill requires the outer CLI process to run outside a sandbox because a sandbox can hide the user's saved provider login.
 
 - [x] PRJ-070 Migrate to Pi SDK 0.83
   Rejudge builds and tests against Pi SDK 0.83.
