@@ -4,10 +4,15 @@ The Rejudge landing site has an English page at `rejudge.syabro.com` and a Russi
 
 # Tasks
 
-- [ ] SITE-080 Record and embed the real Rejudge demo		#public-release
+- [x] SITE-080 Record and embed the real Rejudge demo		#public-release
   The first screen shows a real Rejudge run instead of the temporary demo.
 
   DoD: the run is recorded with asciinema and embedded into the first screen; the temporary demo and TODO caption are removed.
+
+  **Implemented:**
+  - the first screen plays a self-hosted recording of a real Rejudge review
+  - the temporary transcript and placeholder caption are removed
+  - the recording works on both language routes and mobile layouts
 
 - [ ] SITE-081 Review the landing page before publication		#public-release
   A new user can understand the English landing page, and both desktop and mobile layouts work correctly.

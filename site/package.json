@@ -9,6 +9,7 @@
     "deploy": "bun run build && bunx wrangler pages deploy dist --project-name=rejudge"
   },
   "devDependencies": {
+    "asciinema-player": "3.6.3",
     "astro": "7.1.3"
   }
 }

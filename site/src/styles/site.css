@@ -1,7 +1,6 @@
 :root{
   --ink:#1d1d1f; --ink-2:#6e6e73; --line:#d2d2d7; --soft:#fafafa; --page:#fff;
   --ok:#1a7f37; --danger:#d70015;
-  --term-bg:#fafafa; --term-ink:#292824; --term-dim:#817e76; --term-ok:#2f7d32; --term-err:#b8423a;
   --text:17px; --text-small:14px; --text-heading:24px;
 }
 
@@ -9,7 +8,6 @@
   :root{
     --ink:#ececef; --ink-2:#98989d; --line:#33343a; --soft:#1b1c1f; --page:#131417;
     --ok:#63c07e; --danger:#ff6b63;
-    --term-bg:#0d0e10; --term-ink:#dcdcda; --term-dim:#8a8b86; --term-ok:#84c46a; --term-err:#ee6f63;
   }
 }
 
@@ -45,11 +43,7 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 .hero .links .npm-icon{width:16px}
 
 .run{margin:0 0 96px}
-.run pre{background:var(--term-bg);color:var(--term-ink);padding:22px 24px;border-radius:6px;margin-bottom:14px}
-.run .dim{color:var(--term-dim)}
-.run .ok{color:var(--term-ok)}
-.run .err{color:var(--term-err)}
-.run .b{font-weight:700}
+.run-player{margin-bottom:14px;overflow:hidden;border-radius:6px}
 .run figcaption{color:var(--ink-2);font-size:var(--text-small)}
 
 .lede p:last-child{margin-bottom:0}
