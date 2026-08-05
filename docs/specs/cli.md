@@ -61,7 +61,7 @@ Register the existing global Rejudge installation with Pi:
 pi install "$(npm root -g)/rejudge"
 ```
 
-Pi records a path to that directory without copying it. The package manifest loads the bundled extension and recursively discovers `rejudge` and `rejudge-diff` from the same physical package root used by the CLI. Inside Pi, `/skill:rejudge` uses the native tool; `/skill:rejudge-diff` reviews the selected Git diff through that tool. Outside Pi, a harness that loads the packaged skills uses the installed `rejudge` command.
+Pi records a path to that directory without copying it. The package manifest loads the bundled extension and recursively discovers `rejudge` and `rejudge-diff` from the same physical package root used by the CLI. Inside Pi, `/rejudge` uses the native tool; `/rejudge-diff` reviews the selected Git diff through that tool. Outside Pi, a harness that loads the packaged skills uses the installed `rejudge` command.
 
 ## Source development
 

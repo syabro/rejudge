@@ -142,7 +142,7 @@ pi
 Invoke the packaged workflow inside Pi:
 
 ```text
-/skill:rejudge Review this project and identify the two most important risks.
+/rejudge Review this project and identify the two most important risks.
 ```
 
 Pi loads the native `rejudge` tool plus the `rejudge` and `rejudge-diff` skills from the package. A successful tool result shows the Rejudge progress block followed by an answer and a resumable ID:
@@ -153,7 +153,7 @@ Rejudge Review this project...
 Run ID: <run-id>. Follow up with resumeRunId: "<run-id>".
 ```
 
-Use `/skill:rejudge-diff` for a review of the current working-tree diff. Restart Pi after package installation if it was already running.
+Use `/rejudge-diff` for a review of the current working-tree diff. Restart Pi after package installation if it was already running.
 
 ## Install from source
 

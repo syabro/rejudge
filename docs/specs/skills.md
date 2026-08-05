@@ -61,12 +61,16 @@ When Pi is registered to the npm-installed package directory, that package suppl
   - The `skills` smoke target runs the public installer with an isolated home directory.
   - The target requires both installed `SKILL.md` files.
 
-- [ ] SKL-078 Normalize the public Rejudge skill commands		#public-release
+- [x] SKL-078 Normalize the public Rejudge skill commands		#public-release
   Public instructions consistently use `/rejudge` and `/rejudge-diff`.
 
-  Current documentation and specifications still contain the old `/skill:rejudge` form.
+  Current documentation and specifications still contain the old namespaced form.
 
-  DoD: current user documentation and feature descriptions contain no `/skill:rejudge` or `/skill:rejudge-diff` commands.
+  DoD: current user documentation and feature descriptions use only `/rejudge` and `/rejudge-diff`.
+
+  **Implemented:**
+  - README and current specifications use `/rejudge` and `/rejudge-diff`.
+  - The old namespaced command form no longer appears in current Markdown.
 
 - [ ] SKL-079 Define Agent Skills updates		#public-release
   Existing Agent Skills can be updated independently from the npm package through a documented and verified command.

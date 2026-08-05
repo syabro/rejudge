@@ -8,7 +8,7 @@ Existing launch gates are tracked separately and are not duplicated here:
 
 ## Install and first run
 
-Install the CLI with `npm install -g rejudge@0.1.0`, create `.rejudge/config.json` in the project to review, export the required provider credential, and run `rejudge`. For Pi, install the same package with `pi install npm:rejudge@0.1.0`, then invoke `/skill:rejudge` or `/skill:rejudge-diff`; the package supplies the native tool and both workflows.
+Install the CLI with `npm install -g rejudge@0.1.0`, create `.rejudge/config.json` in the project to review, export the required provider credential, and run `rejudge`. For Pi, install the same package with `pi install npm:rejudge@0.1.0`, then invoke `/rejudge` or `/rejudge-diff`; the package supplies the native tool and both workflows.
 
 ## Packaged interface smoke tests
 
