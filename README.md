@@ -111,6 +111,16 @@ With a positional instruction and piped stdin, Rejudge sends both as one request
 
 Reviews are read-only by default. `--unsafe` and `--full` remove that boundary for reviewers and should be used only when file changes and shell access are intended.
 
+## Agent Skills quickstart
+
+npm installs Rejudge itself. To let a compatible coding agent outside Pi use that installation, install the Agent Skills through the [Skills CLI](https://www.skills.sh/docs/cli):
+
+```bash
+npx skills add syabro/rejudge -g
+```
+
+The Skills CLI supports multiple coding agents and detects installed agents automatically. This path does not require Pi.
+
 ## Pi quickstart
 
 Install Rejudge globally once. With Pi already installed, register the existing global Rejudge directory:
