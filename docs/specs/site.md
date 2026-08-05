@@ -14,7 +14,7 @@ The Rejudge landing site has an English page at `rejudge.syabro.com` and a Russi
   - the temporary transcript and placeholder caption are removed
   - the recording works on both language routes and mobile layouts
 
-- [ ] SITE-081 Review the landing page before publication		#public-release
+- [x] SITE-081 Review the landing page before publication		#public-release
   A new user can understand the English landing page, and both desktop and mobile layouts work correctly.
 
   User decisions:
@@ -23,6 +23,12 @@ The Rejudge landing site has an English page at `rejudge.syabro.com` and a Russi
   - keep the Russian text unchanged
 
   DoD: the English page is reviewed as a new user on desktop and mobile, identified problems are fixed, and the Russian layout is checked without changing its text.
+
+  **Implemented:**
+  - the English first screen now explains the reviewer-and-judge flow directly
+  - the Quick start identifies `/login` as a Pi command and explains the reasoning-level tradeoff
+  - code remains readable in dark mode
+  - English and Russian layouts were verified at desktop, 375 px, and 320 px without changing the Russian copy
 
 - [ ] SITE-082 Deploy and verify the landing page		#public-release
   Production serves the current verified site build.

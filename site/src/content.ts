@@ -91,7 +91,7 @@ export const content: Record<Locale, SiteContent> = {
     title: "Rejudge — Independent Review for AI Agents",
     description: "Several models review a question independently. A judge compares their conclusions, resolves disagreements, and returns one answer.",
     hero: {
-      tagline: "Independent review before your agent acts.",
+      tagline: "Several models review the same question independently, and a judge compares their conclusions before your agent acts.",
       linksLabel: "Project links",
     },
     run: {
@@ -109,7 +109,7 @@ export const content: Record<Locale, SiteContent> = {
     },
     flow: {
       eyebrow: "How it works",
-      ariaLabel: "Your agent asks a question. Rejudge sends the same request to every reviewer at once, and each one writes its conclusion without seeing the other answers. The judge compares the findings and returns an answer with a run ID for resuming the review later.",
+      ariaLabel: "Rejudge sends one question to separate models, then a judge compares their conclusions and returns one answer.",
       agent: "Your agent",
       asksQuestion: "asks a question",
       models: ["Model X", "Model Y", "Model Z"],
@@ -156,13 +156,13 @@ export const content: Record<Locale, SiteContent> = {
             "subscription",
             " login. If Pi is not already authorized, run:",
           ],
-          login: ["Then run", "and complete sign-in with your subscription provider."],
+          login: ["Inside Pi, run", "and complete sign-in with your subscription provider."],
         },
         configure: {
           title: "Configure the panel",
           beforeLevels: "Create",
           afterPath: " once.",
-          levels: "Two reviewers minimum, and every model carries a reasoning level:",
+          levels: "Use at least two reviewers. Every model needs a reasoning level; higher levels allow deeper analysis but take longer:",
         },
         ask: {
           title: "Ask",
