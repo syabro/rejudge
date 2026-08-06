@@ -19,7 +19,7 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 - Tests: Vitest.
 - Workflows: the root `justfile` is the human-facing repository interface. Recipes delegate to the scripts owned by the root and site packages; `setup` is the lifecycle exception that installs both dependency trees.
 - Package: one unscoped npm package, `rejudge`, containing the CLI, Pi extension, and both public workflows. Source lives in `src/`. `bin/rejudge.js` bundles the complete CLI runtime, so the global command runs without Pi installed. `pi.extensions` points at `dist/extension.js`, which bundles Rejudge code but leaves the Pi SDK, Pi TUI, and typebox external for the host. Pi registers the absolute global Rejudge package root instead of installing another copy. `just build` creates both artifacts; `prepare` rebuilds on `bun install`.
-- Landing page: Astro builds static HTML from shared components and locale data in `site/src/`. English is served at `/`, Russian at `/ru/`. `just site-build` writes the deployable site to `site/dist/`.
+- Landing page: the separate Astro project in `site/` owns its components, styles, dependencies, and Astro configuration. Shared components and localized content in `site/src/` produce English at `/` and Russian at `/ru/`. `just site-dev`, `just site-build`, and `just site-deploy` delegate to the site package; the build writes deployable static HTML to `site/dist/`.
 - Provider: `OPENCODE_GO` (not `opencode`).
 
 ## Error handling

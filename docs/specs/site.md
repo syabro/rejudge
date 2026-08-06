@@ -2,6 +2,26 @@
 
 The Rejudge landing site has an English page at `rejudge.syabro.com` and a Russian page at `rejudge.syabro.com/ru/`.
 
+## Content
+
+The first screen explains Rejudge's purpose and shows a real review. User outcomes come before implementation details. The copy stays within the product's actual contract, uses consistent terminology, and has the same meaning in English and Russian.
+
+## Review diagram
+
+Each reviewer gives the judge a separate conclusion. The judge can return follow-up questions to reviewers. The answer is visually separate as the output of the process, while the Run ID has secondary weight and explains how to continue the review. The mobile diagram preserves the same flow vertically, including the judge's follow-up loop.
+
+## Installation instructions
+
+The primary path starts with one global Rejudge installation that serves the standalone CLI and Pi. Pi users invoke `/rejudge`. Installation, configuration, authentication, and model instructions match the released CLI and Pi behavior.
+
+## Layout
+
+Both language routes support desktop, 375 px, and 320 px layouts without horizontal overflow.
+
+## Deployment
+
+`just site-deploy` deploys the site to the Cloudflare Pages project `rejudge`. After deployment, verify `https://rejudge.syabro.com/` and `https://rejudge.syabro.com/ru/`.
+
 # Tasks
 
 - [x] SITE-080 Record and embed the real Rejudge demo		#public-release
