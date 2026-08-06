@@ -21,6 +21,10 @@ A missing or invalid config is a tool error. Pressing Esc returns the model-visi
 
 This is accepted for the current trusted use case. Reviewers are read-only by default and the judge only has `ask_panel`; write/run access exists only behind the CLI's `--unsafe`/`--full`, never through the `rejudge` Pi tool. Read-only is not zero-risk: an injected instruction can still surface file or diff contents. Untrusted use requires a real instruction/data delimiter and input sanitization.
 
+## Verification
+
+Tests cover package connection, extension loading, tool registration, skill discovery, a real review, cancellation, and resumed runs.
+
 ## Live progress
 
 While `rejudge` runs inside Pi it shows a live block, refreshed every second, as a three-level tree — Rejudge → judge → reviewers — with a total at the bottom:

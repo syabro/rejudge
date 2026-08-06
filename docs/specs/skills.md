@@ -20,6 +20,10 @@ Both routes resolve the same project or global configuration and create the same
 
 When Pi is registered to the npm-installed package directory, that package supplies the review engine, Pi extension, and Pi-discovered skills, so npm updates them together. Skills copied into other agents are separate copies and are not updated by npm. After a Rejudge release, update global Agent Skills with `npx skills update -g -y`.
 
+## Verification
+
+Package smoke tests verify that both skills ship, Pi discovers them, and the public Skills CLI command installs both files outside Pi.
+
 # Tasks
 
 - [x] SKL-075 Document Agent Skills installation		#public-release

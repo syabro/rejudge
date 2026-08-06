@@ -31,6 +31,10 @@ Reviews are read-only by default. Reviewers get `read`/`grep`/`find`/`ls` plus r
 
 Config resolves from `<cwd>/.rejudge/config.json`, then `~/.config/rejudge/config.json` (XDG-aware). See `config.md`. Provider credentials stay in environment variables such as `OPENCODE_API_KEY` or Pi's stored authentication; the CLI does not store them.
 
+## Verification
+
+Tests cover package installation, executable resolution, ordinary and diff reviews, missing credentials, CLI input forms, and resumed runs.
+
 ## Live progress
 
 In a terminal, progress is the same block Pi draws — the judge, the reviewers beneath it, each one's current step and running time, and a total — redrawn in place until the run ends:
