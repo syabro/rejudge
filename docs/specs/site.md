@@ -73,3 +73,19 @@ Both language routes support desktop, 375 px, and 320 px layouts without horizon
   - the Russian page now matches the final English copy, including Run ID continuation, Pi login, and reasoning-level behavior
   - the translation uses consistent product terms without narrowing Rejudge to code review or promising a trustworthy answer
   - the Russian layout works at desktop, 375 px, and 320 px
+
+- [ ] SITE-084 Make the landing-page recording explain a complete review
+  The landing-page recording shows how Rejudge starts, what request it reviews, and what answer it returns, so a new user can follow the complete run.
+
+  The current recording shows activity without enough context: the launch action is missing, the request appears without a clear source, and the final Rejudge answer is not visible. Replace it with a recording that presents the full user flow.
+
+  User decision: before recording, agree with the user on the complete recording scenario and exact prompt, including what the run tests and how that test is demonstrated.
+
+  DoD:
+  - the recording scenario and exact prompt are approved by the user before recording
+  - the agreed scenario states what the review tests and how the result demonstrates it
+  - the recording visibly shows how Rejudge is launched
+  - the request is readable and clearly shown as user input
+  - the final Rejudge answer is shown long enough to understand the result
+  - a first-time viewer can follow the complete flow without surrounding explanation
+  - the new recording replaces the current one on both language routes and remains readable on desktop and mobile
