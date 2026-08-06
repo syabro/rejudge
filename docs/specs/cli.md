@@ -253,3 +253,16 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - Empty or whitespace-only piped stdin leaves the positional prompt unchanged.
   - CLI help, README, and the feature guide document the combined form and its EOF behavior.
   - Deterministic tests cover exact prompt assembly and the spawned CLI path; a real review returned a marker supplied only through stdin.
+
+- [ ] CLI-085 Render review answers as Markdown in CLI terminals
+  CLI review answers should render as readable Markdown in terminals, while files and pipes should receive unchanged raw Markdown.
+
+  The CLI currently prints the judge's Markdown as plain text. Interactive users see literal markers such as `**`, unstyled code, and text wrapped by the terminal without Markdown-aware layout.
+
+  Render the answer as terminal Markdown only when stdout is a TTY. Redirected and piped stdout must remain the original raw Markdown with no ANSI sequences.
+
+  DoD:
+  - an interactive CLI run renders headings, emphasis, lists, tables, and code as readable terminal output
+  - rendered lines fit the current terminal width without horizontal overflow
+  - redirected or piped stdout remains the original Markdown without ANSI styling or content changes
+  - automated tests cover both TTY rendering and unchanged non-TTY output
