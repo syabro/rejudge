@@ -1,13 +1,14 @@
 ---
-import type { SiteContent } from "../content";
+import { translator } from "../i18n";
+import type { Locale } from "../locales";
 
 type Props = {
-  content: SiteContent;
+  locale: Locale;
 };
 
-const { content } = Astro.props;
+const t = translator(Astro.props.locale);
 ---
 
 <footer>
-  {content.footer} · <a href="https://github.com/syabro/rejudge">github.com/syabro/rejudge</a> · <a href="https://www.npmjs.com/package/rejudge">npm</a>
+  {t("footer.license", "MIT licensed")} · <a href="https://github.com/syabro/rejudge">github.com/syabro/rejudge</a> · <a href="https://www.npmjs.com/package/rejudge">npm</a>
 </footer>

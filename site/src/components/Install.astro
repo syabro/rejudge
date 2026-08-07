@@ -1,13 +1,27 @@
 ---
 import { Code } from "astro:components";
-import type { SiteContent } from "../content";
+import { translator } from "../i18n";
+import type { Locale } from "../locales";
 
 type Props = {
-  content: SiteContent;
+  locale: Locale;
 };
 
-const { content } = Astro.props;
-const { steps } = content.install;
+const t = translator(Astro.props.locale);
+
+const copyLabel = t("install.copy", "Copy");
+const copiedLabel = t("install.copied", "✓ Copied");
+
+const envKeys = [
+  "ANTHROPIC_API_KEY",
+  "OPENAI_API_KEY",
+  "GEMINI_API_KEY",
+  "OPENROUTER_API_KEY",
+  "OPENCODE_API_KEY",
+];
+
+const reasoningLevels = ["minimal", "low", "medium", "high", "xhigh"];
+
 const configExample = `{
   "reviewers": [
     "opencode-go/deepseek-v4-pro@high",
@@ -22,59 +36,66 @@ rejudge --resume <run-id> "what about the rollback path?"`;
 ---
 
 <section id="install">
-  <h2>{content.install.eyebrow}</h2>
+  <h2>{t("install.eyebrow", "Quick start")}</h2>
 
   <div class="step">
-    <h3><b>01</b> {steps.install.title}</h3>
+    <h3><b>01</b> {t("install.step1.title", "Install Rejudge")}</h3>
     <div class="command-copy">
       <pre><code>npm install -g rejudge</code></pre>
-      <button type="button" class="copy-command" aria-label={content.install.copy.buttonLabel} data-copy-command="npm install -g rejudge" data-copied-label={content.install.copy.copiedLabel}>{content.install.copy.buttonLabel}</button>
+      <button type="button" class="copy-command" aria-label={copyLabel} data-copy-command="npm install -g rejudge" data-copied-label={copiedLabel}>{copyLabel}</button>
     </div>
-    <p>{steps.install.skillsIntro} <a href="https://www.skills.sh/docs/cli" target="_blank" rel="noreferrer">Skills CLI</a>. {steps.install.skillsNote}</p>
+    <p set:html={t("install.skills", `Using a coding agent other than Pi? Install the Agent Skills so it can call Rejudge, through the <a href="https://www.skills.sh/docs/cli" target="_blank" rel="noreferrer">Skills CLI</a>. Pi is not required on this path.`)} />
     <div class="command-copy">
       <pre><code>npx skills add syabro/rejudge -g</code></pre>
-      <button type="button" class="copy-command" aria-label={content.install.copy.buttonLabel} data-copy-command="npx skills add syabro/rejudge -g" data-copied-label={content.install.copy.copiedLabel}>{content.install.copy.buttonLabel}</button>
+      <button type="button" class="copy-command" aria-label={copyLabel} data-copy-command="npx skills add syabro/rejudge -g" data-copied-label={copiedLabel}>{copyLabel}</button>
     </div>
-    <p>{steps.install.skillsUpdate} <code>npx skills update -g -y</code>.</p>
-    <p>{steps.install.piIntro} <code>pi install "$(npm root -g)/rejudge"</code></p>
+    <p set:html={t("install.skillsUpdate", `The skills are a separate copy, so update them after each Rejudge release with <code>npx skills update -g -y</code>.`)} />
+    <p set:html={t("install.pi", `Already using Pi? Register this same installation: <code>pi install "$(npm root -g)/rejudge"</code>`)} />
   </div>
 
   <div class="step">
-    <h3><b>02</b> {steps.connect.title}</h3>
-    <blockquote class="personal-note">
-      <p>“{steps.connect.personalNote[0]} <a href="https://opencode.ai/go" target="_blank" rel="noreferrer">{steps.connect.personalNote[1]}</a> {steps.connect.personalNote[2]}” <cite>@syabro</cite></p>
-    </blockquote>
+    <h3><b>02</b> {t("install.step2.title", "Connect a provider")}</h3>
 
     <p class="env-line">
-      {steps.connect.envIntro}
-      {steps.connect.envKeys.map((key) => <code>{key}</code>)}
-      {steps.connect.envMore} <a href="https://pi.dev/docs/latest/providers#api-keys" target="_blank" rel="noreferrer">{steps.connect.envDocs}</a>
+      {t("connect.env", "Rejudge runs on Pi and reads Pi's provider settings, so any key Pi accepts works here:")}{" "}
+      {envKeys.map((key) => <code>{key}</code>)}{" "}
+      <Fragment set:html={t("connect.envMore", `and more — the full list is in the <a href="https://pi.dev/docs/latest/providers#api-keys" target="_blank" rel="noreferrer">Pi docs</a>.`)} />
     </p>
 
+    <blockquote class="personal-note">
+      <p>
+        <Fragment set:html={t("connect.personalNote", `“I personally use <a href="https://opencode.ai/go" target="_blank" rel="noreferrer">OpenCode Go</a> because it offers an excellent mix of models for $10 a month.”`)} />{" "}
+        <cite>@syabro</cite>
+      </p>
+    </blockquote>
+
     <details class="subscription-auth">
-      <summary>{steps.connect.subscriptionSummary}</summary>
+      <summary>{t("connect.subscriptionSummary", "Using a subscription instead of API keys?")}</summary>
       <div>
-        <p>{steps.connect.subscriptionIntro[0]} <a href="https://pi.dev/docs/latest/providers#subscriptions" target="_blank" rel="noreferrer">{steps.connect.subscriptionIntro[1]}</a>{steps.connect.subscriptionIntro[2]}</p>
+        <p set:html={t("connect.subscriptionIntro", `For <a href="https://pi.dev/docs/latest/providers#subscriptions" target="_blank" rel="noreferrer">subscription</a> logins Rejudge still goes through Pi. If Pi is not authorized yet, run:`)} />
         <div class="command-copy">
           <pre><code>npx -y @earendil-works/pi-coding-agent</code></pre>
-          <button type="button" class="copy-command" aria-label={content.install.copy.buttonLabel} data-copy-command="npx -y @earendil-works/pi-coding-agent" data-copied-label={content.install.copy.copiedLabel}>{content.install.copy.buttonLabel}</button>
+          <button type="button" class="copy-command" aria-label={copyLabel} data-copy-command="npx -y @earendil-works/pi-coding-agent" data-copied-label={copiedLabel}>{copyLabel}</button>
         </div>
-        <p>{steps.connect.login[0]} <code>/login</code> {steps.connect.login[1]}</p>
+        <p set:html={t("connect.login", `Inside Pi, run <code>/login</code> and finish sign-in with your subscription provider.`)} />
       </div>
     </details>
   </div>
 
   <div class="step">
-    <h3><b>03</b> {steps.configure.title}</h3>
-    <p>{steps.configure.beforeLevels} <code>~/.config/rejudge/config.json</code>{steps.configure.afterPath}</p>
+    <h3><b>03</b> {t("install.step3.title", "Pick your models")}</h3>
+    <p set:html={t("configure.path", `Create <code>~/.config/rejudge/config.json</code> once.`)} />
     <Code code={configExample} lang="json" theme="github-light" />
-    <p>{steps.configure.levels} <code>minimal</code>, <code>low</code>, <code>medium</code>, <code>high</code>, <code>xhigh</code>.</p>
+    <p>
+      {t("configure.levels", "Two reviewers minimum. Every model needs a reasoning level, and a higher level means a longer and more thorough review:")}{" "}
+      {reasoningLevels.map((level, index) => <Fragment>{index > 0 && ", "}<code>{level}</code></Fragment>)}.
+    </p>
   </div>
 
   <div class="step">
-    <h3><b>04</b> {steps.ask.title}</h3>
+    <h3><b>04</b> {t("install.step4.title", "Ask")}</h3>
     <Code code={askExample} lang="bash" theme="github-light" />
-    <p>{steps.ask.stdout} {steps.ask.piIntro} <code>rejudge</code> {steps.ask.toolConnector} <code>/rejudge</code> {steps.ask.workflowConnector} <code>/rejudge-diff</code> {steps.ask.ending}</p>
+    <p set:html={t("ask.body", `The answer goes to stdout; progress, config, and the run ID go to stderr, so redirecting stdout to a file leaves you the answer and nothing else. Inside Pi the same package registers a native <code>rejudge</code> tool plus the <code>/rejudge</code> and <code>/rejudge-diff</code> workflows.`)} />
   </div>
 </section>
 

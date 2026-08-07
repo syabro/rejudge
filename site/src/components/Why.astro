@@ -1,17 +1,44 @@
 ---
-import type { SiteContent } from "../content";
+import { translator } from "../i18n";
+import type { Locale } from "../locales";
 
 type Props = {
-  content: SiteContent;
+  locale: Locale;
 };
 
-const { content } = Astro.props;
+const t = translator(Astro.props.locale);
+
+const numerals = ["I", "II", "III", "IV"];
+
+const levels = [
+  {
+    lead: t("why.1.lead", "Same session, same model."),
+    body: t("why.1.body", "The agent rereads its own code. It already decided this code is correct, and reading it again does not change that decision."),
+  },
+  {
+    lead: t("why.2.lead", "New session, same model."),
+    body: t("why.2.body", "The context is clean, the model is not. It has the same training and the same habits, so it accepts the mistakes it would have written itself."),
+  },
+  {
+    lead: t("why.3.lead", "A different model, its own session."),
+    body: t("why.3.body", "A different model does find real bugs. But you now have two opinions, and when they disagree, you are the one who decides which is right."),
+  },
+];
 ---
 
 <section class="lede">
-  <h2>{content.why.eyebrow}</h2>
-  <p>{content.why.paragraphs[0]}</p>
-  <p>{content.why.paragraphs[1]}</p>
-  <p><strong>{content.why.conclusion.strong}</strong></p>
-  {content.why.conclusion.rest && <p>{content.why.conclusion.rest}</p>}
+  <h2>{t("why.eyebrow", "Why several models")}</h2>
+  <p>{t("why.intro", "There are four ways to check code an agent wrote. Each one catches more than the last.")}</p>
+
+  <dl>
+    {levels.map((level, index) => (
+      <Fragment>
+        <dt>{numerals[index]}. {level.lead}</dt>
+        <dd>{level.body}</dd>
+      </Fragment>
+    ))}
+
+    <dt>{numerals[levels.length]}. <span class="brand">Rejudge</span>: {t("why.4.lead", "three models and a judge.")}</dt>
+    <dd>{t("why.4.body", "Your question goes to three different models at once. Each one reads your files itself and never sees the other two. The judge reads all three reports, asks follow-up questions where they disagree, and writes one answer. When all three report the same problem, three independent checks agree on it. When they split, the judge resolves it instead of you.")}</dd>
+  </dl>
 </section>

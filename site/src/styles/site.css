@@ -57,7 +57,11 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 .run figcaption{color:var(--ink-2);font-size:var(--text-small);text-align:center}
 
 .lede p:last-child{margin-bottom:0}
-.lede strong{font-weight:700}
+.lede dl{margin:0}
+.lede dt{margin:0 0 4px;font-weight:700}
+.lede dd{margin:0 0 16px}
+.lede dd:last-child{margin-bottom:0}
+.lede .brand{border-bottom:1px solid currentColor}
 
 .flow{margin:0 0 8px}
 .flow svg{display:block;width:100%;height:auto;font-family:inherit;overflow:visible}

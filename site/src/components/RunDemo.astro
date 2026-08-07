@@ -1,17 +1,18 @@
 ---
 import "asciinema-player/dist/bundle/asciinema-player.css";
-import type { SiteContent } from "../content";
+import { translator } from "../i18n";
+import type { Locale } from "../locales";
 
 type Props = {
-  content: SiteContent;
+  locale: Locale;
 };
 
-const { content } = Astro.props;
+const t = translator(Astro.props.locale);
 ---
 
 <figure class="run">
   <div class="run-player" id="run-player"></div>
-  <figcaption>{content.run.caption}</figcaption>
+  <figcaption>{t("run.caption", "A real run: three models check shipping.js against its spec, then the judge writes the answer.")}</figcaption>
 </figure>
 
 <script>

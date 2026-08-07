@@ -1,21 +1,46 @@
 ---
-import type { SiteContent } from "../content";
+import { translator } from "../i18n";
+import type { Locale } from "../locales";
 
 type Props = {
-  content: SiteContent;
+  locale: Locale;
 };
 
-const { content } = Astro.props;
-const flow = content.flow;
-const wideMarkerId = `wide-arrow-${content.locale}`;
-const narrowMarkerId = `narrow-arrow-${content.locale}`;
+const { locale } = Astro.props;
+const t = translator(locale);
+
+// Every label appears twice below — once in the wide diagram, once in the narrow one.
+const flow = {
+  agent: t("flow.agent", "Your agent"),
+  asksQuestion: t("flow.asksQuestion", "asks a question"),
+  models: [
+    t("flow.model.1", "Model X"),
+    t("flow.model.2", "Model Y"),
+    t("flow.model.3", "Model Z"),
+  ],
+  writesFindings: t("flow.writesFindings", "writes its findings"),
+  judge: t("flow.judge", "Judge"),
+  comparesFindings: t("flow.comparesFindings", "compares the findings"),
+  answer: t("flow.answer", "Answer"),
+  answerDescription: t("flow.answerDescription", "based on all findings"),
+  runId: [t("flow.runId.1", "+ Run ID"), t("flow.runId.2", "to resume")],
+  followUp: [
+    t("flow.followUp.1", "asks follow-up questions"),
+    t("flow.followUp.2", "when the reviewers disagree"),
+  ],
+};
+
+const ariaLabel = t("flow.ariaLabel", "Rejudge sends one question to separate models, then a judge compares their findings and returns one answer.");
+
+const wideMarkerId = `wide-arrow-${locale}`;
+const narrowMarkerId = `narrow-arrow-${locale}`;
 ---
 
 <section>
-  <h2>{flow.eyebrow}</h2>
+  <h2>{t("flow.eyebrow", "How it works")}</h2>
 
   <figure class="flow">
-    <svg class="wide" viewBox="0 40 920 320" role="img" aria-label={flow.ariaLabel}>
+    <svg class="wide" viewBox="0 40 920 320" role="img" aria-label={ariaLabel}>
       <defs>
         <marker id={wideMarkerId} markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
           <path d="M0,0 L6,3 L0,6 z" class="head"></path>
@@ -31,11 +56,11 @@ const narrowMarkerId = `narrow-arrow-${content.locale}`;
       <line class="l" x1="150" y1="240" x2="218" y2="240" marker-end={`url(#${wideMarkerId})`}></line>
 
       <text class="n" x="234" y="56">{flow.models[0]}</text>
-      <text class="d" x="234" y="76">{flow.writesConclusion}</text>
+      <text class="d" x="234" y="76">{flow.writesFindings}</text>
       <text class="n" x="234" y="146">{flow.models[1]}</text>
-      <text class="d" x="234" y="166">{flow.writesConclusion}</text>
+      <text class="d" x="234" y="166">{flow.writesFindings}</text>
       <text class="n" x="234" y="236">{flow.models[2]}</text>
-      <text class="d" x="234" y="256">{flow.writesConclusion}</text>
+      <text class="d" x="234" y="256">{flow.writesFindings}</text>
 
       <g class="judge-stage">
         <path class="l" d="M380 60 H448 M380 150 H448 M380 240 H448 M448 60 V240"></path>
@@ -61,7 +86,7 @@ const narrowMarkerId = `narrow-arrow-${content.locale}`;
       </g>
     </svg>
 
-    <svg class="narrow" viewBox="0 0 420 560" role="img" aria-label={flow.ariaLabel}>
+    <svg class="narrow" viewBox="0 0 420 560" role="img" aria-label={ariaLabel}>
       <defs>
         <marker id={narrowMarkerId} markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
           <path d="M0,0 L6,3 L0,6 z" class="head"></path>
@@ -77,11 +102,11 @@ const narrowMarkerId = `narrow-arrow-${content.locale}`;
       <line class="l" x1="350" y1="82" x2="350" y2="112" marker-end={`url(#${narrowMarkerId})`}></line>
 
       <text class="n" x="70" y="136" text-anchor="middle">{flow.models[0]}</text>
-      <text class="d" x="70" y="156" text-anchor="middle">{flow.writesConclusion}</text>
+      <text class="d" x="70" y="156" text-anchor="middle">{flow.writesFindings}</text>
       <text class="n" x="210" y="136" text-anchor="middle">{flow.models[1]}</text>
-      <text class="d" x="210" y="156" text-anchor="middle">{flow.writesConclusion}</text>
+      <text class="d" x="210" y="156" text-anchor="middle">{flow.writesFindings}</text>
       <text class="n" x="350" y="136" text-anchor="middle">{flow.models[2]}</text>
-      <text class="d" x="350" y="156" text-anchor="middle">{flow.writesConclusion}</text>
+      <text class="d" x="350" y="156" text-anchor="middle">{flow.writesFindings}</text>
 
       <path class="l" d="M70 172 V204 M210 172 V204 M350 172 V204 M70 204 H350"></path>
       <line class="l" x1="210" y1="204" x2="210" y2="236" marker-end={`url(#${narrowMarkerId})`}></line>
@@ -105,6 +130,6 @@ const narrowMarkerId = `narrow-arrow-${content.locale}`;
       </g>
     </svg>
 
-    <p class="summary">{flow.summary}</p>
+    <p class="summary">{t("flow.summary", "Reviewers get read-only tools: read, grep, find, ls, git diff. By default they cannot edit files or run shell commands. The judge gets no access to the workspace at all: it sees the three reports and can ask the reviewers more questions, nothing else. Every run ends with a run ID, and rejudge --resume <run-id> reopens the same sessions with a new question.")}</p>
   </figure>
 </section>

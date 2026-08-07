@@ -1,5 +1,5 @@
 ---
-import type { SiteContent } from "../content";
+import type { Locale } from "../locales";
 import Footer from "./Footer.astro";
 import Hero from "./Hero.astro";
 import Install from "./Install.astro";
@@ -8,15 +8,15 @@ import RunDemo from "./RunDemo.astro";
 import Why from "./Why.astro";
 
 type Props = {
-  content: SiteContent;
+  locale: Locale;
 };
 
-const { content } = Astro.props;
+const { locale } = Astro.props;
 ---
 
-<Hero content={content} />
-<RunDemo content={content} />
-<Why content={content} />
-<ReviewFlow content={content} />
-<Install content={content} />
-<Footer content={content} />
+<Hero locale={locale} />
+<RunDemo locale={locale} />
+<Why locale={locale} />
+<ReviewFlow locale={locale} />
+<Install locale={locale} />
+<Footer locale={locale} />
