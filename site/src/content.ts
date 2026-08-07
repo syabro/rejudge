@@ -98,7 +98,7 @@ export const content: Record<Locale, SiteContent> = {
       linksLabel: "Project links",
     },
     run: {
-      caption: "A real Rejudge run: reviewers inspect the same question independently, then the judge returns one answer.",
+      caption: "Real Rejudge run example.",
     },
     why: {
       eyebrow: "Why",

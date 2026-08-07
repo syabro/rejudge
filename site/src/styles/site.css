@@ -47,7 +47,7 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 
 .run{margin:0 0 96px}
 .run-player{margin-bottom:14px;overflow:hidden;border-radius:6px}
-.run figcaption{color:var(--ink-2);font-size:var(--text-small)}
+.run figcaption{color:var(--ink-2);font-size:var(--text-small);text-align:center}
 
 .lede p:last-child{margin-bottom:0}
 .lede strong{font-weight:700}
