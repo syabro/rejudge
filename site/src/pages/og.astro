@@ -3,10 +3,13 @@ import "asciinema-player/dist/bundle/asciinema-player.css";
 import { translator } from "../i18n";
 import "../styles/site.css";
 
-// Workbench for the social preview image in public/og.png. Screenshot the #og
-// node; it is exactly the 1200x630 that Open Graph expects, so the capture
-// needs no crop. The defaults below are the ones the shipped image was taken
-// with; override them to try alternatives: /og/?theme=light&pad=48
+// Workbench for the captures this project ships. Screenshot the #og node for
+// public/og.png; it is exactly the 1200x630 that Open Graph expects, so the
+// capture needs no crop. The defaults below are the ones the shipped image was
+// taken with; override them to try alternatives: /og/?theme=light&pad=48
+//
+// /og/?bare=1&theme=light strips everything but the recording — record the
+// viewport there to get the terminal clip used in the README.
 const t = translator("en");
 ---
 
@@ -19,6 +22,12 @@ const t = translator("en");
     <script is:inline>
       const params = new URLSearchParams(location.search);
       document.documentElement.dataset.theme = params.get("theme") ?? "dark";
+
+      // ?bare=1 leaves only the recording, so a screen capture of the viewport
+      // is the bare terminal clip with no wordmark, no tagline, and no padding.
+      if (params.has("bare")) {
+        document.documentElement.classList.add("bare");
+      }
     </script>
   </head>
   <body>
@@ -83,6 +92,10 @@ const t = translator("en");
       }
 
       #og .run-player{margin:0;border-radius:8px;overflow:hidden}
+
+      :root.bare #og{width:auto;height:auto;padding:0}
+      :root.bare #og h1,:root.bare #og p{display:none}
+      :root.bare #og .run-player{border-radius:0}
     </style>
   </body>
 </html>
