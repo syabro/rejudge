@@ -11,8 +11,8 @@
    media query cannot be merged with a plain attribute selector. */
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --ink:#ececef; --ink-2:#98989d; --line:#33343a; --soft:#1b1c1f; --page:#131417;
-    --code-bg:#26282e;
+    --ink:#d4d4d9; --ink-2:#9a9aa0; --line:#3a3b42; --soft:#222327; --page:#1a1b1f;
+    --code-bg:#2d2f36;
     --ok:#63c07e; --danger:#ff6b63; --terminal-green:#70d68d;
     color-scheme:dark;
   }
@@ -22,8 +22,8 @@
 }
 
 :root[data-theme="dark"]{
-  --ink:#ececef; --ink-2:#98989d; --line:#33343a; --soft:#1b1c1f; --page:#131417;
-  --code-bg:#26282e;
+  --ink:#d4d4d9; --ink-2:#9a9aa0; --line:#3a3b42; --soft:#222327; --page:#1a1b1f;
+  --code-bg:#2d2f36;
   --ok:#63c07e; --danger:#ff6b63; --terminal-green:#70d68d;
   color-scheme:dark;
 }
@@ -110,7 +110,9 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 .copy-command{position:absolute;top:12px;right:18px;padding:4px 0 4px 8px;border:0;background:none;color:var(--ink-2);font:inherit;font-size:var(--text-small);cursor:pointer}
 .copy-command:hover{color:var(--ink)}
 
-.env-line code{display:inline-block;margin:0 0 4px 8px;padding:.25em .5em}
+/* Margin goes right, not left: a left margin also indents the first chip on a
+   wrapped line, pushing it out of the paragraph's edge. */
+.env-line code{display:inline-block;margin:0 8px 4px 0;padding:.25em .5em}
 .env-line a{margin-left:4px;text-decoration:underline;text-underline-offset:2px}
 .subscription-auth{margin-top:24px}
 .subscription-auth summary{cursor:pointer;font-weight:400}
