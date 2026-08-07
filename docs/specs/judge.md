@@ -152,3 +152,16 @@ Runs live under `${TMPDIR}/rejudge/runs/<runId>/`, outside the project and Pi's 
   - a judge or whole-review failure remains visible through the existing final failure state
   - stray follow-up lifecycle events cannot overwrite a terminal reviewer status
   - deterministic tests cover successful follow-up, recoverable failure, cancellation, and final judge failure
+
+- [ ] SYN-086 Show repeated reviewer requests in progress
+  Progress shows when the judge asks reviewers again.
+
+  The judge row lists the targeted models instead of showing `ask_panel`. Each targeted model shows that it is processing another request and whether this is pass 2, 3, or later.
+
+  User decisions:
+  - list every targeted model in the judge row
+  - show a repeat indicator and pass number on each targeted model
+  - never show `ask_panel` in the interface
+  - supersede `SYN-064` where it hides repeated requests
+
+  DoD: the judge names all targeted models, and each targeted model shows its current repeat pass while processing the request.
