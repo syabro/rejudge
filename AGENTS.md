@@ -12,6 +12,10 @@ Do not run npm publish yourself. The user must run the publish step manually bec
 
 Use `@` prefix for file paths in skill prompts (e.g., `@README.md`). This is Claude Code file inclusion syntax.
 
+## Code navigation
+
+Do not use `ast-index` for files under `site/`.
+
 ## Code style
 
 No linter is configured — these are upheld by reading the code (and by LLM code review). Keep code readable like prose:
