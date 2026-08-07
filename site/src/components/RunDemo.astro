@@ -21,6 +21,7 @@ const { content } = Astro.props;
   if (container) {
     AsciinemaPlayer.create("/rejudge-demo.cast", container, {
       autoPlay: true,
+      controls: false,
       idleTimeLimit: 10,
       loop: true,
     });
