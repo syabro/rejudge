@@ -1,13 +1,13 @@
 :root{
   --ink:#1d1d1f; --ink-2:#6e6e73; --line:#d2d2d7; --soft:#fafafa; --page:#fff;
-  --ok:#1a7f37; --danger:#d70015;
+  --ok:#1a7f37; --danger:#d70015; --terminal-green:#006400;
   --text:17px; --text-small:14px; --text-heading:24px;
 }
 
 @media (prefers-color-scheme:dark){
   :root{
     --ink:#ececef; --ink-2:#98989d; --line:#33343a; --soft:#1b1c1f; --page:#131417;
-    --ok:#63c07e; --danger:#ff6b63;
+    --ok:#63c07e; --danger:#ff6b63; --terminal-green:#70d68d;
   }
 
   pre.astro-code,
@@ -47,6 +47,13 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 
 .run{margin:0 0 96px}
 .run-player{margin-bottom:14px;overflow:hidden;border-radius:6px}
+.run-player .asciinema-theme-asciinema,.run-player .asciinema-theme-asciinema pre.ap-terminal{background-color:var(--soft);border-color:var(--soft);color:var(--ink)}
+.run-player .asciinema-theme-asciinema .fg-default{color:var(--ink)}
+.run-player .asciinema-theme-asciinema .fg-2{color:var(--terminal-green)}
+.run-player .asciinema-theme-asciinema .fg-bg{color:var(--soft)}
+.run-player .asciinema-theme-asciinema .bg-default{background-color:var(--soft)}
+.run-player .asciinema-theme-asciinema .bg-fg{background-color:var(--ink)}
+.run-player pre.ap-terminal .ap-cursor-a,.run-player pre.ap-terminal .ap-cursor-b{visibility:hidden}
 .run figcaption{color:var(--ink-2);font-size:var(--text-small);text-align:center}
 
 .lede p:last-child{margin-bottom:0}
