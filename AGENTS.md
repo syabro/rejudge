@@ -1,6 +1,6 @@
 # Rejudge
 
-The root `justfile` is the command interface for repository work — `just test`, `just test-unit`, `just typecheck`, `just build-cli`. Package scripts remain the implementation owned by each package. See @README.md for the complete workflow list.
+The root `justfile` is the command interface for repository work — `just test`, `just test-unit`, `just typecheck`, `just build-cli`. Package scripts remain the implementation owned by each package. Run `just` to list every workflow.
 
 After committing code changes, rebuild with `just build` (CLI + extension). `bin/rejudge.js` (from `src/cli.ts`) and `dist/extension.js` (from `src/index.ts`, with `neverthrow` inlined) are gitignored bundles that won't reflect `src/` changes until rebuilt; `bun install` also rebuilds them via the `prepare` script. The Pi extension is loaded as the built bundle, not from `src/` — Pi 0.80's loader only resolves the pi SDK + typebox, so third-party deps must be bundled in.
 
