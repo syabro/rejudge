@@ -17,6 +17,7 @@ _.log
 report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 
 # local tool state and private planning
+tmp/
 .rejudge/
 .pi/
 .sc/
