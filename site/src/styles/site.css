@@ -2,17 +2,31 @@
   --ink:#1d1d1f; --ink-2:#6e6e73; --line:#d2d2d7; --soft:#fafafa; --page:#fff;
   --ok:#1a7f37; --danger:#d70015; --terminal-green:#006400;
   --text:17px; --text-small:14px; --text-heading:24px;
+  color-scheme:light;
 }
 
+/* Dark applies in two cases: the system asks for it and the reader has not
+   overridden it, or the reader picked it. Hence the same block twice — the
+   media query cannot be merged with a plain attribute selector. */
 @media (prefers-color-scheme:dark){
-  :root{
+  :root:not([data-theme="light"]){
     --ink:#ececef; --ink-2:#98989d; --line:#33343a; --soft:#1b1c1f; --page:#131417;
     --ok:#63c07e; --danger:#ff6b63; --terminal-green:#70d68d;
+    color-scheme:dark;
   }
 
-  pre.astro-code,
-  pre.astro-code span{color:var(--ink)!important}
+  :root:not([data-theme="light"]) pre.astro-code,
+  :root:not([data-theme="light"]) pre.astro-code span{color:var(--ink)!important}
 }
+
+:root[data-theme="dark"]{
+  --ink:#ececef; --ink-2:#98989d; --line:#33343a; --soft:#1b1c1f; --page:#131417;
+  --ok:#63c07e; --danger:#ff6b63; --terminal-green:#70d68d;
+  color-scheme:dark;
+}
+
+:root[data-theme="dark"] pre.astro-code,
+:root[data-theme="dark"] pre.astro-code span{color:var(--ink)!important}
 
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
@@ -38,12 +52,24 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 .hero .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;margin:0 0 28px}
 .hero h1{margin:0;font-size:clamp(36px,6vw,56px);line-height:1.05;font-weight:700;letter-spacing:-.025em}
 .hero .wordmark{text-decoration-line:underline;text-decoration-thickness:3px;text-underline-offset:12px;text-decoration-skip-ink:none}
-.hero .links{display:flex;align-items:center;gap:20px}
+.hero .nav{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.hero .prefs,.hero .links{display:flex;align-items:center;gap:20px}
 .hero .tagline{margin:0 0 32px;color:var(--ink)}
-.hero .links a{display:inline-flex;align-items:center;gap:6px;padding:4px 0;color:var(--ink);font-size:var(--text-small);font-weight:700}
-.hero .links a:hover{text-decoration:underline}
-.hero .links svg{width:16px;height:16px;fill:currentColor;flex:none}
+.hero .prefs a,.hero .links a{display:inline-flex;align-items:center;gap:6px;padding:4px 0;color:var(--ink);font-size:var(--text-small);font-weight:700}
+.hero .prefs a:hover,.hero .links a:hover{text-decoration:underline}
+.hero .prefs svg,.hero .links svg{width:16px;height:16px;fill:currentColor;flex:none}
 .hero .links .npm-icon{width:16px}
+
+.theme-toggle{display:inline-flex;align-items:center;padding:4px 0;border:0;background:none;color:var(--ink);cursor:pointer}
+/* The icon shows what the click does, not what the reader can already see:
+   light theme offers the moon, dark theme offers the sun. */
+.theme-toggle .sun{display:none}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .theme-toggle .moon{display:none}
+  :root:not([data-theme="light"]) .theme-toggle .sun{display:block}
+}
+:root[data-theme="dark"] .theme-toggle .moon{display:none}
+:root[data-theme="dark"] .theme-toggle .sun{display:block}
 
 .run{margin:0 0 96px}
 .run-player{margin-bottom:14px;overflow:hidden;border-radius:6px}
@@ -83,10 +109,6 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 
 .env-line code{display:inline-block;margin:0 0 4px 8px;padding:.25em .5em}
 .env-line a{margin-left:4px;text-decoration:underline;text-underline-offset:2px}
-.personal-note{margin:12px 0 24px;color:var(--ink-2);font-size:var(--text-small);text-align:right}
-.personal-note p{margin-bottom:0;font-style:italic}
-.personal-note a{color:inherit;text-decoration:underline;text-underline-offset:2px}
-.personal-note cite{font-style:normal}
 .subscription-auth{margin-top:24px}
 .subscription-auth summary{cursor:pointer;font-weight:400}
 .subscription-auth > div{padding:16px 0 0 24px}

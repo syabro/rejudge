@@ -62,12 +62,7 @@ rejudge --resume <run-id> "what about the rollback path?"`;
       <Fragment set:html={t("connect.envMore", `and more — the full list is in the <a href="https://pi.dev/docs/latest/providers#api-keys" target="_blank" rel="noreferrer">Pi docs</a>.`)} />
     </p>
 
-    <blockquote class="personal-note">
-      <p>
-        <Fragment set:html={t("connect.personalNote", `“I personally use <a href="https://opencode.ai/go" target="_blank" rel="noreferrer">OpenCode Go</a> because it offers an excellent mix of models for $10 a month.”`)} />{" "}
-        <cite>@syabro</cite>
-      </p>
-    </blockquote>
+    <p set:html={t("connect.personalNote", `I personally use <a href="https://opencode.ai/go" target="_blank" rel="noreferrer">OpenCode Go</a> because it offers an excellent mix of models for $10 a month.`)} />
 
     <details class="subscription-auth">
       <summary>{t("connect.subscriptionSummary", "Using a subscription instead of API keys?")}</summary>

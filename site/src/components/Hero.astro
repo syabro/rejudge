@@ -15,23 +15,46 @@ const t = translator(locale);
 <header class="hero">
   <div class="top">
     <h1 class="wordmark">Rejudge</h1>
-    <nav class="links" aria-label={t("hero.linksLabel", "Project links")}>
-      <a href={alternate.path} hreflang={info.alternate}>{info.alternateLabel}</a>
-      <a href="#install">{t("install.eyebrow", "Quick start")}</a>
-      <a href="https://github.com/syabro/rejudge" target="_blank" rel="noopener noreferrer">
-        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M8 0C3.58 0 0 3.64 0 8.13c0 3.59 2.29 6.64 5.47 7.71.4.08.55-.18.55-.39 0-.19-.01-.82-.01-1.49-2.01.44-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.59 1.23.83.72 1.23 1.87.88 2.33.67.07-.53.28-.88.51-1.08-1.78-.21-3.64-.9-3.64-4.02 0-.89.31-1.62.82-2.19-.08-.2-.36-1.04.08-2.16 0 0 .67-.22 2.2.84A7.49 7.49 0 0 1 8 3.86a7.5 7.5 0 0 1 2 .28c1.53-1.06 2.2-.84 2.2-.84.44 1.12.16 1.96.08 2.16.51.57.82 1.3.82 2.19 0 3.13-1.87 3.81-3.65 4.02.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.47.55.39A8.13 8.13 0 0 0 16 8.13C16 3.64 12.42 0 8 0Z"></path>
-        </svg>
-        <span>GitHub</span>
-      </a>
-      <a href="https://www.npmjs.com/package/rejudge" target="_blank" rel="noopener noreferrer">
-        <svg class="npm-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path fill="currentColor" d="M0,16V0H16V16ZM3,3V13H8V5h3v8h2V3Z"></path>
-          <path fill="var(--page)" d="M3,3H13V13H11V5H8v8H3Z"></path>
-        </svg>
-        <span>npm</span>
-      </a>
-    </nav>
+    <div class="nav">
+      <div class="prefs">
+        <a href={alternate.path} hreflang={info.alternate}>{info.alternateLabel}</a>
+        <button type="button" class="theme-toggle" aria-label={t("hero.themeToggle", "Switch theme")}>
+          <svg class="sun" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6Zm0-9.5a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-1.5 0v-1A.75.75 0 0 1 8 1.5Zm0 11a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-1.5 0v-1A.75.75 0 0 1 8 12.5ZM14.5 8a.75.75 0 0 1-.75.75h-1a.75.75 0 0 1 0-1.5h1a.75.75 0 0 1 .75.75Zm-11 0a.75.75 0 0 1-.75.75h-1a.75.75 0 0 1 0-1.5h1A.75.75 0 0 1 3.5 8Zm9.09-4.59a.75.75 0 0 1 0 1.06l-.7.71a.75.75 0 1 1-1.07-1.06l.71-.71a.75.75 0 0 1 1.06 0ZM5.18 10.82a.75.75 0 0 1 0 1.06l-.71.71a.75.75 0 0 1-1.06-1.06l.71-.71a.75.75 0 0 1 1.06 0Zm7.41 2.83a.75.75 0 0 1-1.06 0l-.71-.71a.75.75 0 0 1 1.06-1.06l.71.71a.75.75 0 0 1 0 1.06ZM4.47 3.41l.71.71a.75.75 0 0 1-1.06 1.06l-.71-.71a.75.75 0 0 1 1.06-1.06Z"></path>
+          </svg>
+          <svg class="moon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M6.2 1.4a.75.75 0 0 1 .1.85 5.5 5.5 0 0 0 7.45 7.45.75.75 0 0 1 1 .96A6.5 6.5 0 1 1 5.35 1.3a.75.75 0 0 1 .85.1Z"></path>
+          </svg>
+        </button>
+      </div>
+
+      <nav class="links" aria-label={t("hero.linksLabel", "Project links")}>
+        <a href="#install">{t("install.eyebrow", "Quick start")}</a>
+        <a href="https://github.com/syabro/rejudge" target="_blank" rel="noopener noreferrer">
+          <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path d="M8 0C3.58 0 0 3.64 0 8.13c0 3.59 2.29 6.64 5.47 7.71.4.08.55-.18.55-.39 0-.19-.01-.82-.01-1.49-2.01.44-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.59 1.23.83.72 1.23 1.87.88 2.33.67.07-.53.28-.88.51-1.08-1.78-.21-3.64-.9-3.64-4.02 0-.89.31-1.62.82-2.19-.08-.2-.36-1.04.08-2.16 0 0 .67-.22 2.2.84A7.49 7.49 0 0 1 8 3.86a7.5 7.5 0 0 1 2 .28c1.53-1.06 2.2-.84 2.2-.84.44 1.12.16 1.96.08 2.16.51.57.82 1.3.82 2.19 0 3.13-1.87 3.81-3.65 4.02.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.47.55.39A8.13 8.13 0 0 0 16 8.13C16 3.64 12.42 0 8 0Z"></path>
+          </svg>
+          <span>GitHub</span>
+        </a>
+        <a href="https://www.npmjs.com/package/rejudge" target="_blank" rel="noopener noreferrer">
+          <svg class="npm-icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M0,16V0H16V16ZM3,3V13H8V5h3v8h2V3Z"></path>
+            <path fill="var(--page)" d="M3,3H13V13H11V5H8v8H3Z"></path>
+          </svg>
+          <span>npm</span>
+        </a>
+      </nav>
+    </div>
   </div>
   <p class="tagline">{t("hero.tagline", "Rejudge is a review tool for coding agents. Your agent asks a question, several models check the code separately, and a judge compares their reports and returns one answer.")}</p>
 </header>
+
+<script>
+  document.querySelector(".theme-toggle")?.addEventListener("click", () => {
+    const root = document.documentElement;
+    const next = root.dataset.theme === "dark" ? "light" : "dark";
+
+    root.dataset.theme = next;
+    localStorage.setItem("rejudge-theme", next);
+  });
+</script>

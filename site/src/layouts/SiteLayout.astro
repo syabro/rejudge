@@ -22,6 +22,14 @@ const ruUrl = new URL("/ru/", Astro.site);
 <!doctype html>
 <html lang={info.lang}>
   <head>
+    <script is:inline>
+      // Runs before first paint so the page never flashes the wrong theme.
+      try {
+        const stored = localStorage.getItem("rejudge-theme");
+        document.documentElement.dataset.theme =
+          stored ?? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      } catch {}
+    </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{title}</title>
