@@ -1,5 +1,6 @@
 :root{
   --ink:#1d1d1f; --ink-2:#6e6e73; --line:#d2d2d7; --soft:#fafafa; --page:#fff;
+  --code-bg:#f1f1f4;
   --ok:#1a7f37; --danger:#d70015; --terminal-green:#006400;
   --text:17px; --text-small:14px; --text-heading:24px;
   color-scheme:light;
@@ -11,6 +12,7 @@
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
     --ink:#ececef; --ink-2:#98989d; --line:#33343a; --soft:#1b1c1f; --page:#131417;
+    --code-bg:#26282e;
     --ok:#63c07e; --danger:#ff6b63; --terminal-green:#70d68d;
     color-scheme:dark;
   }
@@ -21,6 +23,7 @@
 
 :root[data-theme="dark"]{
   --ink:#ececef; --ink-2:#98989d; --line:#33343a; --soft:#1b1c1f; --page:#131417;
+  --code-bg:#26282e;
   --ok:#63c07e; --danger:#ff6b63; --terminal-green:#70d68d;
   color-scheme:dark;
 }
@@ -36,10 +39,10 @@ a{color:var(--ink);text-decoration:none}
 a:hover{text-decoration:underline}
 
 code,pre{font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
-code{background:var(--soft);padding:.05em .35em;font-size:var(--text-small)}
-pre{margin:0 0 18px;padding:16px 18px;overflow-x:auto;border-radius:6px;background:var(--soft);font-size:var(--text-small);line-height:1.7}
+code{background:var(--code-bg);border-radius:3px;padding:.05em .35em;font-size:var(--text-small)}
+pre{margin:0 0 18px;padding:16px 18px;overflow-x:auto;border-radius:6px;background:var(--code-bg);font-size:var(--text-small);line-height:1.7}
 pre code{background:transparent;color:inherit;font:inherit;padding:0}
-pre.astro-code{background:var(--soft)!important}
+pre.astro-code{background:var(--code-bg)!important}
 .cmt{color:var(--ink-2)}
 
 .wrap{max-width:880px;margin:0 auto;padding:64px 40px 120px}
@@ -104,7 +107,7 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 
 .command-copy{position:relative}
 .command-copy pre{padding-right:110px}
-.copy-command{position:absolute;top:12px;right:18px;padding:4px 0 4px 8px;border:0;background:var(--soft);color:var(--ink-2);font:inherit;font-size:var(--text-small);cursor:pointer}
+.copy-command{position:absolute;top:12px;right:18px;padding:4px 0 4px 8px;border:0;background:none;color:var(--ink-2);font:inherit;font-size:var(--text-small);cursor:pointer}
 .copy-command:hover{color:var(--ink)}
 
 .env-line code{display:inline-block;margin:0 0 4px 8px;padding:.25em .5em}
