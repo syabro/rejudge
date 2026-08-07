@@ -25,7 +25,7 @@ rejudge --help
 
 Without `-f`, a positional question can be combined with piped stdin: Rejudge puts the positional instruction first, then a blank line, then the piped payload. With no positional, stdin is the whole prompt. Empty piped stdin leaves a positional prompt unchanged, while empty stdin without a positional prompt is an error. In a non-interactive environment, a positional prompt waits for stdin to reach EOF. A bare terminal with no prompt prints usage instead of blocking. `-f -` means a file literally named `-`, not stdin.
 
-The review answer goes to stdout. Configuration, progress, diagnostics, and the run ID go to stderr. Exit status is `0` on success and non-zero on failure, with a readable reason.
+The review answer goes to stdout. In a terminal it is rendered as width-aware Markdown; in a pipe or redirect it remains the original raw Markdown. Configuration, progress, diagnostics, and the run ID go to stderr. Exit status is `0` on success and non-zero on failure, with a readable reason.
 
 Reviews are read-only by default. Reviewers get `read`/`grep`/`find`/`ls` plus read-only review tools; the judge gets only `ask_panel`. `--unsafe` and `--full` opt reviewers into editing and shell access.
 
@@ -254,7 +254,7 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - CLI help, README, and the feature guide document the combined form and its EOF behavior.
   - Deterministic tests cover exact prompt assembly and the spawned CLI path; a real review returned a marker supplied only through stdin.
 
-- [ ] CLI-085 Render review answers as Markdown in CLI terminals
+- [x] CLI-085 Render review answers as Markdown in CLI terminals
   CLI review answers should render as readable Markdown in terminals, while files and pipes should receive unchanged raw Markdown.
 
   The CLI currently prints the judge's Markdown as plain text. Interactive users see literal markers such as `**`, unstyled code, and text wrapped by the terminal without Markdown-aware layout.
@@ -266,3 +266,9 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - rendered lines fit the current terminal width without horizontal overflow
   - redirected or piped stdout remains the original Markdown without ANSI styling or content changes
   - automated tests cover both TTY rendering and unchanged non-TTY output
+
+  **Implemented:**
+  - Interactive stdout renders headings, emphasis, lists, tables, and code as terminal Markdown.
+  - Rendered answers wrap to the current terminal width and honor `NO_COLOR` without losing Markdown structure.
+  - Piped and redirected stdout remains the original raw Markdown, including its existing final newline behavior.
+  - Automated coverage verifies terminal rendering, narrow widths, missing terminal dimensions, and unchanged non-terminal output.

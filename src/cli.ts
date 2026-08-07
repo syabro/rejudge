@@ -21,6 +21,7 @@ import { resolveReviewerToolNames } from "./runner.ts";
 import { createStderrSink } from "./stderr-sink.ts";
 import { createTtyProgress, shouldDrawLiveBlock } from "./tty-progress.ts";
 import { formatReviewMode, reviewMode, type ReviewerToolPolicy } from "./review-mode.ts";
+import { formatReviewAnswerOutput } from "./terminal-markdown.ts";
 
 // Pi keeps Node-only OAuth flows behind variable imports. Register the statically bundled
 // loaders so the single-file CLI never looks for sibling provider modules at runtime.
@@ -194,7 +195,7 @@ async function main(): Promise<number> {
     console.error(`rejudge: ${formatFailure(result.error)}`);
     return 1;
   }
-  console.log(result.value.answer);
+  process.stdout.write(formatReviewAnswerOutput(result.value.answer));
   // Surface the run id so a later, separate invocation can follow up (SYN-029). A resume extends
   // the same run rather than saving a new one.
   const id = result.value.runId;
