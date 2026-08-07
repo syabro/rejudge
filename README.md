@@ -2,7 +2,7 @@
 
 **Independent review before your agent acts.**
 
-<video src="https://github.com/syabro/rejudge/raw/main/docs/demo.mp4" controls muted loop playsinline></video>
+![Three models check a file while the judge waits, then queries the panel](docs/demo.gif)
 
 Rejudge is a review tool for coding agents. Your agent asks a question, several models check the code separately, and a judge compares their reports and returns one answer.
 
