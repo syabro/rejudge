@@ -73,7 +73,7 @@ export const ru: Record<string, string> = {
   "connect.env":
     "Rejudge работает поверх Pi и читает его настройки провайдеров, поэтому подойдёт любой ключ, который понимает Pi:",
   "connect.envMore": `и другие — полный список в <a href="https://pi.dev/docs/latest/providers#api-keys" target="_blank" rel="noreferrer">документации Pi</a>.`,
-  "connect.personalNote": `Я сам пользуюсь <a href="https://opencode.ai/go" target="_blank" rel="noreferrer">OpenCode Go</a>, потому что за $10 в месяц он даёт отличный набор разных моделей.`,
+  "connect.personalNote": `Я сам пользуюсь <a href="https://opencode.ai/go?ref=GSCMBMGRST" target="_blank" rel="noreferrer sponsored">OpenCode Go</a>, потому что за $10 в месяц он даёт отличный набор разных моделей (реферальная ссылка: $5 вам, $5 мне).`,
   "connect.subscriptionSummary": "Используете подписку вместо API-ключей?",
   "connect.subscriptionIntro": `Для входа по <a href="https://pi.dev/docs/latest/providers#subscriptions" target="_blank" rel="noreferrer">подписке</a> Rejudge пока использует Pi. Если Pi ещё не авторизован, запустите:`,
   "connect.login": `В Pi выполните <code>/login</code> и завершите вход у нужного провайдера подписки.`,
