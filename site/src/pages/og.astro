@@ -1,0 +1,88 @@
+---
+import "asciinema-player/dist/bundle/asciinema-player.css";
+import { translator } from "../i18n";
+import "../styles/site.css";
+
+// Workbench for the social preview image in public/og.png. Screenshot the #og
+// node; it is exactly the 1200x630 that Open Graph expects, so the capture
+// needs no crop. The defaults below are the ones the shipped image was taken
+// with; override them to try alternatives: /og/?theme=light&pad=48
+const t = translator("en");
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Rejudge — social preview</title>
+    <meta name="robots" content="noindex" />
+    <script is:inline>
+      const params = new URLSearchParams(location.search);
+      document.documentElement.dataset.theme = params.get("theme") ?? "dark";
+    </script>
+  </head>
+  <body>
+    <div id="og">
+      <h1>Rejudge</h1>
+      <p>{t("hero.tagline", "Rejudge is a review tool for coding agents. Your agent asks a question, several models check the code separately, and a judge compares their reports and returns one answer.")}</p>
+      <div class="run-player" id="run-player"></div>
+    </div>
+
+    <script>
+      import * as AsciinemaPlayer from "asciinema-player";
+
+      const pad = new URLSearchParams(location.search).get("pad");
+      if (pad) {
+        document.getElementById("og")!.style.padding = `${pad}px`;
+      }
+
+      const container = document.getElementById("run-player");
+      if (container) {
+        AsciinemaPlayer.create("/rejudge-demo.cast", container, {
+          autoPlay: true,
+          controls: false,
+          idleTimeLimit: 10,
+          loop: true,
+        });
+      }
+    </script>
+
+    <style>
+      body{margin:0}
+
+      #og{
+        box-sizing:border-box;
+        width:1200px;
+        height:630px;
+        padding:72px;
+        display:flex;
+        flex-direction:column;
+        justify-content:center;
+        gap:26px;
+        background:var(--page);
+        overflow:hidden;
+      }
+
+      #og h1{
+        margin:0;
+        font-size:72px;
+        line-height:1;
+        font-weight:700;
+        letter-spacing:-.025em;
+        text-decoration-line:underline;
+        text-decoration-thickness:4px;
+        text-underline-offset:14px;
+        text-decoration-skip-ink:none;
+      }
+
+      #og p{
+        max-width:940px;
+        margin:0;
+        font-size:22px;
+        line-height:1.45;
+      }
+
+      #og .run-player{margin:0;border-radius:8px;overflow:hidden}
+    </style>
+  </body>
+</html>
