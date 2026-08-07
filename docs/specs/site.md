@@ -4,7 +4,7 @@ The Rejudge landing site has an English page at `rejudge.syabro.com` and a Russi
 
 ## Content
 
-The first screen explains Rejudge's purpose and shows a real review. User outcomes come before implementation details. The copy stays within the product's actual contract, uses consistent terminology, and has the same meaning in English and Russian.
+The first screen explains Rejudge's purpose and shows a real review. The recording shows the `rejudge` command and request before the panel starts, then leaves the complete reviewed answer visible. User outcomes come before implementation details. The copy stays within the product's actual contract, uses consistent terminology, and has the same meaning in English and Russian.
 
 ## Review diagram
 
@@ -74,7 +74,7 @@ Both language routes support desktop, 375 px, and 320 px layouts without horizon
   - the translation uses consistent product terms without narrowing Rejudge to code review or promising a trustworthy answer
   - the Russian layout works at desktop, 375 px, and 320 px
 
-- [ ] SITE-084 Make the landing-page recording explain a complete review
+- [x] SITE-084 Make the landing-page recording explain a complete review
   The landing-page recording shows how Rejudge starts, what request it reviews, and what answer it returns, so a new user can follow the complete run.
 
   The current recording shows activity without enough context: the launch action is missing, the request appears without a clear source, and the final Rejudge answer is not visible. Replace it with a recording that presents the full user flow.
@@ -89,3 +89,9 @@ Both language routes support desktop, 375 px, and 320 px layouts without horizon
   - the final Rejudge answer is shown long enough to understand the result
   - a first-time viewer can follow the complete flow without surrounding explanation
   - the new recording replaces the current one on both language routes and remains readable on desktop and mobile
+
+  **Implemented:**
+  - The recording shows the shell command and complete shipping-review request before Rejudge starts.
+  - The final answer renders as terminal Markdown and remains visible before playback loops.
+  - The review fixtures, unaccelerated cast, and acceleration command preserve how the public recording was produced.
+  - English and Russian playback remains within the page at desktop, 375 px, and 320 px widths.
