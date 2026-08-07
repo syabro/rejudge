@@ -12,7 +12,7 @@ const info = locales[locale];
 const t = translator(locale);
 
 const title = t("meta.title", "Rejudge — Independent Review for AI Agents");
-const description = t("meta.description", "Rejudge is a review tool for coding agents. Your question goes to several models at once, each checks the code on its own, and a judge model compares their reports and returns one answer.");
+const description = t("meta.description", "Rejudge is a review tool for coding agents. Your agent asks a question, several models check the code separately, and a judge compares their reports and returns one answer.");
 
 const canonical = new URL(info.path, Astro.site);
 const enUrl = new URL("/", Astro.site);
