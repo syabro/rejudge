@@ -568,7 +568,11 @@ async function runSkillsTarget(context) {
   assert.ok(home, "isolated HOME is required");
 
   await mkdir(join(home, ".codex"), { recursive: true });
-  await runChecked("npx", ["--yes", "skills", "add", "syabro/rejudge", "-g"], {
+  // Two different --yes flags: npx's, so it installs the CLI without asking, and
+  // the skills CLI's own, so it skips the interactive skill picker. Without the
+  // second one the picker gets no input, the command still exits 0, and nothing
+  // is installed.
+  await runChecked("npx", ["--yes", "skills", "add", "syabro/rejudge", "-g", "-y"], {
     env: withoutCredentials(process.env),
     timeoutMs: SETUP_TIMEOUT_MS,
   });
