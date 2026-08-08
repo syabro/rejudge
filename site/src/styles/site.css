@@ -102,7 +102,9 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 .flow svg .output-desc{fill:var(--ink-2);font-size:11px}
 .flow svg .output-meta{fill:var(--ink-2);font-family:"SF Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px}
 .flow svg.narrow{display:none}
-.flow .summary{margin:22px 0 0;color:var(--ink)}
+.flow .summary{margin:22px 0 0;padding-left:24px;color:var(--ink)}
+.flow .summary li{margin:0 0 6px}
+.flow .summary li:last-child{margin-bottom:0}
 
 .command-copy{position:relative}
 .command-copy pre{padding-right:110px}
