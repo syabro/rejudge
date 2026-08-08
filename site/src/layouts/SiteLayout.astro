@@ -14,7 +14,7 @@ const t = translator(locale);
 // Link previews carry their own text: a preview sits under an image and next to
 // the site name, so it needs less than a search result does.
 const ogTitle = t("meta.ogTitle", "Independent opinion for your coding agent");
-const ogDescription = t("meta.ogDescription", "Several models and a judge dig deeper than one model does.");
+const ogDescription = t("meta.ogDescription", "Several models and a judge find what your agent missed.");
 
 const canonical = new URL(info.path, Astro.site);
 const enUrl = new URL("/", Astro.site);
