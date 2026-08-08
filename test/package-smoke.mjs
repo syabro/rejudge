@@ -429,6 +429,44 @@ async function readExpectedManifest(packageRoot, context) {
   return manifest;
 }
 
+// Inspect what the user actually receives, not what we happened to pack. The pack-time
+// check above never runs for --tarball or --source npm, which are precisely the release
+// candidate and the published artifact.
+async function assertPackageContents(packageRoot) {
+  const found = [];
+
+  const walk = async (dir, prefix) => {
+    for (const entry of await readdir(dir, { withFileTypes: true })) {
+      // npm may drop dependencies here; the inventory is about our own files.
+      if (entry.name === "node_modules") continue;
+
+      const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        await walk(join(dir, entry.name), relative);
+        continue;
+      }
+
+      found.push(relative);
+    }
+  };
+
+  await walk(packageRoot, "");
+  assert.deepEqual(found.sort(), [...EXPECTED_PACKAGE_FILES].sort(), "installed package file list changed");
+
+  // npm renders this README on the package page, so a command that only works with a
+  // human at a terminal is a shipped defect. The skills CLI needs its own -y: without it
+  // the picker gets no input, installs nothing, and still exits 0.
+  const readme = await readFile(join(packageRoot, "README.md"), "utf8");
+  const skillCommands = readme.split("\n").filter((line) => line.includes("skills add "));
+
+  assert.notEqual(skillCommands.length, 0, "shipped README must document the skills install");
+  for (const command of skillCommands) {
+    assert.match(command, /\s-y\b/, `shipped README skills command must run without a TTY: ${command}`);
+  }
+
+  console.log(`[smoke] package contents match (${found.length} files)`);
+}
+
 function installSpec(context) {
   return context.source === "npm"
     ? `${context.packageName}@${context.packageVersion}`
@@ -448,6 +486,7 @@ async function installCli(context) {
   assert.equal(packageRoot.startsWith(`${globalRoot}/`), true, "CLI package must live under the global npm root");
   assert.equal(packageRoot.startsWith("/smoke/"), false, "CLI package resolved from smoke workspace");
   await readExpectedManifest(packageRoot, context);
+  await assertPackageContents(packageRoot);
 
   const runtimeEnv = { ...process.env };
   const resolvedBin = (await runChecked("sh", ["-c", "command -v rejudge"], { env: runtimeEnv })).stdout.trim();
