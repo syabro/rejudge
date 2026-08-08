@@ -1,10 +1,8 @@
 # Rejudge
 
-**Independent review before your agent acts.**
+**Two heads are better than one. Several models and a judge dig deeper. Independent second opinion for your agent.**
 
 ![Three models check a file while the judge waits, then queries the panel](docs/demo.gif)
-
-Rejudge is a review tool for coding agents. Your agent asks a question, several models check the code separately, and a judge compares their reports and returns one answer.
 
 One npm package gives you three ways to run it: the `rejudge` command, a native Pi tool, and an Agent Skill for coding agents outside Pi. More at [rejudge.syabro.com](https://rejudge.syabro.com).
 
@@ -36,23 +34,27 @@ npx skills add syabro/rejudge -g
 
 The skills are a separate copy, so update them after each Rejudge release with `npx skills update -g -y`.
 
-Already using Pi? Register this same installation:
+### 2. Using Pi? Add the extension
 
 ```bash
 pi install "$(npm root -g)/rejudge"
 ```
 
+Inside Pi you watch the run live and see which model is at which stage. Agents get more control over the tool than over the CLI.
+
 Pi records the path instead of copying it, so the command, the native `rejudge` tool, and both workflows come from one installation. Restart Pi if it was already running.
 
-### 2. Connect a provider
+### 3. Connect a provider
+
+Already using Pi? Nothing to do here. Rejudge takes the providers you set up in Pi.
 
 Rejudge runs on Pi and reads Pi's provider settings, so any key Pi accepts works here: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `OPENCODE_API_KEY`, and more — the full list is in the [Pi docs](https://pi.dev/docs/latest/providers#api-keys).
 
-I personally use [OpenCode Go](https://opencode.ai/go?ref=GSCMBMGRST) because it offers an excellent mix of models for $10 a month (referral link: $5 for you, $5 for me).
+I personally use [OpenCode Go](https://opencode.ai/go?ref=GSCMBMGRST) (referral link: $5 for you, $5 for me) because it offers an excellent mix of models for $10 a month.
 
 For [subscription](https://pi.dev/docs/latest/providers#subscriptions) logins Rejudge still goes through Pi. If Pi is not authorized yet, run `npx -y @earendil-works/pi-coding-agent`, then `/login` inside Pi.
 
-### 3. Pick your models
+### 4. Pick your models
 
 Create `~/.config/rejudge/config.json` once.
 
@@ -71,7 +73,7 @@ Two reviewers minimum. Every model needs a reasoning level, and a higher level m
 
 A `.rejudge/config.json` in the current project wins over the global file, and `$XDG_CONFIG_HOME/rejudge/config.json` works in place of `~/.config`.
 
-### 4. Ask
+### 5. Ask
 
 ```bash
 rejudge "does this migration need a lock?"
