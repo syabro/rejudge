@@ -32,14 +32,14 @@ const configExample = `{
   ],
   "judge": "opencode-go/glm-5.1@high"
 }`;
-const askExample = `rejudge "does this migration need a lock?"
+const askExample = `rejudge "go through migrations/0042_add_index.sql and list the risks"
 git diff | rejudge "review this change"
 rejudge --resume <run-id> "what about the rollback path?"`;
 
 // The agent decides to call Rejudge on its own — the tool and skill descriptions
 // tell it when. This is what a person says to the agent, so it gets translated.
 const agentExample = t("ask.agentExample", `ask rejudge to analyze src/payments and list the potential security holes
-/rejudge compare docs/adr/012-event-bus.md against the implementation and list where they diverge
+/rejudge compare docs/adr/012-event-bus.md with the code and list the gaps
 /rejudge-diff`);
 ---
 

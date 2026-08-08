@@ -91,7 +91,7 @@ export const ru: Record<string, string> = {
   "ask.tab.agent": "В агенте",
   "ask.tab.cli": "В терминале",
   "ask.agentExample": `пусть rejudge разберёт src/payments и перечислит потенциальные дыры в безопасности
-/rejudge сверь docs/adr/012-event-bus.md с реализацией и перечисли расхождения
+/rejudge сверь docs/adr/012-event-bus.md с кодом и перечисли расхождения
 /rejudge-diff`,
 
   "footer.license": "Лицензия MIT",
