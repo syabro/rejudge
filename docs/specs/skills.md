@@ -4,7 +4,7 @@ Rejudge includes Agent Skills that let coding agents use the installed Rejudge e
 
 ## Installation
 
-Install Rejudge with npm. Pi discovers the skills through package registration; see [cli.md](cli.md) for the commands. Outside Pi, connect them to supported coding agents with `npx skills add syabro/rejudge -g`; this path does not require Pi.
+Install Rejudge with npm. Pi discovers the skills through package registration; see [cli.md](cli.md) for the commands. Outside Pi, connect them to supported coding agents with `npx skills add syabro/rejudge -g -y`; this path does not require Pi.
 
 ## Runtime
 
@@ -32,7 +32,7 @@ Package smoke tests verify that both skills ship, Pi discovers them, and the pub
   The README and landing page currently explain the npm package and Pi integration but not Agent Skills installation.
 
   User decisions:
-  - use `npx skills add syabro/rejudge -g`
+  - use `npx skills add syabro/rejudge -g -y`
   - do not add `@latest`
   - do not list individual skills in the install command
 

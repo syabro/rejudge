@@ -29,7 +29,7 @@ npm install -g rejudge
 Using a coding agent other than Pi? Install the Agent Skills so it can call Rejudge, through the [Skills CLI](https://www.skills.sh/docs/cli). Pi is not required on this path.
 
 ```bash
-npx skills add syabro/rejudge -g
+npx skills add syabro/rejudge -g -y
 ```
 
 The skills are a separate copy, so update them after each Rejudge release with `npx skills update -g -y`.
