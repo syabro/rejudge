@@ -64,15 +64,13 @@ export const ru: Record<string, string> = {
   "install.eyebrow": "Установка",
   "install.copy": "Копировать",
   "install.copied": "✓ Скопировано",
-  "install.step1.title": "Установите Rejudge",
+  "install.step1.title": "Установите Rejudge и скиллы",
   "install.step2.title": "Пользуетесь Pi? Добавьте расширение",
   "install.piNote":
     "В Pi ход прогона видно вживую, и понятно, какая модель на каком шаге. У агента больше контроля над инструментом, чем над командной строкой.",
   "install.step3.title": "Подключите провайдер",
   "install.step4.title": "Выберите модели",
   "install.step5.title": "Задайте вопрос",
-
-  "install.skills": `Работаете с агентом не на Pi? Установите Agent Skills через <a href="https://www.skills.sh/docs/cli" target="_blank" rel="noreferrer">Skills CLI</a>, чтобы он мог вызывать Rejudge. Pi для этого не нужен.`,
 
   "connect.piAlready":
     "Уже пользуетесь Pi? Отдельно подключать ничего не нужно — Rejudge берёт настройки из Pi.",

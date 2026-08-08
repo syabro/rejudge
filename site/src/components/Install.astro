@@ -22,6 +22,8 @@ const envKeys = [
 
 const reasoningLevels = ["minimal", "low", "medium", "high", "xhigh"];
 
+const installCommands = `npm install -g rejudge; npx skills add syabro/rejudge -g -y`;
+
 const piCommand = `pi install "$(npm root -g)/rejudge"`;
 
 const configExample = `{
@@ -47,15 +49,10 @@ const agentExample = t("ask.agentExample", `ask rejudge to analyze src/payments 
   <h2>{t("install.eyebrow", "Quick start")}</h2>
 
   <div class="step">
-    <h3><b>01</b> {t("install.step1.title", "Install Rejudge")}</h3>
+    <h3><b>01</b> {t("install.step1.title", "Install Rejudge and its skills")}</h3>
     <div class="command-copy">
-      <pre><code>npm install -g rejudge</code></pre>
-      <button type="button" class="copy-command" aria-label={copyLabel} data-copy-command="npm install -g rejudge" data-copied-label={copiedLabel}>{copyLabel}</button>
-    </div>
-    <p set:html={t("install.skills", `Using a coding agent other than Pi? Install the Agent Skills so it can call Rejudge, through the <a href="https://www.skills.sh/docs/cli" target="_blank" rel="noreferrer">Skills CLI</a>. Pi is not required on this path.`)} />
-    <div class="command-copy">
-      <pre><code>npx skills add syabro/rejudge -g -y</code></pre>
-      <button type="button" class="copy-command" aria-label={copyLabel} data-copy-command="npx skills add syabro/rejudge -g -y" data-copied-label={copiedLabel}>{copyLabel}</button>
+      <pre><code>{installCommands}</code></pre>
+      <button type="button" class="copy-command" aria-label={copyLabel} data-copy-command={installCommands} data-copied-label={copiedLabel}>{copyLabel}</button>
     </div>
   </div>
 
