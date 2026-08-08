@@ -20,8 +20,9 @@ const canonical = new URL(info.path, Astro.site);
 const enUrl = new URL("/", Astro.site);
 const ruUrl = new URL("/ru/", Astro.site);
 
-// Regenerate with /og/ — see src/pages/og.astro.
-const ogImage = new URL("/og.png", Astro.site);
+// Regenerate with /og/ — see src/pages/og.astro. Bump the query when the image
+// changes: social platforms cache a preview per URL and never refetch the same one.
+const ogImage = new URL("/og.png?2", Astro.site);
 const ogImageAlt = t("meta.imageAlt", "The Rejudge wordmark above a terminal recording of a real review run.");
 ---
 
