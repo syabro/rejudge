@@ -130,6 +130,6 @@ const narrowMarkerId = `narrow-arrow-${locale}`;
       </g>
     </svg>
 
-    <p class="summary">{t("flow.summary", "Reviewers get read-only tools: read, grep, find, ls, git diff. By default they cannot edit files or run shell commands. The judge gets no access to the workspace at all: it sees the three reports and can ask the reviewers more questions, nothing else. Every run ends with a run ID, and rejudge --resume <run-id> reopens the same sessions with a new question.")}</p>
+    <p class="summary" set:html={t("flow.summary", `Reviewers get read-only tools: <code>read</code>, <code>grep</code>, <code>find</code>, <code>ls</code>, <code>git_diff</code>. By default they cannot edit files or run shell commands. The judge gets no access to the workspace at all: it sees the three reports and can ask the reviewers more questions, nothing else. Every run ends with a run ID, and <code>rejudge --resume &lt;run-id&gt;</code> reopens the same sessions with a new question.`)} />
   </figure>
 </section>

@@ -125,6 +125,13 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 .step p a{text-decoration:underline;text-underline-offset:2px}
 .step p:last-child{margin-bottom:0}
 
+.tab-buttons{display:flex;gap:20px;margin:0 0 12px;border-bottom:1px solid var(--line)}
+.tab-button{padding:0 0 8px;border:0;border-bottom:2px solid transparent;margin-bottom:-1px;background:none;color:var(--ink-2);font:inherit;font-size:var(--text-small);cursor:pointer}
+.tab-button.is-active{color:var(--ink);border-bottom-color:var(--ink)}
+.tab-panel{display:none}
+.tab-panel.is-active{display:block}
+.tab-panel pre{margin-bottom:0}
+
 footer{border-top:1px solid var(--line);padding-top:22px;color:var(--ink-2);font-size:var(--text-small)}
 footer a{color:var(--ink-2)}
 

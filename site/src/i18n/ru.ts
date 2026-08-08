@@ -57,8 +57,7 @@ export const ru: Record<string, string> = {
   "flow.runId.2": "для продолжения",
   "flow.followUp.1": "задаёт дополнительные вопросы",
   "flow.followUp.2": "когда выводы расходятся",
-  "flow.summary":
-    "Проверяющие модели получают инструменты только на чтение: read, grep, find, ls, git diff. По умолчанию они не могут править файлы и выполнять команды. У судьи доступа к рабочей папке нет вообще: он видит три отчёта и может задать проверяющим ещё вопросы, больше ничего. Каждый запуск заканчивается ID запуска, и rejudge --resume <run-id> открывает те же сессии с новым вопросом.",
+  "flow.summary": `Проверяющие модели получают инструменты только на чтение: <code>read</code>, <code>grep</code>, <code>find</code>, <code>ls</code>, <code>git_diff</code>. По умолчанию они не могут править файлы и выполнять команды. У судьи доступа к рабочей папке нет вообще: он видит три отчёта и может задать проверяющим ещё вопросы, больше ничего. Каждый запуск заканчивается ID запуска, и <code>rejudge --resume &lt;run-id&gt;</code> открывает те же сессии с новым вопросом.`,
 
   "install.eyebrow": "Быстрый старт",
   "install.copy": "Копировать",
@@ -67,7 +66,7 @@ export const ru: Record<string, string> = {
   "install.step2.title": "Пользуетесь Pi? Добавьте расширение",
   "install.piNote":
     "В Pi ход прогона видно вживую, и понятно, какая модель на каком шаге. У агента больше контроля над инструментом, чем над командной строкой.",
-  "install.step3.title": "Подключите провайдера",
+  "install.step3.title": "Подключите провайдер",
   "install.step4.title": "Выберите модели",
   "install.step5.title": "Задайте вопрос",
 
@@ -78,7 +77,7 @@ export const ru: Record<string, string> = {
   "connect.env":
     "Rejudge работает поверх Pi и читает его настройки провайдеров, поэтому подойдёт любой ключ, который понимает Pi:",
   "connect.envMore": `и другие — полный список в <a href="https://pi.dev/docs/latest/providers#api-keys" target="_blank" rel="noreferrer">документации Pi</a>.`,
-  "connect.personalNote": `Я сам пользуюсь <a href="https://opencode.ai/go?ref=GSCMBMGRST" target="_blank" rel="noreferrer sponsored">OpenCode Go</a> (реферальная ссылка: $5 вам, $5 мне), потому что за $10 в месяц он даёт отличный набор разных моделей.`,
+  "connect.personalNote": `Я сам пользуюсь <a href="https://opencode.ai/go?ref=GSCMBMGRST" target="_blank" rel="noreferrer sponsored">OpenCode Go</a> (реферальная ссылка: $5 вам, $5 мне), потому что за $10 в месяц он даёт охрененный набор разных моделей.`,
   "connect.subscriptionSummary": "Используете подписку вместо API-ключей?",
   "connect.subscriptionIntro": `Для входа по <a href="https://pi.dev/docs/latest/providers#subscriptions" target="_blank" rel="noreferrer">подписке</a> Rejudge пока использует Pi. Если Pi ещё не авторизован, запустите:`,
   "connect.login": `В Pi выполните <code>/login</code> и завершите вход у нужного провайдера подписки.`,
@@ -87,7 +86,11 @@ export const ru: Record<string, string> = {
   "configure.levels":
     "Минимум две проверяющие модели. Каждой нужен уровень рассуждений — чем он выше, тем дольше и тщательнее разбор:",
 
-  "ask.body": `Ответ уходит в stdout, а прогресс, конфигурация и ID запуска — в stderr, поэтому при перенаправлении stdout в файл там остаётся только ответ. В Pi тот же пакет регистрирует встроенный инструмент <code>rejudge</code> и сценарии <code>/rejudge</code> и <code>/rejudge-diff</code>.`,
+  "ask.tab.agent": "В агенте",
+  "ask.tab.cli": "В терминале",
+  "ask.agentExample": `пусть rejudge разберёт src/payments и перечислит потенциальные дыры в безопасности
+/rejudge сверь docs/adr/012-event-bus.md с реализацией и перечисли расхождения
+/rejudge-diff`,
 
   "footer.license": "Лицензия MIT",
 };
