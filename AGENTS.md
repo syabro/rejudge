@@ -16,6 +16,10 @@ Use `@` prefix for file paths in skill prompts (e.g., `@README.md`). This is Cla
 
 Do not use `ast-index` for files under `site/`.
 
+## Site copy
+
+Russian is an adaptation, not a translation. Match the meaning, not the wording.
+
 ## Code style
 
 No linter is configured — these are upheld by reading the code (and by LLM code review). Keep code readable like prose:
