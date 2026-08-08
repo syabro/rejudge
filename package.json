@@ -1,6 +1,6 @@
 {
   "name": "rejudge",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Independent multi-model review for AI agents, with a CLI, Pi extension, and review workflows.",
   "type": "module",
   "license": "MIT",
