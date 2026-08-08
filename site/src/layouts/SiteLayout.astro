@@ -11,8 +11,10 @@ const { locale } = Astro.props;
 const info = locales[locale];
 const t = translator(locale);
 
-const title = t("meta.title", "Rejudge — Independent Review for AI Agents");
-const description = t("meta.description", "Rejudge is a review tool for coding agents. Your agent asks a question, several models check the code separately, and a judge compares their reports and returns one answer.");
+// Link previews carry their own text: a preview sits under an image and next to
+// the site name, so it needs less than a search result does.
+const ogTitle = t("meta.ogTitle", "Independent opinion for your coding agent");
+const ogDescription = t("meta.ogDescription", "Several models and a judge dig deeper than one model does.");
 
 const canonical = new URL(info.path, Astro.site);
 const enUrl = new URL("/", Astro.site);
@@ -36,8 +38,11 @@ const ogImageAlt = t("meta.imageAlt", "The Rejudge wordmark above a terminal rec
     </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{title}</title>
-    <meta name="description" content={description} />
+    <title>{t("meta.title", "Rejudge — Independent Review for AI Agents")}</title>
+    {/* The grey line under the blue link in search results, read by someone who has
+        not seen the site yet, so it says what Rejudge is rather than selling it.
+        Link previews do not use this — they read og:description below. */}
+    <meta name="description" content={t("meta.description", "Independent second opinion for coding agents. Several models and a judge dig deeper than one model does. Runs as a CLI, a Pi tool, or an Agent Skill.")} />
     <link rel="canonical" href={canonical} />
     <link rel="alternate" hreflang="en" href={enUrl} />
     <link rel="alternate" hreflang="ru" href={ruUrl} />
@@ -46,16 +51,16 @@ const ogImageAlt = t("meta.imageAlt", "The Rejudge wordmark above a terminal rec
     <meta property="og:site_name" content="Rejudge" />
     <meta property="og:locale" content={info.ogLocale} />
     <meta property="og:locale:alternate" content={locales[info.alternate].ogLocale} />
-    <meta property="og:title" content={title} />
-    <meta property="og:description" content={description} />
+    <meta property="og:title" content={ogTitle} />
+    <meta property="og:description" content={ogDescription} />
     <meta property="og:url" content={canonical} />
     <meta property="og:image" content={ogImage} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content={ogImageAlt} />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content={title} />
-    <meta name="twitter:description" content={description} />
+    <meta name="twitter:title" content={ogTitle} />
+    <meta name="twitter:description" content={ogDescription} />
     <meta name="twitter:image" content={ogImage} />
     <meta name="twitter:image:alt" content={ogImageAlt} />
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23000'/%3E%3Ctext x='50' y='69' text-anchor='middle' font-family='Arial' font-size='58' font-weight='700' fill='%23fff'%3ERe%3C/text%3E%3C/svg%3E" />

@@ -20,6 +20,8 @@ Do not use `ast-index` for files under `site/`.
 
 Russian is an adaptation, not a translation. Match the meaning, not the wording.
 
+Banned: reciting the mechanism. "Several models work a request separately and a judge turns their answers into one", and every rewording of it, is forbidden anywhere in public copy. It narrates plumbing and gives the reader nothing.
+
 ## Code style
 
 No linter is configured — these are upheld by reading the code (and by LLM code review). Keep code readable like prose:
