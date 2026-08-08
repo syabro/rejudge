@@ -46,18 +46,18 @@ pre.astro-code{background:var(--code-bg)!important}
 .cmt{color:var(--ink-2)}
 
 .wrap{max-width:880px;margin:0 auto;padding:64px 40px 120px}
-section{margin:0 0 96px}
+section{margin:0 0 64px}
 section:last-of-type{margin-bottom:64px}
 
 h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:600;letter-spacing:-.01em;text-align:center}
 
-.hero{margin:0 0 56px}
-.hero .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;margin:0 0 28px}
+.hero{margin:0 0 64px}
+.hero .top{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 24px;margin:0 0 64px}
 .hero h1{margin:0;font-size:clamp(36px,6vw,56px);line-height:1.05;font-weight:700;letter-spacing:-.025em}
 .hero .wordmark{text-decoration-line:underline;text-decoration-thickness:3px;text-underline-offset:12px;text-decoration-skip-ink:none}
 .hero .nav{display:flex;flex-direction:column;align-items:flex-end;gap:10px}
 .hero .prefs,.hero .links{display:flex;align-items:center;gap:20px}
-.hero .tagline{margin:0 0 32px;color:var(--ink)}
+.hero .tagline{margin:0;color:var(--ink)}
 .hero .prefs a,.hero .links a{display:inline-flex;align-items:center;gap:6px;padding:4px 0;color:var(--ink);font-size:var(--text-small);font-weight:700}
 .hero .prefs a:hover,.hero .links a:hover{text-decoration:underline}
 .hero .prefs svg,.hero .links svg{width:16px;height:16px;fill:currentColor;flex:none}
@@ -74,8 +74,8 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 :root[data-theme="dark"] .theme-toggle .moon{display:none}
 :root[data-theme="dark"] .theme-toggle .sun{display:block}
 
-.run{margin:0 0 96px}
-.run-player{margin-bottom:14px;overflow:hidden;border-radius:6px}
+.run{margin:0 0 64px}
+.run-player{overflow:hidden;border-radius:6px}
 .run-player .asciinema-theme-asciinema,.run-player .asciinema-theme-asciinema pre.ap-terminal{background-color:var(--soft);border-color:var(--soft);color:var(--ink)}
 .run-player .asciinema-theme-asciinema .fg-default{color:var(--ink)}
 .run-player .asciinema-theme-asciinema .fg-2{color:var(--terminal-green)}
@@ -83,7 +83,6 @@ h2{margin:0 0 22px;font-size:var(--text-heading);line-height:1.25;font-weight:60
 .run-player .asciinema-theme-asciinema .bg-default{background-color:var(--soft)}
 .run-player .asciinema-theme-asciinema .bg-fg{background-color:var(--ink)}
 .run-player pre.ap-terminal .ap-cursor-a,.run-player pre.ap-terminal .ap-cursor-b{visibility:hidden}
-.run figcaption{color:var(--ink-2);font-size:var(--text-small);text-align:center}
 
 .lede p:last-child{margin-bottom:0}
 .lede dl{margin:0}
