@@ -64,18 +64,21 @@ export const ru: Record<string, string> = {
   "install.copy": "Копировать",
   "install.copied": "✓ Скопировано",
   "install.step1.title": "Установите Rejudge",
-  "install.step2.title": "Подключите провайдера",
-  "install.step3.title": "Выберите модели",
-  "install.step4.title": "Задайте вопрос",
+  "install.step2.title": "Пользуетесь Pi? Добавьте расширение",
+  "install.piNote":
+    "В Pi ход прогона видно вживую, и понятно, какая модель на каком шаге. У агента больше контроля над инструментом, чем над командной строкой.",
+  "install.step3.title": "Подключите провайдера",
+  "install.step4.title": "Выберите модели",
+  "install.step5.title": "Задайте вопрос",
 
   "install.skills": `Работаете с агентом не на Pi? Установите Agent Skills через <a href="https://www.skills.sh/docs/cli" target="_blank" rel="noreferrer">Skills CLI</a>, чтобы он мог вызывать Rejudge. Pi для этого не нужен.`,
-  "install.skillsUpdate": `Скиллы — отдельная копия, поэтому после каждого выпуска Rejudge обновляйте их командой <code>npx skills update -g -y</code>.`,
-  "install.pi": `Уже пользуетесь Pi? Подключите эту же установку: <code>pi install "$(npm root -g)/rejudge"</code>`,
 
+  "connect.piAlready":
+    "Уже пользуетесь Pi? Отдельно подключать ничего не нужно — Rejudge берёт настройки из Pi.",
   "connect.env":
     "Rejudge работает поверх Pi и читает его настройки провайдеров, поэтому подойдёт любой ключ, который понимает Pi:",
   "connect.envMore": `и другие — полный список в <a href="https://pi.dev/docs/latest/providers#api-keys" target="_blank" rel="noreferrer">документации Pi</a>.`,
-  "connect.personalNote": `Я сам пользуюсь <a href="https://opencode.ai/go?ref=GSCMBMGRST" target="_blank" rel="noreferrer sponsored">OpenCode Go</a>, потому что за $10 в месяц он даёт отличный набор разных моделей (реферальная ссылка: $5 вам, $5 мне).`,
+  "connect.personalNote": `Я сам пользуюсь <a href="https://opencode.ai/go?ref=GSCMBMGRST" target="_blank" rel="noreferrer sponsored">OpenCode Go</a> (реферальная ссылка: $5 вам, $5 мне), потому что за $10 в месяц он даёт отличный набор разных моделей.`,
   "connect.subscriptionSummary": "Используете подписку вместо API-ключей?",
   "connect.subscriptionIntro": `Для входа по <a href="https://pi.dev/docs/latest/providers#subscriptions" target="_blank" rel="noreferrer">подписке</a> Rejudge пока использует Pi. Если Pi ещё не авторизован, запустите:`,
   "connect.login": `В Pi выполните <code>/login</code> и завершите вход у нужного провайдера подписки.`,

@@ -22,6 +22,8 @@ const envKeys = [
 
 const reasoningLevels = ["minimal", "low", "medium", "high", "xhigh"];
 
+const piCommand = `pi install "$(npm root -g)/rejudge"`;
+
 const configExample = `{
   "reviewers": [
     "opencode-go/deepseek-v4-pro@high",
@@ -49,12 +51,21 @@ rejudge --resume <run-id> "what about the rollback path?"`;
       <pre><code>npx skills add syabro/rejudge -g</code></pre>
       <button type="button" class="copy-command" aria-label={copyLabel} data-copy-command="npx skills add syabro/rejudge -g" data-copied-label={copiedLabel}>{copyLabel}</button>
     </div>
-    <p set:html={t("install.skillsUpdate", `The skills are a separate copy, so update them after each Rejudge release with <code>npx skills update -g -y</code>.`)} />
-    <p set:html={t("install.pi", `Already using Pi? Register this same installation: <code>pi install "$(npm root -g)/rejudge"</code>`)} />
   </div>
 
   <div class="step">
-    <h3><b>02</b> {t("install.step2.title", "Connect a provider")}</h3>
+    <h3><b>02</b> {t("install.step2.title", "Using Pi? Add the extension")}</h3>
+    <div class="command-copy">
+      <pre><code>pi install "$(npm root -g)/rejudge"</code></pre>
+      <button type="button" class="copy-command" aria-label={copyLabel} data-copy-command={piCommand} data-copied-label={copiedLabel}>{copyLabel}</button>
+    </div>
+    <p>{t("install.piNote", "Inside Pi you watch the run live and see which model is at which stage. Agents get more control over the tool than over the CLI.")}</p>
+  </div>
+
+  <div class="step">
+    <h3><b>03</b> {t("install.step3.title", "Connect a provider")}</h3>
+
+    <p>{t("connect.piAlready", "Already using Pi? Nothing to do here. Rejudge takes the providers you set up in Pi.")}</p>
 
     <p class="env-line">
       {t("connect.env", "Rejudge runs on Pi and reads Pi's provider settings, so any key Pi accepts works here:")}{" "}
@@ -62,7 +73,7 @@ rejudge --resume <run-id> "what about the rollback path?"`;
       <Fragment set:html={t("connect.envMore", `and more — the full list is in the <a href="https://pi.dev/docs/latest/providers#api-keys" target="_blank" rel="noreferrer">Pi docs</a>.`)} />
     </p>
 
-    <p set:html={t("connect.personalNote", `I personally use <a href="https://opencode.ai/go?ref=GSCMBMGRST" target="_blank" rel="noreferrer sponsored">OpenCode Go</a> because it offers an excellent mix of models for $10 a month (referral link: $5 for you, $5 for me).`)} />
+    <p set:html={t("connect.personalNote", `I personally use <a href="https://opencode.ai/go?ref=GSCMBMGRST" target="_blank" rel="noreferrer sponsored">OpenCode Go</a> (referral link: $5 for you, $5 for me) because it offers an excellent mix of models for $10 a month.`)} />
 
     <details class="subscription-auth">
       <summary>{t("connect.subscriptionSummary", "Using a subscription instead of API keys?")}</summary>
@@ -78,7 +89,7 @@ rejudge --resume <run-id> "what about the rollback path?"`;
   </div>
 
   <div class="step">
-    <h3><b>03</b> {t("install.step3.title", "Pick your models")}</h3>
+    <h3><b>04</b> {t("install.step4.title", "Pick your models")}</h3>
     <p set:html={t("configure.path", `Create <code>~/.config/rejudge/config.json</code> once.`)} />
     <Code code={configExample} lang="json" theme="github-light" />
     <p>
@@ -88,7 +99,7 @@ rejudge --resume <run-id> "what about the rollback path?"`;
   </div>
 
   <div class="step">
-    <h3><b>04</b> {t("install.step4.title", "Ask")}</h3>
+    <h3><b>05</b> {t("install.step5.title", "Ask")}</h3>
     <Code code={askExample} lang="bash" theme="github-light" />
     <p set:html={t("ask.body", `The answer goes to stdout; progress, config, and the run ID go to stderr, so redirecting stdout to a file leaves you the answer and nothing else. Inside Pi the same package registers a native <code>rejudge</code> tool plus the <code>/rejudge</code> and <code>/rejudge-diff</code> workflows.`)} />
   </div>
