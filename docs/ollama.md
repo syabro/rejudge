@@ -68,3 +68,20 @@ though: an empty string fails validation, the provider is dropped, and every mod
 
 `cost` is required and stays at zero, because a subscription has no per-token price. Rejudge reports
 `$0` for the run.
+
+## Model ids
+
+The id is the name the daemon accepts. For a cloud model the `-cloud` marker attaches differently
+depending on whether the model carries a tag:
+
+| Model in the catalogue | Id to write |
+| --- | --- |
+| `glm-5.2` (no tag) | `glm-5.2:cloud` |
+| `gpt-oss:120b` (tagged) | `gpt-oss:120b-cloud` |
+| `nemotron-3-nano:30b` (tagged) | `nemotron-3-nano:30b-cloud` |
+
+Get it wrong and the daemon answers `model not found`. A local model is named exactly as
+`ollama list` shows it.
+
+Pulling a cloud model first is optional — the daemon proxies it on demand — but the stub is a few
+hundred bytes and it puts the model in your local list, where the next section can read its numbers.
