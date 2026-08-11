@@ -272,3 +272,18 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - Rendered answers wrap to the current terminal width and honor `NO_COLOR` without losing Markdown structure.
   - Piped and redirected stdout remains the original raw Markdown, including its existing final newline behavior.
   - Automated coverage verifies terminal rendering, narrow widths, missing terminal dimensions, and unchanged non-terminal output.
+
+- [ ] CLI-087 Set up an Ollama panel with one command
+  A working Ollama panel needs a hand-written `~/.pi/agent/models.json` whose non-obvious fields nobody guesses right. Get it wrong and the failure is silent, not loud.
+
+  Ollama serves an OpenAI-compatible endpoint, so Pi reaches it through a `models.json` provider — but four settings are load-bearing and were each proved wrong-by-default on a live daemon: the system prompt must not go out as `role: "developer"` (the model then never sees it and answers anyway), the output cap must ride on `max_tokens` (`max_completion_tokens` is accepted and ignored), and every model needs a full `thinkingLevelMap`, because Ollama accepts only `high|medium|low|max|none` — Rejudge's `minimal` is rejected with a 400 and its `xhigh` never reaches the wire. On top of that a model id must be spelled `<model>:cloud`, or `<model>:<tag>-cloud` when the model carries a tag, and the daemon's own catalog still lists cloud models the service has retired, which fail a run with a 410 on the first prompt.
+
+  Add `rejudge setup ollama`: read the daemon's catalog for the facts the config needs, write the provider by merging into any existing `models.json` rather than replacing it, and offer to write `.rejudge/config.json` for the chosen panel. The same run should refuse the models that cannot serve a review — retired, outside the account plan, or without a thinking capability, since a model with `reasoning: false` silently drops its `@level` to `off`.
+
+  DoD:
+  - one command produces a `models.json` provider that completes a real review, on a machine that had no `~/.pi/agent`
+  - an existing `models.json` keeps its other providers, keys, and model overrides
+  - `reasoning`, `contextWindow`, and the id spelling come from the daemon's catalog, never from a hardcoded list
+  - models that are retired, outside the plan, or non-thinking are reported and left out, not written into a config that fails later
+  - the command names the file it wrote and the exact panel, so the result is inspectable without reading JSON
+  - `--help` and the CLI feature guide document it, and the authentication note in `docs/skills/rejudge/SKILL.md` stops naming a single provider's key
