@@ -4,6 +4,7 @@ import { parseArgs } from "node:util";
 
 export const USAGE = `usage: rejudge ["your question"] | rejudge -f <file>
        command | rejudge ["instruction"]
+       rejudge setup ollama
 
   positional       the question/instruction; when stdin is piped, it comes first
                    and the piped content follows after a blank line
@@ -19,8 +20,21 @@ export const USAGE = `usage: rejudge ["your question"] | rejudge -f <file>
                    ~24h when a later fresh run starts; cleanup is not guaranteed.
   -h, --help       show this help
 
+setup ollama       declare a Pi provider for the models your local Ollama daemon
+                   reports, and a panel to go with it. Nothing is pulled and no
+                   catalog is fetched — which models you keep is yours to decide.
+      --project    write the panel to <cwd>/.rejudge/config.json instead of the
+                   user-wide config
+      --dry-run    print what would be written, write nothing
+      --force      replace an existing Rejudge config instead of keeping it
+
 Config: <cwd>/.rejudge/config.json, else ~/.config/rejudge/config.json.
-Key:    set OPENCODE_API_KEY in the environment (or use Pi's stored auth).`;
+Auth:   whatever Pi is set up with — an API key in the environment, a stored
+        \`pi login\`, or a local server that needs neither.`;
+
+/** The provider `rejudge setup` knows how to configure. */
+export const SETUP_TARGETS = ["ollama"] as const;
+export type SetupTarget = (typeof SETUP_TARGETS)[number];
 
 /** Parsed CLI intent. `fullTools`/`resume`/`promptAdds` ride on the prompt/file/stdin kinds (orthogonal to the source). */
 export type CliArgs =
@@ -28,6 +42,7 @@ export type CliArgs =
   | { kind: "prompt"; text: string; fullTools: boolean; resume?: string; promptAdds?: (string | undefined)[] }
   | { kind: "file"; path: string; fullTools: boolean; resume?: string; promptAdds?: (string | undefined)[] }
   | { kind: "stdin"; fullTools: boolean; resume?: string; promptAdds?: (string | undefined)[] }
+  | { kind: "setup"; target: SetupTarget; project: boolean; dryRun: boolean; force: boolean }
   | { kind: "error"; message: string };
 
 export function combinePromptInput(instruction: string, input: string): string {
@@ -87,6 +102,52 @@ function extractPromptAdds(
 }
 
 /**
+ * Recognize `rejudge setup <target>` and its flags, or return undefined when this argv is not a
+ * setup invocation.
+ *
+ * The trigger is a bare first positional `setup`, which does take that word away from questions:
+ * `rejudge setup the staging box` no longer asks anything. The error says how to get it back —
+ * quoting the question keeps it a single positional — because a silent reinterpretation would be
+ * worse than a message. Review-run flags are rejected here rather than ignored.
+ */
+function parseSetup(
+  values: { unsafe?: boolean; full?: boolean; file?: string; resume?: string; project?: boolean; "dry-run"?: boolean; force?: boolean },
+  positionals: string[],
+): CliArgs | undefined {
+  if (positionals[0] !== "setup") return undefined;
+
+  const targets = SETUP_TARGETS.map((t) => `"${t}"`).join(", ");
+  const requested = positionals.slice(1);
+  if (requested.length === 0) {
+    return { kind: "error", message: `rejudge setup needs a target (${targets})` };
+  }
+
+  const target = requested[0];
+  if (requested.length > 1 || !(SETUP_TARGETS as readonly string[]).includes(target)) {
+    return {
+      kind: "error",
+      message:
+        `unknown setup target "${requested.join(" ")}" — supported: ${targets}.` +
+        ` To ask a question that starts with "setup", quote the whole thing:` +
+        ` rejudge "${positionals.join(" ")}"`,
+    };
+  }
+
+  const review = (["unsafe", "full", "file", "resume"] as const).find((flag) => values[flag] !== undefined && values[flag] !== false);
+  if (review) {
+    return { kind: "error", message: `--${review} belongs to a review run, not \`rejudge setup\`` };
+  }
+
+  return {
+    kind: "setup",
+    target: target as SetupTarget,
+    project: values.project ?? false,
+    dryRun: values["dry-run"] ?? false,
+    force: values.force ?? false,
+  };
+}
+
+/**
  * Parse argv (without the node/script prefix) into an intent. Never throws — a parse
  * failure (unknown flag, `-f` without a value) comes back as `{ kind: "error" }`.
  * A prompt comes from a positional question, `-f`, or stdin. A positional question can also
@@ -101,7 +162,16 @@ export function parseCliArgs(argv: string[]): CliArgs {
   if ("error" in extracted) return { kind: "error", message: extracted.error };
   const { rest, promptAdds } = extracted;
 
-  let values: { file?: string; help?: boolean; unsafe?: boolean; full?: boolean; resume?: string };
+  let values: {
+    file?: string;
+    help?: boolean;
+    unsafe?: boolean;
+    full?: boolean;
+    resume?: string;
+    project?: boolean;
+    "dry-run"?: boolean;
+    force?: boolean;
+  };
   let positionals: string[];
   try {
     ({ values, positionals } = parseArgs({
@@ -112,6 +182,9 @@ export function parseCliArgs(argv: string[]): CliArgs {
         unsafe: { type: "boolean" },
         full: { type: "boolean" },
         resume: { type: "string" },
+        project: { type: "boolean" },
+        "dry-run": { type: "boolean" },
+        force: { type: "boolean" },
       },
       allowPositionals: true,
     }));
@@ -120,6 +193,16 @@ export function parseCliArgs(argv: string[]): CliArgs {
   }
 
   if (values.help) return { kind: "help" };
+
+  const setup = parseSetup(values, positionals);
+  if (setup) return setup;
+
+  // The setup-only flags mean nothing on a review run. Reject them instead of accepting them
+  // silently, so a misplaced flag is a message rather than a surprise.
+  const misplaced = (["project", "dry-run", "force"] as const).find((flag) => values[flag]);
+  if (misplaced) {
+    return { kind: "error", message: `--${misplaced} belongs to \`rejudge setup\`, not a review run` };
+  }
 
   // --unsafe and --full are synonyms: either one opts into the full (write) tool set.
   const fullTools = (values.unsafe ?? false) || (values.full ?? false);

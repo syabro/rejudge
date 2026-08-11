@@ -237,3 +237,62 @@ test.skipIf(!existsSync(BIN))("built bin: empty stdin fails (exit 1) without han
     expect(run.stderr).toContain("stdin");
   }
 });
+
+// --- `rejudge setup ollama` (CLI-087) ---------------------------------------
+
+test("setup ollama is a subcommand, not a prompt", () => {
+  expect(parseCliArgs(["setup", "ollama"])).toEqual({
+    kind: "setup",
+    target: "ollama",
+    project: false,
+    dryRun: false,
+    force: false,
+  });
+});
+
+test("setup takes --project, --dry-run and --force", () => {
+  expect(parseCliArgs(["setup", "ollama", "--project", "--dry-run", "--force"])).toEqual({
+    kind: "setup",
+    target: "ollama",
+    project: true,
+    dryRun: true,
+    force: true,
+  });
+});
+
+test("setup without a target is an error that names the target", () => {
+  const args = parseCliArgs(["setup"]);
+  expect(args.kind).toBe("error");
+  expect(args.kind === "error" && args.message).toMatch(/ollama/);
+});
+
+test("an unknown setup target is an error that suggests quoting a question", () => {
+  const args = parseCliArgs(["setup", "the", "database"]);
+  expect(args.kind).toBe("error");
+  expect(args.kind === "error" && args.message).toMatch(/quote/i);
+});
+
+test("a quoted question starting with the word setup is still a prompt", () => {
+  expect(parseCliArgs(["setup ollama for me"])).toEqual({
+    kind: "prompt",
+    text: "setup ollama for me",
+    fullTools: false,
+  });
+});
+
+test("the setup-only flags are rejected on a review run, instead of being ignored", () => {
+  for (const flag of ["--project", "--dry-run", "--force"]) {
+    const args = parseCliArgs([flag, "review this"]);
+    expect(args.kind, flag).toBe("error");
+    expect(args.kind === "error" && args.message, flag).toMatch(/setup/);
+  }
+});
+
+test("review-run flags are rejected on setup, instead of being ignored", () => {
+  for (const flag of ["--unsafe", "--full"]) {
+    const args = parseCliArgs(["setup", "ollama", flag]);
+    expect(args.kind, flag).toBe("error");
+    expect(args.kind === "error" && args.message, flag).toMatch(/review run/);
+  }
+  expect(parseCliArgs(["setup", "ollama", "--resume", "x"]).kind).toBe("error");
+});

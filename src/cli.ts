@@ -6,14 +6,15 @@
 //   rejudge -f prompt.txt
 //
 // Config: reads <cwd>/.rejudge/config.json, else ~/.config/rejudge/config.json.
-// Key: Pi reads OPENCODE_API_KEY from the environment (or its stored auth) on its own —
-// the CLI never touches the key. Packaged builds resolve runtime dependencies from the
-// package installation.
+// Auth: Pi resolves whatever the configured provider needs on its own — a key in the
+// environment, its stored login, or nothing for a local server. The CLI never touches it.
+// Packaged builds resolve runtime dependencies from the package installation.
 import { readFileSync, realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
-import { combinePromptInput, parseCliArgs, USAGE } from "./cli-args.ts";
+import { combinePromptInput, parseCliArgs, USAGE, type CliArgs } from "./cli-args.ts";
 import { resolveRejudgeConfig } from "./config.ts";
+import { DAEMON_URL, fetchDaemonModels, formatSetupReport, runOllamaSetup } from "./setup.ts";
 import { progressTitle } from "./progress.ts";
 import { formatFailure, runReview } from "./review.ts";
 import { readManifest } from "./run-store.ts";
@@ -45,6 +46,35 @@ function readStdin(): Promise<string> {
   });
 }
 
+/**
+ * `rejudge setup ollama` (CLI-087): ask the local daemon what it has, then declare those models as a
+ * Pi provider and propose a panel. The report goes to stdout because it is the result; a failure goes
+ * to stderr with a non-zero exit, like every other failure here.
+ */
+async function runSetup(args: Extract<CliArgs, { kind: "setup" }>): Promise<number> {
+  // A daemon that accepts the connection and then never answers would otherwise hang here forever.
+  // Listing what is already local is fast even on a busy machine, so the bound can be generous.
+  const models = await fetchDaemonModels(DAEMON_URL, AbortSignal.timeout(30_000));
+  if (models.isErr()) {
+    console.error(`rejudge: ${models.error}`);
+    return 1;
+  }
+
+  const report = runOllamaSetup(models.value, {
+    cwd: process.cwd(),
+    project: args.project,
+    dryRun: args.dryRun,
+    force: args.force,
+  });
+  if (report.isErr()) {
+    console.error(`rejudge: ${report.error}`);
+    return 1;
+  }
+
+  console.log(formatSetupReport(report.value));
+  return 0;
+}
+
 async function main(): Promise<number> {
   const args = parseCliArgs(process.argv.slice(2));
 
@@ -55,6 +85,9 @@ async function main(): Promise<number> {
   if (args.kind === "error") {
     console.error(`rejudge: ${args.message}\n\n${USAGE}`);
     return 1;
+  }
+  if (args.kind === "setup") {
+    return runSetup(args);
   }
 
   // Resolve the prompt text from a file, stdin, or a positional instruction with optional

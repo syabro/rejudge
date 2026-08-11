@@ -16,6 +16,24 @@ Three settings in that file are load-bearing. Each one is wrong by default for O
 fails without saying so. They are explained in [Why those three settings](#why-those-three-settings);
 copy them even if the reason looks academic.
 
+## The short way
+
+One command writes both files for the models your daemon already has:
+
+```bash
+rejudge setup ollama            # --dry-run first, if you want to see it before it writes
+```
+
+It reads your local model list, declares the ones that can serve a review, and proposes a panel of
+models from different labs. It fetches no catalog and pulls nothing — see
+[Your model list is yours to curate](#your-model-list-is-yours-to-curate). An existing
+`models.json` keeps its other providers and is copied to `.bak` first; an existing Rejudge config is
+left alone unless you pass `--force`. `--project` writes the panel to `<cwd>/.rejudge/config.json`
+instead of the user-wide one.
+
+The rest of this guide is what that command writes and why. Read it when you want to tune the panel,
+add a model by hand, or understand a failure.
+
 ## Before you start
 
 Ollama installed and signed in, so cloud models resolve. The `run` also starts the daemon if it is
@@ -26,8 +44,9 @@ ollama --version
 ollama run gpt-oss:120b-cloud "ping"     # any cloud model; proves the account is connected
 ```
 
-Pi's agent directory has to exist. A missing `models.json` is not an error — Pi reads no providers
-and the failure arrives later as `Unknown model`, which names the wrong problem:
+Pi's agent directory has to exist — `rejudge setup ollama` creates it, but by hand it is on you. A
+missing `models.json` is not an error: Pi reads no providers and the failure arrives later as
+`Unknown model`, which names the wrong problem.
 
 ```bash
 mkdir -p ~/.pi/agent

@@ -273,7 +273,7 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - Piped and redirected stdout remains the original raw Markdown, including its existing final newline behavior.
   - Automated coverage verifies terminal rendering, narrow widths, missing terminal dimensions, and unchanged non-terminal output.
 
-- [ ] CLI-087 Set up an Ollama panel with one command
+- [x] CLI-087 Set up an Ollama panel with one command
   A working Ollama panel needs a hand-written `~/.pi/agent/models.json` whose non-obvious fields nobody guesses right. Get it wrong and the failure is silent, not loud.
 
   Ollama serves an OpenAI-compatible endpoint, so Pi reaches it through a `models.json` provider — but four settings are load-bearing and were each proved wrong-by-default on a live daemon: the system prompt must not go out as `role: "developer"` (the model then never sees it and answers anyway), the output cap must ride on `max_tokens` (`max_completion_tokens` is accepted and ignored), and every model needs a full `thinkingLevelMap`, because Ollama accepts only `high|medium|low|max|none` — Rejudge's `minimal` is rejected with a 400 and its `xhigh` never reaches the wire. On top of that a model id must be spelled `<model>:cloud`, or `<model>:<tag>-cloud` when the model carries a tag, and the daemon's own catalog still lists cloud models the service has retired, which fail a run with a 410 on the first prompt.
@@ -284,6 +284,16 @@ It combines with any prompt source and `--unsafe`. `N` is 1-based and must fit t
   - one command produces a `models.json` provider that completes a real review, on a machine that had no `~/.pi/agent`
   - an existing `models.json` keeps its other providers, keys, and model overrides
   - `reasoning`, `contextWindow`, and the id spelling come from the daemon's catalog, never from a hardcoded list
-  - models that are retired, outside the plan, or non-thinking are reported and left out, not written into a config that fails later
+  - models that cannot serve a review are reported and left out, not written into a config that fails later — which the daemon's list can only show for a missing capability or context window, so the run says outright that a retired or out-of-plan model is invisible to it and surfaces only as a 410 or 402 at first use
   - the command names the file it wrote and the exact panel, so the result is inspectable without reading JSON
   - `--help` and the CLI feature guide document it, and the authentication note in `docs/skills/rejudge/SKILL.md` stops naming a single provider's key
+
+  **Implemented:**
+  - `rejudge setup ollama` reads the daemon's `/api/tags`, declares the models that can serve a review as a `models.json` provider, and writes a proposed panel. `--project` targets `<cwd>/.rejudge/config.json` instead of the user-wide config, `--dry-run` prints without writing, `--force` replaces an existing Rejudge config.
+  - The decisions live in `src/setup-ollama.ts`, which has no I/O at all, so eligibility, the provider shape, the panel proposal, and the merge are all testable without a daemon or a filesystem. `src/setup.ts` owns the fetch, the reads and writes, and the report; `cli.ts` only dispatches.
+  - Nothing is pulled and no catalog is fetched: the daemon's list is the user's own, and keeping it current is theirs. Models that cannot serve a review are reported with the reason and left out — no thinking (its `@level` would silently become `off`), no tools (it could not read the diff), or no reported context window (any value would be a guess).
+  - A panel slot prefers a cloud model over local weights, because only a cloud model's reported window is the one actually served; a declared local model is listed with the `OLLAMA_CONTEXT_LENGTH` warning, since Ollama truncates an overflow silently and Rejudge reports that as a clean run. Slots then take the widest window from families the panel has not used, and the report says outright when a lab had to be reused.
+  - The user's `models.json` is treated as theirs: only the `ollama` key changes, the file is copied to `.bak` first, and a file that is not valid JSON fails the run before anything is written.
+  - `setup` as a first positional does take that word away from questions; `rejudge setup the staging box` now errors, and the message says to quote the question. Setup-only and review-only flags are rejected across the boundary instead of being ignored.
+  - Deterministic tests cover parsing, eligibility, the provider shape, panel ordering and diversity, the merge, every file-level branch, and the report's wording (`test/setup-ollama.test.ts`, `test/setup.test.ts`, `test/cli.test.ts`). Live tests gated on a reachable daemon prove the listing parses and that a real `ModelRuntime` resolves every model in the generated file (`test/setup-live.test.ts`).
+  - Verified end-to-end: on a sandbox with no Pi agent directory, one `rejudge setup ollama` produced a config that completed a real panel-plus-judge review in 26s.
