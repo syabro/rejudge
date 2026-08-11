@@ -135,3 +135,26 @@ outright, so leave that one out of an Ollama panel.
 
 Pick reviewers from different labs. Two models from one line share their blind spots, and a panel
 that agrees for that reason has told you nothing.
+
+## Local models
+
+Local weights work through the same provider, with one difference that outweighs the rest: the
+context window is a server setting, and an overflow is silent.
+
+`num_ctx` cannot be set through the OpenAI-compatible endpoint — `max_tokens` is a different thing —
+so it comes from the daemon:
+
+```bash
+OLLAMA_CONTEXT_LENGTH=65536 ollama serve
+```
+
+Set each local model's `contextWindow` to that number. Claim more and Ollama truncates the input
+instead of compacting it, and Rejudge cannot tell: a truncated run still ends with a clean stop and
+non-empty text, so it is reported as a success — a confident review of a diff the model never saw.
+
+A reviewer needs the room. One `git_diff` in full mode returns up to 200 000 bytes in a single tool
+result, before any file reads.
+
+Reviewers also run concurrently, so a three-model panel needs three models resident at once.
+`OLLAMA_NUM_PARALLEL` serves one request at a time by default, and models that do not all fit in
+memory get evicted and reloaded on every step of the tool loop.
