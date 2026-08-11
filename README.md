@@ -54,6 +54,8 @@ For Ollama users, see the note below.[^ollama]
 
 I personally use [OpenCode Go](https://opencode.ai/go?ref=GSCMBMGRST) (referral link: $5 for you, $5 for me) because it offers an excellent mix of models for $10 a month.
 
+Behind a corporate proxy? The CLI reads `HTTP_PROXY`, `HTTPS_PROXY` and `NO_PROXY` — see [docs/proxy.md](docs/proxy.md).
+
 For [subscription](https://pi.dev/docs/latest/providers#subscriptions) logins Rejudge still goes through Pi. If Pi is not authorized yet, run `npx -y @earendil-works/pi-coding-agent`, then `/login` inside Pi.
 
 ### 4. Pick your models

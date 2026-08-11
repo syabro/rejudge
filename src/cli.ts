@@ -15,6 +15,7 @@ import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { combinePromptInput, parseCliArgs, USAGE } from "./cli-args.ts";
 import { resolveRejudgeConfig } from "./config.ts";
 import { progressTitle } from "./progress.ts";
+import { configureHttpDispatcher } from "./http-dispatcher.ts";
 import { formatFailure, runReview } from "./review.ts";
 import { readManifest } from "./run-store.ts";
 import { resolveReviewerToolNames } from "./runner.ts";
@@ -26,6 +27,9 @@ import { formatReviewAnswerOutput } from "./terminal-markdown.ts";
 // Pi keeps Node-only OAuth flows behind variable imports. Register the statically bundled
 // loaders so the single-file CLI never looks for sibling provider modules at runtime.
 registerBunOAuthFlows();
+
+// Pi sets its HTTP dispatcher from its own entry point, which this CLI does not run.
+configureHttpDispatcher();
 
 function msg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
