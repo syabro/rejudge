@@ -158,3 +158,18 @@ result, before any file reads.
 Reviewers also run concurrently, so a three-model panel needs three models resident at once.
 `OLLAMA_NUM_PARALLEL` serves one request at a time by default, and models that do not all fit in
 memory get evicted and reloaded on every step of the tool loop.
+
+## When something goes wrong
+
+| What you see | What it is |
+| --- | --- |
+| `Unknown model "ollama/…"`, before you wrote the file | No `~/.pi/agent/models.json`, or a file under another name. A missing one is not an error — Pi just reads no providers. |
+| `Unknown model "ollama/…"`, with the file in place | Either the id is not declared in `models.json`, or the provider block is malformed: no `baseUrl`, no `api`, an empty `apiKey`, or a `cost` missing one of its four keys. Any of those drops the provider silently. |
+| `model not found` | Wrong id — see [Model ids](#model-ids). |
+| `410 … was retired at …` | The model is gone from the service. `ollama list` keeps stubs for retired cloud models, so trust the catalogue, not your local list. |
+| `402 … extra usage only` | The model is outside your plan. |
+| `invalid reasoning value` | `thinkingLevelMap` is missing or incomplete. Ollama's error names the values it takes. |
+| Reviews arrive but ignore the task | `supportsDeveloperRole` is not `false`. |
+| A message pointing at `/login` | `apiKey` is absent entirely. Add the placeholder. |
+
+The config format itself is in `docs/specs/config.md`.
