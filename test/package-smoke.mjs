@@ -31,7 +31,7 @@ const DOCKER_CLIENT_ENV = [
 ];
 const TARGETS = ["cli", "pi", "skills"];
 const SOURCES = ["tarball", "npm"];
-const PI_PACKAGE = "@earendil-works/pi-coding-agent@0.83.0";
+const PI_PACKAGE = "@earendil-works/pi-coding-agent@0.84.1";
 const MODEL = "opencode-go/kimi-k2.6@minimal";
 const PROCESS_TIMEOUT_MS = 6 * 60_000;
 const SETUP_TIMEOUT_MS = 10 * 60_000;

@@ -127,7 +127,7 @@ Every run ends with a run ID. `rejudge --resume <run-id> "..."` reopens the same
 
 The npm package ships prebuilt CLI and extension files, so running Rejudge needs no Bun. Building from source does.
 
-Release checks run the packed artifact in Node 22.19.0 Docker containers. Development is tested with Node 24.14.0, npm 11.14.1, Bun 1.3.13, and Pi 0.83.0.
+Release checks run the packed artifact in Node 22.19.0 Docker containers. Development is tested with Node 24.14.0, npm 11.14.1, Bun 1.3.13, and Pi 0.84.1.
 
 ## Install from source
 
