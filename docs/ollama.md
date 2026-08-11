@@ -119,8 +119,27 @@ whether the model carries a tag:
 
 Get the spelling wrong and the daemon answers `model not found`, not a hint.
 
-You do not have to `ollama pull` a cloud model to use it — the daemon proxies it on demand. Pulling
-is still worth one round, because the stub carries the two facts the config needs.
+You do not have to `ollama pull` a cloud model to use it — the daemon proxies it on demand. Pull it
+anyway: the stub is a few hundred bytes, it carries the two facts the config needs, and it puts the
+model in your local list where tooling can see it.
+
+## Your model list is yours to curate
+
+The daemon only reports models you have pulled. Nothing discovers the catalog for you, and nothing
+keeps your list current — deciding which models you want, pulling them, and replacing them when the
+service moves on are all yours:
+
+```bash
+ollama list                        # what you have
+ollama pull glm-5.2:cloud          # add one
+ollama rm glm-4.6:cloud            # drop one
+```
+
+Two things make this a real chore rather than a one-off. Ollama retires cloud models, and a retired
+model keeps its local stub — `ollama list` still shows it, and only a review fails, with a 410. And
+a model outside your plan answers 402 rather than anything useful. So when a run starts failing on a
+model that "is right there in the list", check the catalog before you check your config:
+<https://ollama.com/search?c=thinking&c=cloud&c=tools>.
 
 ## Where `reasoning` and `contextWindow` come from
 
@@ -138,8 +157,8 @@ for m in json.load(sys.stdin)["models"]:
 ```
 
 A model without `thinking` must be declared `reasoning: false`, and then its `@level` collapses to
-`off` without a word — so it is not a reviewer you want. Filter the catalog for what can actually do
-the job: <https://ollama.com/search?c=thinking&c=cloud&c=tools>.
+`off` without a word — so it is not a reviewer you want. Reviewers need `tools` too: the whole job is
+reading the diff and the files around it.
 
 Rounding `contextWindow` down is safe; it only makes Pi compact earlier. Rounding up invites a
 server-side error on a long review.

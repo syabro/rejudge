@@ -92,5 +92,6 @@ Use at least two `reviewers` and one `judge`. Every model is a full `provider/mo
   - Reasoning levels are mapped explicitly: `minimal` is rejected by Ollama and `xhigh` is clamped away unless the map carries it to `max`.
   - The local section leads with the context window, because a truncated review still ends with a clean stop and non-empty text, and so is reported as a success.
   - A symptom table covers `Unknown model`, `model not found`, 410, 402, `invalid reasoning value`, reviews that ignore the task, and the misleading `/login` hint.
+  - Curating the model list is stated as the reader's job: the daemon only reports what they pulled, nothing discovers the catalog for them, and a retired cloud model keeps its local stub — so `ollama list` still shows it and only a review fails, with a 410.
   - `README.md` links the guide from the provider step.
   - Verified against a live daemon: the documented settings were each proved necessary by request, and a full panel plus judge run completed on the resulting config.
