@@ -85,3 +85,32 @@ Get it wrong and the daemon answers `model not found`. A local model is named ex
 
 Pulling a cloud model first is optional — the daemon proxies it on demand — but the stub is a few
 hundred bytes and it puts the model in your local list, where the next section can read its numbers.
+
+## Where `reasoning` and `contextWindow` come from
+
+Read them off the daemon rather than guessing. `capabilities` decides `reasoning`, and
+`details.context_length` is the window:
+
+```bash
+curl -s http://127.0.0.1:11434/api/tags | python3 -c '
+import sys, json
+for m in json.load(sys.stdin)["models"]:
+    caps = m.get("capabilities") or []
+    ctx = (m.get("details") or {}).get("context_length")
+    print(m["name"], ctx, "thinking" if "thinking" in caps else "NO-THINKING")'
+```
+
+A model that does not report `thinking` has to be declared `reasoning: false`, and its `@level` then
+drops to `off` without a word — so it is not one to put in a panel. Reviewers need `tools` as well,
+since the work is reading the diff and the files around it.
+
+Some builds leave `context_length` out of `/api/tags` — every MLX one does. `/api/show` still has it,
+under a key named after the model's architecture:
+
+```bash
+curl -s http://127.0.0.1:11434/api/show -d '{"model":"qwen3.5:4b-mlx"}' \
+  | python3 -c 'import sys, json; print({k: v for k, v in json.load(sys.stdin)["model_info"].items() if k.endswith(".context_length")})'
+```
+
+Rounding `contextWindow` down is safe — it only makes Pi compact earlier. Rounding up invites a
+server-side error partway through a long review.
