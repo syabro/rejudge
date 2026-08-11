@@ -10,6 +10,7 @@
 // the CLI never touches the key. Packaged builds resolve runtime dependencies from the
 // package installation.
 import { readFileSync, realpathSync } from "node:fs";
+import { configureProxyFromEnv } from "./proxy.ts";
 import { pathToFileURL } from "node:url";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { combinePromptInput, parseCliArgs, USAGE } from "./cli-args.ts";
@@ -22,6 +23,8 @@ import { createStderrSink } from "./stderr-sink.ts";
 import { createTtyProgress, shouldDrawLiveBlock } from "./tty-progress.ts";
 import { formatReviewMode, reviewMode, type ReviewerToolPolicy } from "./review-mode.ts";
 import { formatReviewAnswerOutput } from "./terminal-markdown.ts";
+
+configureProxyFromEnv();
 
 // Pi keeps Node-only OAuth flows behind variable imports. Register the statically bundled
 // loaders so the single-file CLI never looks for sibling provider modules at runtime.
