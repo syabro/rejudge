@@ -54,6 +54,8 @@ I personally use [OpenCode Go](https://opencode.ai/go?ref=GSCMBMGRST) (referral 
 
 For [subscription](https://pi.dev/docs/latest/providers#subscriptions) logins Rejudge still goes through Pi. If Pi is not authorized yet, run `npx -y @earendil-works/pi-coding-agent`, then `/login` inside Pi.
 
+Ollama is the exception: Pi has no built-in provider for it, so a subscription or a local server takes one file to declare, plus a few settings you would not guess. [docs/ollama.md](docs/ollama.md) has the working config and the reasons.
+
 ### 4. Pick your models
 
 Create `~/.config/rejudge/config.json` once.

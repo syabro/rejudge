@@ -71,7 +71,7 @@ Use at least two `reviewers` and one `judge`. Every model is a full `provider/mo
   - `.pi/fusion-agents.json`, the README config example, and the user-global config were migrated to the `@level` form.
   - Verified on real models: `@level` config file loads and runs (panel + synth at different levels), and a resume round-trip restores each session's level; deterministic config tests cover the required-suffix, invalid-level, empty-id, malformed-id, and leftover-`thinking` errors.
 
-- [ ] CFG-088 Document how to run Rejudge on Ollama
+- [x] CFG-088 Document how to run Rejudge on Ollama
   Ollama has a subscription and a local server, and people arrive with both. It is not one of Pi's built-in providers, so nothing in the README tells them where to start — and the settings it needs are ones nobody guesses.
 
   Rejudge already works with Ollama today: Pi reads a user-declared provider from `~/.pi/agent/models.json`, and no product code is involved. What is missing is the recipe. Four things have to be right or the run fails without saying why: the system prompt must not go out as `role: "developer"`, the output cap must ride on `max_tokens`, every model needs a full `thinkingLevelMap` because Ollama's vocabulary is `high|medium|low|max|none`, and a model id spells its cloud marker `:cloud` or `<tag>-cloud` depending on whether the model carries a tag. Locally there is a fifth: `num_ctx` is a server setting, and an overflow is truncated silently, which Rejudge reports as a successful review.
@@ -85,3 +85,12 @@ Use at least two `reviewers` and one `judge`. Every model is a full `provider/mo
   - the silent-truncation trap for local models is stated where a local reader will hit it
   - the README provider step links to it
 
+  **Implemented:**
+  - `docs/ollama.md` covers both routes — cloud models proxied by the local daemon on the account subscription, and local weights — from one `models.json` provider, with a config that was run as written.
+  - Each load-bearing setting is documented with the failure it prevents, including the two that produce no error at all: a dropped system prompt and an ignored output cap. `supportsStore` was measured and left out — Ollama accepts the field either way, so recommending it would imply a stake it does not have.
+  - Model metadata comes from the daemon's `/api/tags` via a copyable command, and the catalog filter for reviewer-capable models is linked instead of enumerated, since retired models keep local stubs and fail a run with a 410.
+  - Reasoning levels are mapped explicitly: `minimal` is rejected by Ollama and `xhigh` is clamped away unless the map carries it to `max`.
+  - The local section leads with the context window, because a truncated review still ends with a clean stop and non-empty text, and so is reported as a success.
+  - A symptom table covers `Unknown model`, `model not found`, 410, 402, `invalid reasoning value`, reviews that ignore the task, and the misleading `/login` hint.
+  - `README.md` links the guide from the provider step.
+  - Verified against a live daemon: the documented settings were each proved necessary by request, and a full panel plus judge run completed on the resulting config.
