@@ -54,6 +54,12 @@ I personally use [OpenCode Go](https://opencode.ai/go?ref=GSCMBMGRST) (referral 
 
 For [subscription](https://pi.dev/docs/latest/providers#subscriptions) logins Rejudge still goes through Pi. If Pi is not authorized yet, run `npx -y @earendil-works/pi-coding-agent`, then `/login` inside Pi.
 
+Ollama has no built-in Pi provider, so it is declared by hand in `~/.pi/agent/models.json`. Three settings there decide whether it works, and a wrong one produces no error:
+
+- `compat.supportsDeveloperRole: false` — for a reasoning model Pi sends the system prompt as `role: "developer"`, and Ollama passes that role into a chat template that only handles `system`, so the reviewer answers without ever seeing its instructions.
+- `compat.maxTokensField: "max_tokens"` — Ollama has no `max_completion_tokens` and ignores fields it does not know, so the output cap never applies.
+- `thinkingLevelMap` on every model — Ollama takes only `high`, `medium`, `low`, `max` and `none`, so without a map `@minimal` is rejected with a 400 and `@xhigh` is clamped to `high`.
+
 ### 4. Pick your models
 
 Create `~/.config/rejudge/config.json` once.
