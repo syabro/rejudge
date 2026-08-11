@@ -70,3 +70,18 @@ Use at least two `reviewers` and one `judge`. Every model is a full `provider/mo
   - Resume (SYN-029) carries the level per session in the manifest (`RunSessionRef.level`), manifest bumped to version 2; a pre-CFG-030 manifest now reads as expired (runs are ephemeral, so no migration). The CLI prints `id@level`.
   - `.pi/fusion-agents.json`, the README config example, and the user-global config were migrated to the `@level` form.
   - Verified on real models: `@level` config file loads and runs (panel + synth at different levels), and a resume round-trip restores each session's level; deterministic config tests cover the required-suffix, invalid-level, empty-id, malformed-id, and leftover-`thinking` errors.
+
+- [ ] CFG-088 Document how to run Rejudge on Ollama
+  Ollama has a subscription and a local server, and people arrive with both. It is not one of Pi's built-in providers, so nothing in the README tells them where to start — and the settings it needs are ones nobody guesses.
+
+  Rejudge already works with Ollama today: Pi reads a user-declared provider from `~/.pi/agent/models.json`, and no product code is involved. What is missing is the recipe. Four things have to be right or the run fails without saying why: the system prompt must not go out as `role: "developer"`, the output cap must ride on `max_tokens`, every model needs a full `thinkingLevelMap` because Ollama's vocabulary is `high|medium|low|max|none`, and a model id spells its cloud marker `:cloud` or `<tag>-cloud` depending on whether the model carries a tag. Locally there is a fifth: `num_ctx` is a server setting, and an overflow is truncated silently, which Rejudge reports as a successful review.
+
+  Write the guide, with a config that runs as written, and point the README's provider step at it.
+
+  DoD:
+  - a reader with a working Ollama and no `~/.pi/agent` reaches a completed review by following the document
+  - every non-obvious setting states what breaks without it, not just that it is required
+  - `reasoning` and `contextWindow` are obtained from the daemon in the document, never copied from a list that ages
+  - the silent-truncation trap for local models is stated where a local reader will hit it
+  - the README provider step links to it
+
