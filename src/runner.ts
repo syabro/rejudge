@@ -97,8 +97,18 @@ export async function resolveReviewerToolNames(cwd: string, fullTools: boolean):
   return reviewerToolNames(fullTools, availableHostTools(resourceLoader));
 }
 
-const EMPTY_VISIBLE_TEXT_RETRY_PROMPT =
+// Two shapes of empty turn need two different nudges. A model that used its tools and then
+// forgot to print has an answer and needs to be told to print it. A model that stopped before
+// touching anything has nothing to report, so asking it for a final answer just returns empty
+// again — it has to be sent back to work instead.
+const EMPTY_AFTER_WORK_RETRY_PROMPT =
   "Your previous turn had no visible final answer. Please provide the final answer now in visible assistant text only. Do not use hidden thinking as the answer.";
+
+const EMPTY_BEFORE_WORK_RETRY_PROMPT =
+  "Your previous turn ended without examining anything and without a visible answer. Start the work now: call your tools to read the code the task refers to, then give the final answer in visible assistant text only. Do not use hidden thinking as the answer.";
+
+/** How many times an empty turn is nudged before the agent is called failed. */
+const EMPTY_OUTPUT_RETRIES = 3;
 
 export interface AgentResult {
   /** Stable internal address for this agent slot. */
@@ -308,6 +318,10 @@ async function executeAgent(
     // runPanel's Promise.all relies on. Declared here so `finally` can always run them.
     let detachLogs = (): void => {};
     let detachAbort = (): void => {};
+    let detachToolCount = (): void => {};
+
+    // Whether this agent ever reached for a tool decides which retry an empty turn gets.
+    let toolCalls = 0;
     try {
       // Emit this agent's activity changes through the sink (only when one is set — the
       // engine is otherwise silent); persist a richer per-run debug log when runReview enabled
@@ -321,6 +335,11 @@ async function executeAgent(
         debugLog: options.debugLog,
       });
       detachAbort = bridgeSessionAbort(session, options.signal);
+      detachToolCount = session.subscribe((event) => {
+        if (event.type === "tool_execution_start") {
+          toolCalls++;
+        }
+      });
 
       // If the signal fired during the async createAgentSession above, the listener's
       // session.abort() is a no-op (prompt() hasn't created an abortable run yet), so
@@ -378,12 +397,23 @@ async function executeAgent(
       } else if (!policy.retryEmpty) {
         outcome = fail("returned empty text");
       } else {
-        options.signal?.throwIfAborted();
-        const retryTurn = await runPromptTurn(EMPTY_VISIBLE_TEXT_RETRY_PROMPT, true);
+        // Some models answer an empty turn with another empty turn — minimax-m3 will announce
+        // "let me start by examining the diff" and end the turn, repeatedly. Nudge more than
+        // once before giving up; the retries are cheap next to losing the whole panel.
+        let retryTurn = { kind: "empty" } as PromptTurnOutcome;
+        for (let attempt = 0; attempt < EMPTY_OUTPUT_RETRIES && retryTurn.kind === "empty"; attempt++) {
+          options.signal?.throwIfAborted();
+          const retryPrompt =
+            toolCalls > 0 ? EMPTY_AFTER_WORK_RETRY_PROMPT : EMPTY_BEFORE_WORK_RETRY_PROMPT;
+          retryTurn = await runPromptTurn(retryPrompt, true);
+        }
+
         if (retryTurn.kind === "success") {
           outcome = ok({ roleKey, modelId, text: retryTurn.text, session });
         } else if (retryTurn.kind === "empty") {
-          outcome = fail("empty-output-after-retry: retry returned empty text");
+          outcome = fail(
+            `no answer after ${EMPTY_OUTPUT_RETRIES} retries — the model kept returning empty text`,
+          );
         } else {
           outcome = fail(retryTurn.error, retryTurn.aborted);
         }
@@ -411,6 +441,7 @@ async function executeAgent(
       return fail(error, aborted);
     } finally {
       detachAbort();
+      detachToolCount();
       // Flush still-open activity steps (emits their aborted ends) before model_end below.
       detachLogs();
     }

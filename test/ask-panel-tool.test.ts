@@ -28,19 +28,30 @@ function fakePanelSession(
   options: { text?: string | ((question: string) => string); onAbort?: () => void } = {},
 ): AgentResult["session"] {
   const messages: Record<string, unknown>[] = [{ role: "assistant", stopReason: "stop" }];
-  let subscriber: ((event: unknown) => void) | undefined;
+  // The real session takes many listeners ("Multiple listeners can be added" — AgentSession
+  // .subscribe), so a single-slot double would let one subscriber silently evict another.
+  const subscribers = new Set<(event: unknown) => void>();
   let lastQuestion = "";
   return {
     state: { messages },
     subscribe(cb: (event: never) => void) {
-      subscriber = cb as (event: unknown) => void;
+      const notify = cb as (event: unknown) => void;
+      subscribers.add(notify);
       return () => {
-        subscriber = undefined;
+        subscribers.delete(notify);
       };
     },
     async prompt(question: string) {
       lastQuestion = question;
-      await promptBody({ question, messages, emit: (event) => subscriber?.(event) });
+      await promptBody({
+        question,
+        messages,
+        emit: (event) => {
+          for (const notify of subscribers) {
+            notify(event);
+          }
+        },
+      });
     },
     getLastAssistantText() {
       return typeof options.text === "function" ? options.text(lastQuestion) : options.text ?? "follow-up answer";

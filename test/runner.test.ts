@@ -41,7 +41,9 @@ type FakeRunSession = AgentSession & {
 function fakeRunSession(turns: FakePromptTurn[]): FakeRunSession {
   const messages: Record<string, unknown>[] = [];
   let latestText = "";
-  let subscriber: ((event: AgentSessionEvent) => void) | undefined;
+  // The real session takes many listeners ("Multiple listeners can be added" — AgentSession
+  // .subscribe), so a single-slot double would let one subscriber silently evict another.
+  const subscribers = new Set<(event: AgentSessionEvent) => void>();
   const pendingTurns = [...turns];
 
   const session = {
@@ -62,7 +64,9 @@ function fakeRunSession(turns: FakePromptTurn[]): FakeRunSession {
       messages.push(message);
       latestText = turn.text ?? "";
       for (const event of turn.events ?? []) {
-        subscriber?.(event);
+        for (const notify of subscribers) {
+          notify(event);
+        }
       }
     },
     getLastAssistantText() {
@@ -70,9 +74,9 @@ function fakeRunSession(turns: FakePromptTurn[]): FakeRunSession {
     },
     abort() {},
     subscribe(callback: (event: AgentSessionEvent) => void) {
-      subscriber = callback;
+      subscribers.add(callback);
       return () => {
-        subscriber = undefined;
+        subscribers.delete(callback);
       };
     },
     dispose() {
@@ -263,19 +267,85 @@ test("runAgent retries one clean empty response in the same session", async () =
   }
 });
 
-test("runAgent fails explicitly when the retry is still empty", async () => {
+test("the empty-turn retry matches how far the agent actually got", async () => {
+  // Stalled before touching anything: asking for a final answer would be asking for a report
+  // on work that never happened, so the retry has to send it back to the tools instead.
+  const stalled = fakeRunSession([
+    { stopReason: "stop", text: "" },
+    { stopReason: "stop", text: "visible answer" },
+  ]);
+  const stalledResult = await runAgent("provider/model", "original prompt", {
+    existingSession: stalled,
+  });
+
+  expect(stalledResult.isOk()).toBe(true);
+  expect(stalled.prompts[1]).toContain("Start the work now");
+  if (stalledResult.isOk()) {
+    stalledResult.value.session.dispose();
+  }
+
+  // Read something and then went quiet: it has an answer, it just never printed one.
+  const worked = fakeRunSession([
+    {
+      stopReason: "stop",
+      text: "",
+      events: [
+        {
+          type: "tool_execution_start",
+          toolCallId: "1",
+          toolName: "read",
+          args: {},
+        } as unknown as AgentSessionEvent,
+      ],
+    },
+    { stopReason: "stop", text: "visible answer" },
+  ]);
+  const workedResult = await runAgent("provider/model", "original prompt", {
+    existingSession: worked,
+  });
+
+  expect(workedResult.isOk()).toBe(true);
+  expect(worked.prompts[1]).toContain("had no visible final answer");
+  expect(worked.prompts[1]).not.toContain("Start the work now");
+  if (workedResult.isOk()) {
+    workedResult.value.session.dispose();
+  }
+});
+
+test("runAgent fails explicitly when every retry is still empty", async () => {
+  // One opening turn plus three nudges: a model that answers empty with empty gets several
+  // chances before the whole panel is written off because of it.
   const session = fakeRunSession([
     { stopReason: "stop", text: "" },
     { stopReason: "stop", text: "\t" },
+    { stopReason: "stop", text: "" },
+    { stopReason: "stop", text: "  " },
   ]);
 
   const result = await runAgent("provider/model", "original prompt", { existingSession: session });
 
   expect(result.isErr()).toBe(true);
-  expect(session.prompts).toHaveLength(2);
+  expect(session.prompts).toHaveLength(4);
   expect(session.disposeCount).toBe(1);
   if (result.isErr()) {
-    expect(result.error.error).toContain("empty-output-after-retry");
+    expect(result.error.error).toContain("no answer after 3 retries");
+  }
+});
+
+test("runAgent stops retrying as soon as a nudge lands", async () => {
+  const session = fakeRunSession([
+    { stopReason: "stop", text: "" },
+    { stopReason: "stop", text: "" },
+    { stopReason: "stop", text: "visible answer" },
+  ]);
+
+  const result = await runAgent("provider/model", "original prompt", { existingSession: session });
+
+  expect(result.isOk()).toBe(true);
+  expect(session.prompts).toHaveLength(3);
+  if (result.isOk()) {
+    expect(result.value.text).toBe("visible answer");
+    result.value.session.dispose();
   }
 });
 

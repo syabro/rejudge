@@ -6,7 +6,7 @@ The reusable unit behind the panel is `runReviewer(modelId, prompt, { cwd?, sign
 
 - Tools: read/grep/find/ls by default (edit/write/bash with `fullTools`), plus `git_diff` and `web_search` when the host offers it. Other host extensions do not load, so reviewers cannot re-enter `rejudge`.
 - The session is in-memory — nothing is written to the host's resume list.
-- Failure is loud, never silent: a malformed/unknown model id, a model/tool/runtime error, or an incomplete run (any stop reason other than a clean `stop`) returns a clear error instead of a partial answer. If a clean run has no visible assistant text, the runner retries once in the same session and still never uses hidden thinking as the answer; an empty or failed retry is a clear error.
+- Failure is loud, never silent: a malformed/unknown model id, a model/tool/runtime error, or an incomplete run (any stop reason other than a clean `stop`) returns a clear error instead of a partial answer. If a clean run has no visible assistant text, the runner retries in the same session up to three times and still never uses hidden thinking as the answer; a failed retry, or three empty ones, is a clear error.
 - On success the reviewer session stays alive so the judge can re-query it through `ask_panel`; the caller disposes it after the judge finishes.
 
 ## Panel fan-out
@@ -174,16 +174,16 @@ Each record carries `t` (epoch ms), `model`, `kind`, and `chars`/`lines` — the
   User decision: hidden thinking must not be used as the answer; recovery is one visible-text-only retry in the same session.
 
   DoD:
-  - `runPanelAgent` retries exactly once after a clean stop with empty visible text;
+  - `runPanelAgent` retries up to three times after a clean stop with empty visible text;
   - a successful retry returns the visible answer and keeps the normal session lifecycle;
-  - if the retry still returns empty visible text, the run fails with an explicit empty-output-after-retry error;
+  - if every retry still returns empty visible text, the run fails saying how many retries were spent;
   - if the retry does not stop cleanly, the run fails loudly with that retry failure instead of masking it;
   - tests deterministically cover the successful recovery path, the still-empty-after-retry path, and the non-clean retry path.
 
   **Implemented:**
-  - Clean empty visible output now triggers one same-session retry with a visible-text-only prompt.
+  - Clean empty visible output now triggers up to three same-session retries, stopping at the first answer. The nudge matches how far the agent got: one that has called no tools is sent back to work, one that has already read something is asked to print its answer.
   - Successful retry output is returned as the answer while keeping the session alive for normal caller disposal.
-  - Empty retry output fails with `empty-output-after-retry`; non-clean retry output reports the retry stop reason and error.
+  - Exhausted retries fail with `no answer after 3 retries`; non-clean retry output reports the retry stop reason and error.
   - Deterministic tests cover retry success, still-empty retry failure, non-clean retry failure, and no retry on an initially non-clean stop.
 
 - [ ] PNL-062 Retry every model error in the same SDK session		#bug !high
