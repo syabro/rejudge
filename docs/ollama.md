@@ -114,3 +114,24 @@ curl -s http://127.0.0.1:11434/api/show -d '{"model":"qwen3.5:4b-mlx"}' \
 
 Rounding `contextWindow` down is safe — it only makes Pi compact earlier. Rounding up invites a
 server-side error partway through a long review.
+
+## The panel
+
+Name the declared models in your Rejudge config, with the provider key as the prefix:
+
+```json
+{
+  "reviewers": [
+    "ollama/gpt-oss:120b-cloud@high",
+    "ollama/qwen3.5:397b-cloud@high",
+    "ollama/nemotron-3-super:cloud@high"
+  ],
+  "judge": "ollama/glm-5.2:cloud@high"
+}
+```
+
+Ollama takes `low`, `medium`, `high` and `xhigh` through the map above. It rejects `minimal`
+outright, so leave that one out of an Ollama panel.
+
+Pick reviewers from different labs. Two models from one line share their blind spots, and a panel
+that agrees for that reason has told you nothing.
