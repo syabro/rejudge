@@ -50,15 +50,11 @@ Already using Pi? Nothing to do here. Rejudge takes the providers you set up in 
 
 Rejudge runs on Pi and reads Pi's provider settings, so any key Pi accepts works here: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `OPENCODE_API_KEY`, and more — the full list is in the [Pi docs](https://pi.dev/docs/latest/providers#api-keys).
 
+For Ollama users, see the note below.[^ollama]
+
 I personally use [OpenCode Go](https://opencode.ai/go?ref=GSCMBMGRST) (referral link: $5 for you, $5 for me) because it offers an excellent mix of models for $10 a month.
 
 For [subscription](https://pi.dev/docs/latest/providers#subscriptions) logins Rejudge still goes through Pi. If Pi is not authorized yet, run `npx -y @earendil-works/pi-coding-agent`, then `/login` inside Pi.
-
-Ollama has no built-in Pi provider, so it is declared by hand in `~/.pi/agent/models.json`. Three settings there decide whether it works, and a wrong one produces no error:
-
-- `compat.supportsDeveloperRole: false` — for a reasoning model Pi sends the system prompt as `role: "developer"`, and Ollama passes that role into a chat template that only handles `system`, so the reviewer answers without ever seeing its instructions.
-- `compat.maxTokensField: "max_tokens"` — Ollama has no `max_completion_tokens` and ignores fields it does not know, so the output cap never applies.
-- `thinkingLevelMap` on every model — Ollama takes only `high`, `medium`, `low`, `max` and `none`, so without a map `@minimal` is rejected with a 400 and `@xhigh` is clamped to `high`.
 
 ### 4. Pick your models
 
@@ -157,3 +153,5 @@ pi install "$PWD"
 - **Authentication failure** — export the provider key in the same shell that starts `rejudge` or Pi. The last stderr line names the stage that failed and usually contains `API key`, `authentication`, `credentials`, or `unauthorized`.
 - **Pi does not show Rejudge** — run `pi list`, check that the registered path matches `$(npm root -g)/rejudge`, then restart Pi.
 - **A model or a stage fails** — read the final stderr reason, then check the model ID, provider access, rate limits, and network.
+
+[^ollama]: Ollama has no built-in Pi provider, so declare it by hand in `~/.pi/agent/models.json`. Three settings decide whether it works, and a wrong one produces no error: `compat.supportsDeveloperRole: false` — a reasoning model's system prompt otherwise reaches an Ollama chat template as `role: "developer"`, which the template may not handle; `compat.maxTokensField: "max_tokens"` — Ollama ignores the unsupported `max_completion_tokens`, leaving the output uncapped; and `thinkingLevelMap` on every model — Ollama accepts only `high`, `medium`, `low`, `max`, and `none`, so `@minimal` otherwise returns 400 and `@xhigh` is clamped to `high`.
