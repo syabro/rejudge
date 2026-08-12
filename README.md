@@ -149,7 +149,7 @@ pi install "$PWD"
 
 ## When something breaks
 
-- **Unsupported Node version** — install Node 22.19.0 or newer, then reinstall Rejudge.
+- **Unsupported Node version** — the crash is a `TypeError` from inside the bundle (`webidl.util.markAsUncloneable is not a function`), not a version message. Install Node 22.19.0 or newer, and under a version manager check `node --version` in the shell that starts `rejudge`, since `#!/usr/bin/env node` resolves whichever Node is active rather than the one you installed under.
 - **`rejudge: command not found`** — check that `npm install -g rejudge` succeeded and that the `bin` directory under `npm prefix -g` is on your `PATH`.
 - **`rejudge: no config found`** — create `.rejudge/config.json` in the project, or the global file shown above.
 - **Authentication failure** — export the provider key in the same shell that starts `rejudge` or Pi. The last stderr line names the stage that failed and usually contains `API key`, `authentication`, `credentials`, or `unauthorized`.
