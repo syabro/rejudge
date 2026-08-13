@@ -5,6 +5,7 @@ import {
   applyEvent,
   createProgressState,
   progressComponent,
+  panelSpecs,
   renderProgress,
   type ProgressSnapshot,
 } from "../src/progress.ts";
@@ -251,4 +252,60 @@ test("a completed panel row reopens during an ask_panel re-query", () => {
   applyEvent(s, { kind: "model_end", t: 4000, roleKey: "panel-1", model: "prov/panel-a", role: "reviewer", status: "done", durationMs: 2000 });
 
   expect(renderProgress(s, THEME, 4500, 120).join("\n")).toContain("✓  done");
+});
+
+// --- which models a run reports and labels itself with ---------------------
+// A resume reopens the sessions recorded in the manifest, so both the preamble and the live block
+// have to name those. The config may have been edited since the run being resumed.
+
+const CONFIG = {
+  reviewers: [
+    { id: "p/now-a", level: "high" as const },
+    { id: "p/now-b", level: "high" as const },
+    { id: "p/now-c", level: "high" as const },
+  ],
+  judge: { id: "p/now-judge", level: "medium" as const },
+};
+
+const MANIFEST = {
+  reviewers: [
+    { modelId: "p/then-a", level: "low" as const },
+    { modelId: "p/then-b", level: "low" as const },
+    { modelId: "p/then-c", level: "low" as const },
+  ],
+  judge: { modelId: "p/then-judge", level: "xhigh" as const },
+};
+
+test("a fresh run reports the config's models and levels", () => {
+  expect(panelSpecs(CONFIG, undefined)).toEqual({
+    reviewers: [
+      { id: "p/now-a", level: "high" },
+      { id: "p/now-b", level: "high" },
+      { id: "p/now-c", level: "high" },
+    ],
+    judge: { id: "p/now-judge", level: "medium" },
+  });
+});
+
+test("a resume reports the manifest's models, not a config edited since", () => {
+  expect(panelSpecs(CONFIG, MANIFEST)).toEqual({
+    reviewers: [
+      { id: "p/then-a", level: "low" },
+      { id: "p/then-b", level: "low" },
+      { id: "p/then-c", level: "low" },
+    ],
+    judge: { id: "p/then-judge", level: "xhigh" },
+  });
+});
+
+test("a resume carries the level each session actually ran at", () => {
+  expect(panelSpecs(CONFIG, MANIFEST).judge.level).toBe("xhigh");
+});
+
+test("a resume takes its reviewer count from the manifest, so no row is left unclaimed", () => {
+  const twoReviewers = {
+    reviewers: [{ modelId: "p/then-a", level: "low" as const }, { modelId: "p/then-b", level: "low" as const }],
+    judge: { modelId: "p/then-judge", level: "low" as const },
+  };
+  expect(panelSpecs(CONFIG, twoReviewers).reviewers).toHaveLength(2);
 });

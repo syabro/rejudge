@@ -15,6 +15,7 @@ import {
   type ModelStatus,
   type ProgressSnapshot,
 } from "./progress-state.ts";
+import type { ModelSpec } from "./config.ts";
 
 export { applyEvent, createProgressState, type ProgressSnapshot } from "./progress-state.ts";
 
@@ -40,6 +41,28 @@ export interface ProgressTheme {
  * The header title for a run: the caller's explicit title, else the question's first line,
  * clipped. Shared so the CLI block and the Pi tool title a run by the same rule.
  */
+/** The part of a persisted session reference this needs: which model ran, and at which level. */
+type SessionModel = { modelId: string; level: ModelSpec["level"] };
+
+/**
+ * The models and levels a run reports and labels itself with.
+ *
+ * A resume reopens the sessions recorded in the manifest, not whatever the config names now — the
+ * config may have been edited since. Reading the config instead would put the wrong model on every
+ * progress row and in the preamble, and a changed reviewer count would leave rows that never start.
+ */
+export function panelSpecs(
+  config: { reviewers: readonly ModelSpec[]; judge: ModelSpec },
+  manifest: { reviewers: readonly SessionModel[]; judge: SessionModel } | undefined,
+): { reviewers: ModelSpec[]; judge: ModelSpec } {
+  if (!manifest) {
+    return { reviewers: [...config.reviewers], judge: config.judge };
+  }
+
+  const spec = (ref: SessionModel): ModelSpec => ({ id: ref.modelId, level: ref.level });
+  return { reviewers: manifest.reviewers.map(spec), judge: spec(manifest.judge) };
+}
+
 export function progressTitle(question: string, title?: string): string {
   const explicit = title?.trim();
   if (explicit) return explicit;

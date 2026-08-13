@@ -14,7 +14,7 @@ import { pathToFileURL } from "node:url";
 import { registerBunOAuthFlows } from "@earendil-works/pi-ai/bun-oauth";
 import { combinePromptInput, parseCliArgs, USAGE } from "./cli-args.ts";
 import { resolveRejudgeConfig } from "./config.ts";
-import { progressTitle } from "./progress.ts";
+import { panelSpecs, progressTitle } from "./progress.ts";
 import { configureHttpDispatcher } from "./http-dispatcher.ts";
 import { formatFailure, runReview } from "./review.ts";
 import { readManifest } from "./run-store.ts";
@@ -116,11 +116,16 @@ async function main(): Promise<number> {
     return 1;
   }
 
+  // A resume reopens the sessions the manifest recorded, so both the preamble below and the live
+  // block name those models — the config may have been edited since that run.
+  const manifest = args.resume ? readManifest(args.resume) : undefined;
+  const panel = panelSpecs(config, manifest);
+
   const liveBlock = shouldDrawLiveBlock(process.stderr);
   if (!liveBlock) {
     console.error(`config: ${path}`);
     const showSpec = (m: { id: string; level: string }): string => `${m.id}@${m.level}`;
-    console.error(`reviewers: ${config.reviewers.map(showSpec).join(", ")} | judge: ${showSpec(config.judge)}`);
+    console.error(`reviewers: ${panel.reviewers.map(showSpec).join(", ")} | judge: ${showSpec(panel.judge)}`);
   }
 
   // Testing-only --prompt-add-N validation needs the resolved panel size. A resume doesn't re-run
@@ -155,7 +160,6 @@ async function main(): Promise<number> {
   }
 
   // A resume restores its saved policy; current CLI flags never widen or narrow it.
-  const manifest = liveBlock && args.resume ? readManifest(args.resume) : undefined;
   let toolPolicy: ReviewerToolPolicy | undefined;
   if (liveBlock && (!args.resume || manifest)) {
     const fullTools = manifest?.fullTools ?? args.fullTools;
@@ -171,8 +175,8 @@ async function main(): Promise<number> {
   // painting rather than showing a guessed policy.
   const progress = toolPolicy
     ? createTtyProgress({
-        reviewerModels: config.reviewers.map((model) => model.id),
-        judgeModel: config.judge.id,
+        reviewerModels: panel.reviewers.map((model) => model.id),
+        judgeModel: panel.judge.id,
         title: progressTitle(prompt),
         mode,
         toolPolicy,
