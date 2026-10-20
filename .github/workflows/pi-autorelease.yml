@@ -1,0 +1,485 @@
+name: Pi autorelease
+
+on:
+  schedule:
+    - cron: "37 2 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: Run the update and live smokes without committing, pushing, or publishing
+        type: boolean
+        default: true
+
+permissions: {}
+
+concurrency:
+  group: pi-autorelease
+  cancel-in-progress: false
+
+env:
+  BUN_VERSION: "1.3.13"
+  NODE_VERSION: "24"
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    permissions:
+      actions: read
+      contents: write
+    outputs:
+      publish: ${{ steps.result.outputs.publish }}
+      finalize: ${{ steps.result.outputs.finalize }}
+      version: ${{ steps.result.outputs.version }}
+      commit: ${{ steps.result.outputs.commit }}
+    steps:
+      - name: Guard repository and branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REPOSITORY" == "syabro/rejudge" ]] || {
+            echo "Expected syabro/rejudge, got $GITHUB_REPOSITORY" >&2
+            exit 1
+          }
+          [[ "$GITHUB_REF_NAME" == "main" ]] || {
+            echo "Pi autorelease must run from main, got $GITHUB_REF_NAME" >&2
+            exit 1
+          }
+
+      - name: Check out main and release tags
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Record run mode
+        id: flags
+        shell: bash
+        run: echo "dry_run=${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}" >> "$GITHUB_OUTPUT"
+
+      - name: Classify release state
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/pi-autorelease.mjs classify
+
+      - name: Report no-op, blocked state, or Pi package divergence
+        if: ${{ steps.state.outputs.mode == 'noop' || steps.state.outputs.mode == 'blocked' || steps.state.outputs.mode == 'diverged' }}
+        shell: bash
+        env:
+          MODE: ${{ steps.state.outputs.mode }}
+          PI_VERSIONS: ${{ steps.state.outputs.pi_versions }}
+          BLOCKED_REASON: ${{ steps.state.outputs.reason }}
+        run: |
+          set -euo pipefail
+          if [[ "$MODE" == "blocked" ]]; then
+            echo "::error::$BLOCKED_REASON"
+            printf '## Pi autorelease blocked\n\n%s\n' "$BLOCKED_REASON" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          if [[ "$MODE" == "diverged" ]]; then
+            echo "::warning::Pi package latest tags diverge: $PI_VERSIONS"
+            printf '## Pi autorelease skipped\n\nPi package latest tags diverge: `%s`.\n' "$PI_VERSIONS" >> "$GITHUB_STEP_SUMMARY"
+          else
+            printf '## Pi autorelease\n\nNo Pi update or pending release was found.\n' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Set up Bun
+        if: ${{ steps.state.outputs.mode == 'fresh' }}
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version: ${{ env.BUN_VERSION }}
+
+      - name: Set up just
+        if: ${{ steps.state.outputs.mode == 'fresh' }}
+        uses: extractions/setup-just@e33e0265a09d6d736e2ee1e0eb685ef1de4669ff # v3.0.0
+        with:
+          just-version: "1.58.0"
+
+      - name: Prepare fresh release candidate
+        if: ${{ steps.state.outputs.mode == 'fresh' }}
+        shell: bash
+        env:
+          PI_VERSION: ${{ steps.state.outputs.pi_version }}
+          RELEASE_VERSION: ${{ steps.state.outputs.release_version }}
+          PREVIOUS_PI_VERSION: ${{ steps.state.outputs.current_pi }}
+        run: |
+          set -euo pipefail
+          just setup
+          bun add --dev --exact \
+            "@earendil-works/pi-ai@$PI_VERSION" \
+            "@earendil-works/pi-coding-agent@$PI_VERSION" \
+            "@earendil-works/pi-tui@$PI_VERSION"
+          node scripts/pi-autorelease.mjs verify-installed
+          npm pkg set "version=$RELEASE_VERSION"
+          node scripts/pi-autorelease.mjs prepend-changelog "$RELEASE_VERSION" "$PREVIOUS_PI_VERSION" "$PI_VERSION"
+          just check
+          node scripts/pi-autorelease.mjs verify-release-diff
+
+      - name: Recheck npm before release commit
+        if: ${{ steps.state.outputs.mode == 'fresh' && steps.flags.outputs.dry_run == 'false' }}
+        run: node scripts/pi-autorelease.mjs registry-prepublish "${{ steps.state.outputs.release_version }}"
+
+      - name: Commit fresh release locally
+        if: ${{ steps.state.outputs.mode == 'fresh' && steps.flags.outputs.dry_run == 'false' }}
+        shell: bash
+        env:
+          PI_VERSION: ${{ steps.state.outputs.pi_version }}
+          RELEASE_VERSION: ${{ steps.state.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          git config user.name "rejudge-release[bot]"
+          git config user.email "rejudge-release[bot]@users.noreply.github.com"
+          git add package.json bun.lock CHANGELOG.md
+          git commit -m "CHORE: #8 update Pi SDK to $PI_VERSION and release $RELEASE_VERSION"
+
+      - name: Pack and inspect fresh candidate
+        if: ${{ steps.state.outputs.mode == 'fresh' }}
+        id: fresh_tarball
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.state.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          candidate_dir="$RUNNER_TEMP/release-files"
+          rm -rf "$candidate_dir"
+          mkdir -p "$candidate_dir"
+          npm pack --json --ignore-scripts --pack-destination "$candidate_dir" > "$RUNNER_TEMP/npm-pack.json"
+          tarball="$candidate_dir/rejudge-$RELEASE_VERSION.tgz"
+          test -f "$tarball"
+          node scripts/pi-autorelease.mjs inspect-tarball "$tarball"
+          echo "directory=$candidate_dir" >> "$GITHUB_OUTPUT"
+          echo "tarball=$tarball" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke standalone CLI candidate
+        if: ${{ steps.state.outputs.mode == 'fresh' }}
+        timeout-minutes: 30
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: just smoke-package -- cli --tarball "${{ steps.fresh_tarball.outputs.tarball }}"
+
+      - name: Smoke extension with new Pi
+        if: ${{ steps.state.outputs.mode == 'fresh' }}
+        timeout-minutes: 30
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          REJUDGE_SMOKE_PI_VERSION: ${{ steps.state.outputs.pi_version }}
+        run: just smoke-package -- pi --tarball "${{ steps.fresh_tarball.outputs.tarball }}"
+
+      - name: Smoke extension with peer floor
+        if: ${{ steps.state.outputs.mode == 'fresh' }}
+        timeout-minutes: 30
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          floor=$(node scripts/pi-autorelease.mjs peer-floor)
+          REJUDGE_SMOKE_PI_VERSION="$floor" just smoke-package -- pi --tarball "${{ steps.fresh_tarball.outputs.tarball }}"
+
+      - name: Finish dry run
+        if: ${{ steps.state.outputs.mode == 'fresh' && steps.flags.outputs.dry_run == 'true' }}
+        run: |
+          printf '## Pi autorelease dry run passed\n\nCandidate `%s` with Pi `%s` passed all checks and was not committed or published.\n' \
+            "${{ steps.state.outputs.release_version }}" "${{ steps.state.outputs.pi_version }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write fresh release manifest
+        if: ${{ steps.state.outputs.mode == 'fresh' && steps.flags.outputs.dry_run == 'false' }}
+        id: fresh_manifest
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ steps.state.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          manifest="${{ steps.fresh_tarball.outputs.directory }}/rejudge-$RELEASE_VERSION.release.json"
+          node scripts/pi-autorelease.mjs write-manifest "${{ steps.fresh_tarball.outputs.tarball }}" "$manifest"
+          echo "manifest=$manifest" >> "$GITHUB_OUTPUT"
+
+      - name: Preserve fresh candidate for recovery
+        if: ${{ steps.state.outputs.mode == 'fresh' && steps.flags.outputs.dry_run == 'false' }}
+        id: upload_fresh
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: rejudge-release-${{ steps.state.outputs.release_version }}
+          path: ${{ steps.fresh_tarball.outputs.directory }}/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+      - name: Create fresh annotated tag
+        if: ${{ steps.state.outputs.mode == 'fresh' && steps.flags.outputs.dry_run == 'false' }}
+        run: >-
+          node scripts/pi-autorelease.mjs create-tag
+          "${{ steps.state.outputs.release_version }}"
+          "${{ steps.fresh_manifest.outputs.manifest }}"
+          "${{ steps.upload_fresh.outputs.artifact-id }}"
+
+      - name: Push fresh commit and tag atomically
+        if: ${{ steps.state.outputs.mode == 'fresh' && steps.flags.outputs.dry_run == 'false' }}
+        shell: bash
+        env:
+          BASE_COMMIT: ${{ steps.state.outputs.base_commit }}
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ steps.state.outputs.release_version }}
+        run: |
+          set -euo pipefail
+          tag="v$RELEASE_VERSION"
+          node scripts/pi-autorelease.mjs registry-prepublish "$RELEASE_VERSION"
+          git fetch origin main
+          remote_main=$(git rev-parse origin/main)
+          [[ "$remote_main" == "$BASE_COMMIT" ]] || {
+            echo "origin/main moved from $BASE_COMMIT to $remote_main" >&2
+            exit 1
+          }
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Remote tag $tag already exists" >&2
+            exit 1
+          else
+            status=$?
+            [[ $status -eq 2 ]] || exit "$status"
+          fi
+
+          askpass="$RUNNER_TEMP/rejudge-git-askpass.sh"
+          cat > "$askpass" <<'SCRIPT'
+          #!/bin/sh
+          case "$1" in
+            *Username*) printf '%s\n' x-access-token ;;
+            *Password*) printf '%s\n' "$GITHUB_TOKEN" ;;
+          esac
+          SCRIPT
+          chmod 700 "$askpass"
+          GIT_ASKPASS="$askpass" GIT_TERMINAL_PROMPT=0 git push --atomic origin \
+            HEAD:refs/heads/main "refs/tags/$tag"
+
+          pushed_main=$(git ls-remote origin refs/heads/main | cut -f1)
+          pushed_tag=$(git ls-remote origin "refs/tags/$tag^{}" | cut -f1)
+          [[ "$pushed_main" == "$(git rev-parse HEAD)" ]] || exit 1
+          [[ "$pushed_tag" == "$(git rev-parse "$tag^{commit}")" ]] || exit 1
+
+      - name: Ensure recovery archive support
+        if: ${{ (steps.state.outputs.mode == 'recovery' || steps.state.outputs.mode == 'finalize') && steps.flags.outputs.dry_run == 'false' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v unzip >/dev/null || { sudo apt-get update && sudo apt-get install --yes unzip; }
+          unzip -v | head -1
+
+      - name: Download existing durable release assets
+        if: ${{ (steps.state.outputs.mode == 'recovery' || steps.state.outputs.mode == 'finalize') && steps.flags.outputs.dry_run == 'false' }}
+        id: release_download
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.state.outputs.local_version }}
+        run: |
+          set -euo pipefail
+          candidate_dir="$RUNNER_TEMP/release-files"
+          rm -rf "$candidate_dir"
+          mkdir -p "$candidate_dir"
+          node scripts/pi-autorelease.mjs release-download "$VERSION" "$candidate_dir"
+          echo "directory=$candidate_dir" >> "$GITHUB_OUTPUT"
+
+      - name: Restore retained Actions artifact
+        if: ${{ (steps.state.outputs.mode == 'recovery' || steps.state.outputs.mode == 'finalize') && steps.flags.outputs.dry_run == 'false' && steps.release_download.outputs.complete != 'true' }}
+        id: artifact_download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          node scripts/pi-autorelease.mjs artifact-download
+          "${{ steps.state.outputs.local_version }}"
+          "${{ steps.release_download.outputs.directory }}"
+
+      - name: Restore published npm tarball
+        if: ${{ steps.state.outputs.mode == 'finalize' && steps.flags.outputs.dry_run == 'false' && steps.release_download.outputs.complete != 'true' && steps.artifact_download.outputs.complete != 'true' }}
+        run: >-
+          node scripts/pi-autorelease.mjs restore-npm
+          "${{ steps.state.outputs.local_version }}"
+          "${{ steps.release_download.outputs.directory }}"
+
+      - name: Require original recovery bytes
+        if: ${{ steps.state.outputs.mode == 'recovery' && steps.flags.outputs.dry_run == 'false' && steps.release_download.outputs.complete != 'true' && steps.artifact_download.outputs.complete != 'true' }}
+        shell: bash
+        run: |
+          echo "Release assets are missing and artifact ${{ steps.state.outputs.artifact_id }} from run ${{ steps.state.outputs.run_id }} expired; manual recovery of the original bytes is required" >&2
+          exit 1
+
+      - name: Verify recovered release files
+        if: ${{ (steps.state.outputs.mode == 'recovery' || steps.state.outputs.mode == 'finalize') && steps.flags.outputs.dry_run == 'false' }}
+        run: >-
+          node scripts/pi-autorelease.mjs verify-files
+          "${{ steps.release_download.outputs.directory }}"
+          "${{ steps.state.outputs.local_version }}"
+
+      - name: Verify recovery dependencies remain available
+        if: ${{ steps.state.outputs.mode == 'recovery' && steps.flags.outputs.dry_run == 'false' }}
+        run: node scripts/pi-autorelease.mjs verify-recovery-deps "${{ steps.state.outputs.local_version }}"
+
+      - name: Reconcile draft GitHub Release for fresh candidate
+        if: ${{ steps.state.outputs.mode == 'fresh' && steps.flags.outputs.dry_run == 'false' }}
+        id: fresh_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          node scripts/pi-autorelease.mjs release-reconcile
+          "${{ steps.state.outputs.release_version }}"
+          "${{ steps.fresh_tarball.outputs.directory }}"
+
+      - name: Reconcile draft GitHub Release for pending candidate
+        if: ${{ (steps.state.outputs.mode == 'recovery' || steps.state.outputs.mode == 'finalize') && steps.flags.outputs.dry_run == 'false' }}
+        id: pending_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          node scripts/pi-autorelease.mjs release-reconcile
+          "${{ steps.state.outputs.local_version }}"
+          "${{ steps.release_download.outputs.directory }}"
+
+      - name: Preserve recovered candidate for publish job
+        if: ${{ steps.state.outputs.mode == 'recovery' && steps.flags.outputs.dry_run == 'false' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: rejudge-release-${{ steps.state.outputs.local_version }}
+          path: ${{ steps.release_download.outputs.directory }}/*
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 90
+
+      - name: Set job result
+        if: ${{ !cancelled() }}
+        id: result
+        shell: bash
+        env:
+          MODE: ${{ steps.state.outputs.mode }}
+          DRY_RUN: ${{ steps.flags.outputs.dry_run }}
+          LOCAL_VERSION: ${{ steps.state.outputs.local_version }}
+          RELEASE_VERSION: ${{ steps.state.outputs.release_version }}
+          TAG_COMMIT: ${{ steps.state.outputs.commit }}
+          FRESH_COMMIT: ${{ steps.fresh_manifest.outputs.commit }}
+        run: |
+          set -euo pipefail
+          publish=false
+          finalize=false
+          version="${LOCAL_VERSION:-}"
+          commit="${TAG_COMMIT:-}"
+          if [[ "$DRY_RUN" == "false" && "$MODE" == "fresh" ]]; then
+            publish=true
+            finalize=true
+            version="$RELEASE_VERSION"
+            commit="$FRESH_COMMIT"
+          elif [[ "$DRY_RUN" == "false" && "$MODE" == "recovery" ]]; then
+            publish=true
+            finalize=true
+          elif [[ "$DRY_RUN" == "false" && "$MODE" == "finalize" ]]; then
+            finalize=true
+          fi
+          {
+            echo "publish=$publish"
+            echo "finalize=$finalize"
+            echo "version=$version"
+            echo "commit=$commit"
+          } >> "$GITHUB_OUTPUT"
+
+  publish:
+    needs: release
+    if: ${{ needs.release.result == 'success' && needs.release.outputs.publish == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.release.outputs.commit }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify fetched release tag
+        shell: bash
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+          COMMIT: ${{ needs.release.outputs.commit }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          [[ "$(git rev-parse "refs/tags/v$VERSION^{commit}")" == "$COMMIT" ]]
+          git merge-base --is-ancestor "$COMMIT" origin/main
+
+      - name: Download exact release candidate
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: rejudge-release-${{ needs.release.outputs.version }}
+          path: ${{ runner.temp }}/release-files
+
+      - name: Verify candidate and OIDC environment
+        shell: bash
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          node scripts/pi-autorelease.mjs verify-files "$RUNNER_TEMP/release-files" "$VERSION"
+          npm_version=$(npm --version)
+          node -e 'const [major, minor] = process.argv[1].split(".").map(Number); if (major < 11 || (major === 11 && minor < 5)) throw new Error(`npm ${process.argv[1]} lacks Trusted Publishing support`)' "$npm_version"
+          [[ -n "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]] || { echo "OIDC request URL is missing" >&2; exit 1; }
+          [[ -n "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]] || { echo "OIDC request token is missing" >&2; exit 1; }
+          [[ -z "${NPM_TOKEN:-}" && -z "${NODE_AUTH_TOKEN:-}" ]] || { echo "npm token environment must be empty" >&2; exit 1; }
+
+      - name: Recheck npm immediately before publish
+        run: node scripts/pi-autorelease.mjs registry-prepublish "${{ needs.release.outputs.version }}"
+
+      - name: Publish exact tarball through Trusted Publishing
+        run: npm publish "$RUNNER_TEMP/release-files/rejudge-${{ needs.release.outputs.version }}.tgz" --ignore-scripts
+
+      - name: Verify npm registry bytes
+        run: node scripts/pi-autorelease.mjs registry-verify "${{ needs.release.outputs.version }}"
+
+  finalize:
+    needs: [release, publish]
+    if: ${{ always() && needs.release.result == 'success' && needs.release.outputs.finalize == 'true' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.release.outputs.commit }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify fetched release tag
+        shell: bash
+        env:
+          VERSION: ${{ needs.release.outputs.version }}
+          COMMIT: ${{ needs.release.outputs.commit }}
+        run: |
+          set -euo pipefail
+          git fetch origin main --tags
+          [[ "$(git rev-parse "refs/tags/v$VERSION^{commit}")" == "$COMMIT" ]]
+          git merge-base --is-ancestor "$COMMIT" origin/main
+
+      - name: Reverify npm and publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/pi-autorelease.mjs release-finalize "${{ needs.release.outputs.version }}"

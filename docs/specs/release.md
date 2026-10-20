@@ -14,6 +14,10 @@ Install the CLI with `npm install -g rejudge@0.1.0`, create `.rejudge/config.jso
 
 Run `just smoke-package -- <cli|pi|all>` with `OPENCODE_API_KEY` available to test a fresh tarball through real CLI or Pi model calls in a disposable Node 22.19 Docker container. `--tarball <path>` verifies one immutable artifact without rebuilding it; `--source npm` installs the manifest's exact published version through global npm and isolated Pi state without mounting any product artifact. Use `--no-key` to verify installation and the handled authentication failure without forwarding credentials. The runner accepts only allowlisted runtime credentials and never mounts the project source tree.
 
+## Automated Pi releases
+
+The nightly `Pi autorelease` workflow releases when all three Pi packages expose the same newer stable 1.x version. It tests one tarball through the CLI, the new Pi host, and the `1.3.0` peer floor, then publishes the same bytes to npm and GitHub. Interrupted releases resume from stored bytes; Pi 2 requires manual work.
+
 ## Public repository hygiene
 
 The public source tree excludes private planning, local Rejudge and Pi state, editor state, generated bundles, caches, and environment files. Public workflow examples call the installed `rejudge` command instead of an author's checkout. Release preparation scans both the candidate source tree and complete Git history with the default Gitleaks rules; its only exception is the exact synthetic marker used by the resume integration test.
@@ -211,3 +215,12 @@ The landing page shows the complete path from the user's question through separa
   - The narrow diagram shows the judge returning follow-up questions to the models.
   - English landing copy explains that each review prints a Run ID and shows the exact resume command.
   - The wide diagram and Russian landing copy remain unchanged.
+
+- [x] REL-089 Automate Pi 1.x releases
+  New shared Pi 1.x versions produce verified Rejudge releases from the exact tested tarball.
+
+  DoD: nightly automation tests one tarball through CLI/current-Pi/peer-floor smokes, publishes it through npm Trusted Publishing, and recovers interrupted releases from the same bytes; Pi 2 stops for manual work.
+
+  **Implemented:**
+  - Matching stable Pi 1.x versions release only after the CLI, new Pi host, and peer-floor smokes pass.
+  - npm and GitHub receive the tested tarball; interrupted releases resume from the same bytes.
