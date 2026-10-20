@@ -1,7 +1,7 @@
 import { test, expect } from "vitest";
 import {
   discoverAndLoadExtensions,
-  type ExtensionContext,
+  type ExtensionToolContext,
 } from "@earendil-works/pi-coding-agent";
 import { integrationTest } from "./integration.ts";
 import { buildInvocationPrompt } from "../src/index.ts";
@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { listRunHistory, readManifest, runDir } from "../src/run-store.ts";
 import type { ProgressSnapshot } from "../src/progress.ts";
 
-const STUB = "opencode-go/kimi-k2.6";
+const STUB = "opencode-go/glm-5.3-flash";
 const packageManifest = JSON.parse(readFileSync(resolve("package.json"), "utf8")) as {
   pi: { extensions: string[] };
 };
@@ -80,7 +80,7 @@ test.each([resolve("src/index.ts"), builtExtension])("history works through Pi w
     expect(tool).toBeDefined();
     const updates: unknown[] = [];
     const invoke = (params: Record<string, unknown>) => tool!.definition.execute(
-      "history-check", params, undefined, (update) => updates.push(update), { cwd } as ExtensionContext,
+      "history-check", params, undefined, (update) => updates.push(update), { cwd } as unknown as ExtensionToolContext,
     );
     for (const conversationId of [undefined, "unknown"]) {
       const result = await invoke({ history: true, conversationId });
@@ -142,7 +142,7 @@ test("rejudge rejects a blank resumeRunId before publishing progress", async () 
     (update) => {
       if (update.details) updates.push(update.details as ProgressSnapshot);
     },
-    { cwd } as unknown as ExtensionContext,
+    { cwd } as unknown as ExtensionToolContext,
   );
 
   const text = result.content.map((content) => (content.type === "text" ? content.text : "")).join("");
@@ -174,7 +174,7 @@ test("rejudge returns user cancellation as its own model-visible result", async 
     (update) => {
       if (update.details) updates.push(update.details as ProgressSnapshot);
     },
-    { cwd } as unknown as ExtensionContext,
+    { cwd } as unknown as ExtensionToolContext,
   );
 
   const text = result.content
@@ -213,7 +213,7 @@ test("rejudge forwards resumeRunId to the resume path", async () => {
     (update) => {
       if (update.details) updates.push(update.details as ProgressSnapshot);
     },
-    { cwd } as unknown as ExtensionContext,
+    { cwd } as unknown as ExtensionToolContext,
   );
 
   const text = result.content
@@ -246,7 +246,7 @@ integrationTest("rejudge runs end-to-end and returns a reviewed answer", async (
     },
     undefined,
     undefined,
-    { cwd } as unknown as ExtensionContext,
+    { cwd } as unknown as ExtensionToolContext,
   );
 
   const text = result.content

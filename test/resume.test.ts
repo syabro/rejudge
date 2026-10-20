@@ -8,7 +8,7 @@ import { listRunHistory, newRunId, readManifest, runDir, writeManifest } from ".
 import type { ProgressEvent } from "../src/events.ts";
 import { integrationTest } from "./integration.ts";
 
-const STUB = "opencode-go/kimi-k2.6";
+const STUB = "opencode-go/glm-5.3-flash";
 const SPEC = { id: STUB, level: "minimal" } as const;
 const GOOD: RejudgeConfig = { reviewers: [SPEC, SPEC], judge: SPEC, debugLog: false };
 const DEBUG_GOOD: RejudgeConfig = { ...GOOD, debugLog: true };

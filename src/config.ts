@@ -14,7 +14,7 @@ export const VALID_THINKING_LEVELS: readonly ThinkingLevel[] = [
 
 /**
  * One model to run plus the reasoning level to run it at. In the config file the two are written
- * as a single string, `provider/model@level` (CFG-030, e.g. `opencode-go/glm-5.1@high`);
+ * as a single string, `provider/model@level` (CFG-030, e.g. `opencode-go/glm-5.3-flash@high`);
  * {@link parseModelSpec} splits them. The level is REQUIRED — there is no default, because a
  * forgotten level would quietly run a model with reasoning off.
  */
@@ -123,7 +123,7 @@ export function loadRejudgeConfigFromPath(path: string): RejudgeConfig {
   // suffix exists to prevent).
   if ("thinking" in cfg) {
     throw new Error(
-      `config "thinking" is no longer supported — set the reasoning level per model with a "@level" suffix (e.g. "opencode-go/glm-5.1@high")`,
+      `config "thinking" is no longer supported — set the reasoning level per model with a "@level" suffix (e.g. "opencode-go/glm-5.3-flash@high")`,
     );
   }
 

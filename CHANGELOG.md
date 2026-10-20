@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1 — 2026-10-20
+
+### Fixed
+
+- The standalone CLI now bundles Pi SDK 1.3.0 instead of 0.85.1, allowing Anthropic OAuth reviewers to use models that require Claude Code 2.1.280 or newer.
+
 ## 0.5.0 — 2026-10-08
 
 ### Changed

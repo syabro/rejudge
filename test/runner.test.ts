@@ -21,8 +21,8 @@ import { ASK_PANEL_TOOL_NAME, makeAskPanelTool } from "../src/ask-panel-tool.ts"
 import type { ProgressEvent } from "../src/events.ts";
 import { integrationTest } from "./integration.ts";
 
-// Fastest reliable opencode-go model; content is irrelevant for the smoke run.
-const STUB = "opencode-go/kimi-k2.6";
+// Flash model for smoke runs; content is irrelevant.
+const STUB = "opencode-go/glm-5.3-flash";
 
 interface FakePromptTurn {
   stopReason: string;

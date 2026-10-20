@@ -20,7 +20,7 @@ test("truncate keeps short content, collapses the middle of long content, caps h
 
 // Real run, no mocks: enable debugLog, run a review in a temp cwd, then read the file it
 // produced and assert it's valid JSONL carrying the expected fields.
-const STUB = "opencode-go/kimi-k2.6";
+const STUB = "opencode-go/glm-5.3-flash";
 const SPEC = { id: STUB, level: "minimal" } as const;
 const CONFIG: RejudgeConfig = {
   reviewers: [SPEC, SPEC, SPEC],

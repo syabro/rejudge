@@ -182,7 +182,7 @@ interface JudgeAgentOptions {
 export type RunAgentOptions = CommonAgentOptions & (ReviewerAgentOptions | JudgeAgentOptions);
 
 /**
- * Resolve a `"provider/model"` id (e.g. `opencode-go/kimi-k2.6`) into a pi model.
+ * Resolve a `"provider/model"` id (e.g. `opencode-go/glm-5.3-flash`) into a pi model.
  * Throws a clear error on a malformed id or an unknown model.
  */
 export async function resolveModel(modelId: string, modelRuntime: ModelRuntime): Promise<Model<any>> {

@@ -29,6 +29,6 @@ How it's built. Behavior → docs/specs/, product → docs/draft.md. Add tech de
 
 ## Models (provider `opencode-go`)
 - Reviewers (3): `opencode-go/deepseek-v4-pro`, `opencode-go/mimo-v2.5-pro`, `opencode-go/minimax-m3`.
-- Judge: `opencode-go/glm-5.1`.
-- Stub/smoke runs (speed only, content irrelevant): `opencode-go/kimi-k2.6` — fastest reliable (~1.0s median, 10/10 on a 10-ping benchmark).
-- Choosing a model: if you're not sure which model fits a task, ASK — don't guess. The labels above are scoped: `kimi-k2.6` as the stub/smoke pick means fast+reliable for a 10-ping latency test (content irrelevant), NOT fast or cheap for real agentic work — by the provider's request-rate limits it is actually one of the pricier models. Never assume a model's speed or cost without real data.
+- Judge: `opencode-go/glm-5.3-flash`.
+- Stub/smoke runs (speed only, content irrelevant): `opencode-go/glm-5.3-flash`.
+- Choosing a model: if you're not sure which model fits a task, ASK — don't guess. The stub/smoke pick is scoped to content-irrelevant checks and makes no claim about speed, cost, or real agentic work. Never assume a model's speed or cost without real data.

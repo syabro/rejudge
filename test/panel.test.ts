@@ -6,7 +6,7 @@ import { integrationTest } from "./integration.ts";
 // Three instances exercise the fan-out mechanism (dispatch 3, collect 3, order,
 // distinct sessions) without the latency of the real panel models — those run
 // in the PNL-009 end-to-end demo.
-const STUB = "opencode-go/kimi-k2.6";
+const STUB = "opencode-go/glm-5.3-flash";
 const SPEC = { id: STUB, level: "minimal" } as const;
 
 // Real run, no mocks: one invocation dispatches all three agents and collects

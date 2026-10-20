@@ -152,7 +152,7 @@ interface Row {
  *     Rejudge
  *     Mode: resumed — 2026-07-16T00-00-00-000Z-run123
  *     review the runner change (ctrl+o to expand)
- *       glm-5.1 (judge)        0. thinking   12s  …keep it concise
+ *       glm-5.3-flash (judge)  0. thinking   12s  …keep it concise
  *         ⎿ deepseek-v4-pro    2. read       03s  src/runner.ts
  *         ⎿ minimax-m3        ✓  done (35s | 6 tools)
  *     Total 41s

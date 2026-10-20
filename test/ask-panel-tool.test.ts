@@ -10,8 +10,8 @@ import { runPanel } from "../src/panel.ts";
 import type { ProgressEvent } from "../src/events.ts";
 import { integrationTest } from "./integration.ts";
 
-// Fastest reliable opencode-go model; content is irrelevant for the smoke run.
-const STUB = "opencode-go/kimi-k2.6";
+// Flash model for smoke runs; content is irrelevant.
+const STUB = "opencode-go/glm-5.3-flash";
 
 // ask_panel.execute never reads its `ctx` (5th) arg — it only uses params + signal — so the tests
 // pass a minimal stand-in cast `as never` rather than constructing the SDK's full ExtensionContext.

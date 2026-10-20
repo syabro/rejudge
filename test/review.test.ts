@@ -6,7 +6,7 @@ import { integrationTest } from "./integration.ts";
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
 // Used for all 4 agents (3 reviewers + 1 judge) — this exercises the all-or-nothing
 // contract, not answer quality; the real 3+1 models run in the PNL-009 demo.
-const STUB = "opencode-go/kimi-k2.6";
+const STUB = "opencode-go/glm-5.3-flash";
 // Reasoning level is irrelevant to the stub smoke; keep it minimal so the runs are fast.
 const SPEC = { id: STUB, level: "minimal" } as const;
 const GOOD: RejudgeConfig = { reviewers: [SPEC, SPEC, SPEC], judge: SPEC, debugLog: false };

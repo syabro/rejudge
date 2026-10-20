@@ -4,7 +4,7 @@ import { makeAskPanelTool } from "../src/ask-panel-tool.ts";
 import { integrationTest } from "./integration.ts";
 
 // Fastest reliable opencode-go model; content is irrelevant for the smoke run.
-const STUB = "opencode-go/kimi-k2.6";
+const STUB = "opencode-go/glm-5.3-flash";
 
 // Deterministic (no model): the judge's prompt carries only the analyses plus the ask_panel guidance.
 // It must contain every panel output and the panel model ids (so the judge knows whom to re-query),
