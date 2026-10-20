@@ -31,7 +31,13 @@ const DOCKER_CLIENT_ENV = [
 ];
 const TARGETS = ["cli", "pi", "skills"];
 const SOURCES = ["tarball", "npm"];
-const PI_PACKAGE = "@earendil-works/pi-coding-agent@1.3.0";
+const PI_PACKAGES = [
+  "@earendil-works/pi-ai",
+  "@earendil-works/pi-coding-agent",
+  "@earendil-works/pi-tui",
+];
+const PI_HOST_PACKAGE = "@earendil-works/pi-coding-agent";
+const PI_VERSION_OVERRIDE_ENV = "REJUDGE_SMOKE_PI_VERSION";
 const MODEL = "opencode-go/glm-5.3-flash@minimal";
 const PROCESS_TIMEOUT_MS = 6 * 60_000;
 const SETUP_TIMEOUT_MS = 10 * 60_000;
@@ -100,6 +106,16 @@ function outputTail(text, length = 4000) {
 async function sha512File(path) {
   const body = await readFile(path);
   return `sha512-${createHash("sha512").update(body).digest("base64")}`;
+}
+
+function piPins(manifest, label) {
+  const pins = {};
+  for (const packageName of PI_PACKAGES) {
+    const version = manifest.devDependencies?.[packageName];
+    assert.match(version ?? "", /^\d+\.\d+\.\d+$/, `${label} must pin ${packageName} to an exact stable version`);
+    pins[packageName] = version;
+  }
+  return pins;
 }
 
 function parseOptions(argv) {
@@ -303,7 +319,7 @@ async function buildSmokeImage(buildContext, dockerEnv) {
   );
 }
 
-function buildDockerArgs(options, manifest, containerName, tarball) {
+function buildDockerArgs(options, manifest, containerName, tarball, expectedPiPins, piHostVersion) {
   const args = [
     "run", "--rm", "--name", containerName,
     "--env", "HOME=/tmp/rejudge-home",
@@ -311,6 +327,10 @@ function buildDockerArgs(options, manifest, containerName, tarball) {
     "--env", "PI_CODING_AGENT_DIR=/tmp/rejudge-agent",
     "--env", `REJUDGE_SMOKE_PACKAGE_NAME=${manifest.name}`,
     "--env", `REJUDGE_SMOKE_PACKAGE_VERSION=${manifest.version}`,
+    "--env", `REJUDGE_SMOKE_PI_AI_VERSION=${expectedPiPins["@earendil-works/pi-ai"]}`,
+    "--env", `REJUDGE_SMOKE_PI_CODING_AGENT_VERSION=${expectedPiPins[PI_HOST_PACKAGE]}`,
+    "--env", `REJUDGE_SMOKE_PI_TUI_VERSION=${expectedPiPins["@earendil-works/pi-tui"]}`,
+    "--env", `REJUDGE_SMOKE_PI_HOST_VERSION=${piHostVersion}`,
   ];
   if (!options.noKey) {
     for (const name of CREDENTIAL_ENV) {
@@ -363,6 +383,9 @@ async function runHost(options) {
   }
 
   const manifest = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8"));
+  const expectedPiPins = piPins(manifest, `${manifest.name}@${manifest.version}`);
+  const piHostVersion = process.env[PI_VERSION_OVERRIDE_ENV]?.trim() || expectedPiPins[PI_HOST_PACKAGE];
+  assert.match(piHostVersion, /^\d+\.\d+\.\d+$/, `${PI_VERSION_OVERRIDE_ENV} must be an exact stable version`);
   const hostTemp = await mkdtemp(join(tmpdir(), "rejudge-package-smoke-"));
   const buildContext = join(hostTemp, "docker-context");
   const dockerCleanEnv = dockerClientEnvironment(false);
@@ -375,7 +398,8 @@ async function runHost(options) {
     await buildSmokeImage(buildContext, dockerCleanEnv);
 
     dockerStarted = true;
-    await runDockerSmoke(options, buildDockerArgs(options, manifest, containerName, artifact.tarball), key);
+    const dockerArgs = buildDockerArgs(options, manifest, containerName, artifact.tarball, expectedPiPins, piHostVersion);
+    await runDockerSmoke(options, dockerArgs, key);
 
     if (artifact.tarball && artifact.initialDigest) {
       assert.equal(await sha512File(artifact.tarball), artifact.initialDigest, "tarball changed while smoke was running");
@@ -400,8 +424,18 @@ async function prepareContainer(options) {
   const agentDir = process.env.PI_CODING_AGENT_DIR;
   const packageName = process.env.REJUDGE_SMOKE_PACKAGE_NAME;
   const packageVersion = process.env.REJUDGE_SMOKE_PACKAGE_VERSION;
+  const expectedPiPins = {
+    "@earendil-works/pi-ai": process.env.REJUDGE_SMOKE_PI_AI_VERSION,
+    [PI_HOST_PACKAGE]: process.env.REJUDGE_SMOKE_PI_CODING_AGENT_VERSION,
+    "@earendil-works/pi-tui": process.env.REJUDGE_SMOKE_PI_TUI_VERSION,
+  };
+  const piHostVersion = process.env.REJUDGE_SMOKE_PI_HOST_VERSION;
   assert.ok(home && xdg && agentDir, "isolated HOME, XDG_CONFIG_HOME, and PI_CODING_AGENT_DIR are required");
   assert.ok(packageName && packageVersion, "expected package name and version are required");
+  for (const [packageName, version] of Object.entries(expectedPiPins)) {
+    assert.match(version ?? "", /^\d+\.\d+\.\d+$/, `expected exact ${packageName} pin is required`);
+  }
+  assert.match(piHostVersion ?? "", /^\d+\.\d+\.\d+$/, "expected exact Pi host version is required");
 
   if (options.noKey) {
     for (const name of CREDENTIAL_ENV) {
@@ -411,7 +445,7 @@ async function prepareContainer(options) {
     await assertEmptyDirectory(agentDir, "Pi agent directory");
   }
 
-  const context = { agentDir, xdg, packageName, packageVersion, source: options.source };
+  const context = { agentDir, xdg, packageName, packageVersion, expectedPiPins, piHostVersion, source: options.source };
   if (options.source === "npm") {
     await assert.rejects(access("/artifact/rejudge.tgz"), (error) => error?.code === "ENOENT");
     console.log(`[smoke] no tarball mounted; registry source is ${packageName}@${packageVersion}`);
@@ -423,9 +457,11 @@ async function prepareContainer(options) {
 }
 
 async function readExpectedManifest(packageRoot, context) {
-  const manifest = JSON.parse(await readFile(join(packageRoot, "package.json"), "utf8"));
-  assert.equal(manifest.name, context.packageName);
-  assert.equal(manifest.version, context.packageVersion);
+  const manifestPath = join(packageRoot, "package.json");
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  assert.equal(manifest.name, context.packageName, `${manifestPath} package name`);
+  assert.equal(manifest.version, context.packageVersion, `${manifestPath} package version`);
+  assert.deepEqual(piPins(manifest, manifestPath), context.expectedPiPins, `${manifestPath} Pi dependency pins`);
   return manifest;
 }
 
@@ -497,9 +533,13 @@ async function installCli(context) {
   return { ...context, cliRuntimeEnv: runtimeEnv, cliPackageRoot: packageRoot };
 }
 
-async function importGlobalPiSdk(installEnv) {
+async function importGlobalPiSdk(installEnv, expectedVersion) {
   const globalRoot = (await runChecked("npm", ["root", "-g"], { env: installEnv })).stdout.trim();
   const piRoot = await realpath(join(globalRoot, "@earendil-works/pi-coding-agent"));
+  const piManifestPath = join(piRoot, "package.json");
+  const piManifest = JSON.parse(await readFile(piManifestPath, "utf8"));
+  assert.equal(piManifest.version, expectedVersion, `${piManifestPath} host version`);
+
   const sdkEntry = await realpath(join(piRoot, "dist/index.js"));
   assert.equal(sdkEntry.startsWith(`${piRoot}/`), true, "Pi SDK must resolve from its global npm install");
   return { piRoot, sdk: await import(pathToFileURL(sdkEntry).href) };
@@ -511,7 +551,8 @@ async function connectPiToRejudge(context) {
   if (!context.cliPackageRoot) {
     prepared = await installCli(context);
   }
-  await runChecked("npm", ["install", "-g", "--ignore-scripts", PI_PACKAGE], {
+  const piPackage = `${PI_HOST_PACKAGE}@${context.piHostVersion}`;
+  await runChecked("npm", ["install", "-g", "--ignore-scripts", piPackage], {
     env: installEnv,
     timeoutMs: SETUP_TIMEOUT_MS,
   });
@@ -545,8 +586,8 @@ async function connectPiToRejudge(context) {
     );
   }
 
-  const { piRoot, sdk } = await importGlobalPiSdk(installEnv);
-  console.log(`[smoke] Pi connected ${packageRoot} using SDK ${piRoot}`);
+  const { piRoot, sdk } = await importGlobalPiSdk(installEnv, context.piHostVersion);
+  console.log(`[smoke] Pi connected ${packageRoot} using SDK ${piRoot} at ${context.piHostVersion}`);
   return { ...prepared, piPackageRoot: packageRoot, piPackageSource: packageSource, piSdk: sdk };
 }
 
