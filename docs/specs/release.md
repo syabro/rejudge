@@ -225,7 +225,11 @@ The landing page shows the complete path from the user's question through separa
   - Matching stable Pi 1.x versions release only after the CLI, new Pi host, and peer-floor smokes pass.
   - npm and GitHub receive the tested tarball; interrupted releases resume from the same bytes.
 
-- [ ] REL-090 Let the CLI history test finish on GitHub runners
+- [x] REL-090 Let the CLI history test finish on GitHub runners
   Autorelease checks complete when the CLI history test is healthy but slower under CI load.
 
   DoD: the test has a 15-second Vitest timeout, the full repository check passes, and a GitHub Pi autorelease run completes `Prepare fresh release candidate`.
+
+  **Implemented:**
+  - The CLI history test has a 15-second limit while retaining all six subprocess checks.
+  - The full local check and GitHub `Prepare fresh release candidate` step pass.
