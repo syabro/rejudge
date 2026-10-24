@@ -14,9 +14,9 @@ Install the CLI with `npm install -g rejudge@0.1.0`, create `.rejudge/config.jso
 
 Run `just smoke-package -- <cli|pi|all>` with `OPENCODE_API_KEY` available to test a fresh tarball through real CLI or Pi model calls in a disposable Node 22.19 Docker container. `--tarball <path>` verifies one immutable artifact without rebuilding it; `--source npm` installs the manifest's exact published version through global npm and isolated Pi state without mounting any product artifact. Use `--no-key` to verify installation and the handled authentication failure without forwarding credentials. The runner accepts only allowlisted runtime credentials and never mounts the project source tree.
 
-## Automated Pi releases
+## Tagged releases
 
-The nightly `Pi autorelease` workflow releases when all three Pi packages expose the same newer stable 1.x version. It tests one tarball through the CLI, the new Pi host, and the `1.3.0` peer floor, then publishes the same bytes to npm and GitHub. Interrupted releases resume from stored bytes; Pi 2 requires manual work.
+Prepare the release commit on `main`: update the Rejudge version and changelog, update all three exact Pi pins and the lockfile when npm exposes a newer matching Pi 1.x version, then create an annotated `v<version>` tag. Pushing that tag makes GitHub build the tagged source, run repository checks and live CLI/current-Pi/peer-floor package smokes, preserve the tested tarball, and publish those exact bytes to npm and GitHub. A manual dry run performs the same build and checks without publishing. Publication recovery reuses complete draft assets; an incomplete prepublication draft reruns the full build and smoke sequence before repair. The pre-transition `v0.5.2` tag finishes through this workflow's explicit recovery mode and its recorded tested digests. Pi 2 requires manual compatibility work.
 
 ## Public repository hygiene
 
@@ -216,23 +216,25 @@ The landing page shows the complete path from the user's question through separa
   - English landing copy explains that each review prints a Run ID and shows the exact resume command.
   - The wide diagram and Russian landing copy remain unchanged.
 
-- [x] REL-089 Automate Pi 1.x releases
-  New shared Pi 1.x versions produce verified Rejudge releases from the exact tested tarball.
+- [x] REL-089 Publish releases from pushed tags
+  A manually prepared release commit and annotated version tag start the remote build, verification, and publication when the tag is pushed.
 
-  DoD: nightly automation tests one tarball through CLI/current-Pi/peer-floor smokes, publishes it through npm Trusted Publishing, and recovers interrupted releases from the same bytes; Pi 2 stops for manual work.
+  DoD: release preparation includes any newer matching Pi 1.x pins; pushing the tag makes GitHub build and pack that commit, run repository and CLI/current-Pi/peer-floor checks, preserve the exact tested tarball before npm Trusted Publishing, and reuse preserved bytes after an interrupted publication. Scheduled automation never creates release commits or tags, and Pi 2 stops for manual work.
 
   **Implemented:**
-  - Matching stable Pi 1.x versions release only after the CLI, new Pi host, and peer-floor smokes pass.
-  - npm and GitHub receive the tested tarball; interrupted releases resume from the same bytes.
+  - Pushing an annotated version tag builds, checks, packs, and live-smokes that tagged commit in GitHub before publication.
+  - The isolated publish job receives the tested artifact without installing dependencies or running lifecycle scripts.
+  - Complete draft assets are reused after interrupted publication; incomplete drafts rerun the full build and smoke sequence before repair.
+  - Manual preparation owns the version, changelog, and compatible Pi 1.x pin updates; scheduled automation no longer creates commits or tags.
 
 - [x] REL-090 Let the CLI history test finish on GitHub runners
   Autorelease checks complete when the CLI history test is healthy but slower under CI load.
 
-  DoD: the test has a 15-second Vitest timeout, the full repository check passes, and a GitHub Pi autorelease run completes `Prepare fresh release candidate`.
+  DoD: the test has a 15-second Vitest timeout, the full repository check passes, and GitHub release preparation completes.
 
   **Implemented:**
   - The CLI history test has a 15-second limit while retaining all six subprocess checks.
-  - The full local check and GitHub `Prepare fresh release candidate` step pass.
+  - The full local check and GitHub release preparation pass.
 
 - [ ] REL-091 Keep the Pi live smoke focused on successful execution
   Pi 1.x release checks accept a completed Rejudge tool run even when model formatting varies.

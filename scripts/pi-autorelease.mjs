@@ -2,12 +2,14 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { appendFileSync } from "node:fs";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = process.env.REJUDGE_RELEASE_ROOT
+  ? resolve(process.env.REJUDGE_RELEASE_ROOT)
+  : resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const PACKAGE_PATH = join(ROOT, "package.json");
 const CHANGELOG_PATH = join(ROOT, "CHANGELOG.md");
 const PI_PACKAGES = [
@@ -16,12 +18,6 @@ const PI_PACKAGES = [
   "@earendil-works/pi-tui",
 ];
 const PI_HOST_PACKAGE = "@earendil-works/pi-coding-agent";
-const RELEASE_SCHEMA = "1";
-const BASELINE = {
-  version: "0.5.1",
-  commit: "0c830b3be718a5537bad3bdf506903f9116cb5bd",
-  integrity: "sha512-UintvgNN4+TOnn+3qrcqZTVHAmFOpbLnue0munF2okZ9LnNm51JS9qUedLecrMuRIJ+TJtUz9s1PNURp4z/CPA==",
-};
 const EXPECTED_PACKAGE_FILES = [
   "package/LICENSE",
   "package/README.md",
@@ -31,8 +27,16 @@ const EXPECTED_PACKAGE_FILES = [
   "package/docs/skills/rejudge/SKILL.md",
   "package/package.json",
 ];
-const SMOKES = ["cli", "pi-new", "pi-floor"];
+const SMOKES = ["cli", "pi-current", "pi-floor"];
 const REGISTRY_RETRIES = 4;
+export const LEGACY_RELEASES = {
+  "0.5.2": {
+    commit: "166491a5cf90f3289d0851bf278d0e9011992f43",
+    tarballIntegrity: "sha512-yQqXoDFUI4QxxFJ+xS5BMyfA+Xx8XI98NNK8peY/QLhkVwLTiAcAK4pGb8maCDicY96aJbWWydFl4vkda46kJw==",
+    manifestIntegrity: "sha512-lBdv0XczbGLqGSnrayCQ3prs9caiiBrchONTjBYt84bb3nESOt2Ue7wm9PLxNIzqF63BMMWEd4kSNf1xDgZrWg==",
+  },
+};
+export const RELEASE_AUTOMATION_VERSION = 2;
 
 const direct = process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
 if (direct) {
@@ -41,40 +45,32 @@ if (direct) {
 
 async function main(command, args) {
   switch (command) {
-    case "classify":
-      return classify();
+    case "classify-tag":
+      return classifyTag(args);
+    case "classify-dry-run":
+      return classifyDryRun();
     case "verify-installed":
       return verifyInstalled();
     case "peer-floor":
       return printPeerFloor();
-    case "prepend-changelog":
-      return prependChangelog(args);
-    case "verify-release-diff":
-      return verifyReleaseDiff();
     case "inspect-tarball":
       return inspectTarballCommand(args);
     case "write-manifest":
       return writeManifestCommand(args);
-    case "create-tag":
-      return createTag(args);
-    case "read-tag":
-      return readTagCommand(args);
     case "verify-files":
       return verifyFilesCommand(args);
     case "release-download":
       return releaseDownload(args);
-    case "artifact-download":
-      return artifactDownload(args);
     case "release-reconcile":
       return releaseReconcile(args);
     case "release-finalize":
       return releaseFinalize(args);
-    case "restore-npm":
-      return restoreFromNpm(args);
     case "registry-prepublish":
       return registryPrepublish(args);
     case "registry-verify":
       return registryVerifyCommand(args);
+    case "registry-provenance":
+      return registryProvenance(args);
     case "verify-recovery-deps":
       return verifyRecoveryDependencies(args);
     default:
@@ -82,99 +78,197 @@ async function main(command, args) {
   }
 }
 
-async function classify() {
+async function classifyTag([version]) {
+  version = requireStableVersion(version, "release version");
+  const tag = releaseTag(version);
+  const release = await findRelease(`v${version}`);
+  const registry = await registryState(version);
+
+  if (registry.published) {
+    if (!release) {
+      throw new Error(`npm serves rejudge@${version}, but GitHub Release v${version} is missing`);
+    }
+    assertReleaseAssetNames(release, version);
+    if (!release.draft) {
+      await verifyPublishedRelease(release, version);
+    }
+    return emitState(release.draft ? "finalize" : "noop", { version, commit: tag.commit, piVersion: tag.piVersion });
+  }
+
+  const completeRelease = release ? hasCompleteReleaseAssets(release, version) : false;
+  if (LEGACY_RELEASES[version] && !completeRelease) {
+    const reason = release
+      ? `restore the missing draft asset from Actions run 40074639301 before its artifact expires`
+      : "its recorded draft assets are missing, so this release cannot be rebuilt";
+    throw new Error(`Legacy release v${version} publishes only its recorded tested bytes; ${reason}`);
+  }
+
+  if (completeRelease) {
+    if (!release.draft) {
+      throw new Error(`GitHub Release v${version} is public before npm publication`);
+    }
+    validateUnpublishedOrder(version, registry.highest, registry.latest);
+    await verifyRecoveryDependencies([version]);
+    return emitState("recovery", { version, commit: tag.commit, piVersion: tag.piVersion });
+  }
+
+  if (release) {
+    if (!release.draft) {
+      throw new Error(`GitHub Release v${version} is public before npm publication`);
+    }
+    validateUnpublishedOrder(version, registry.highest, registry.latest);
+    await verifyRecoveryDependencies([version]);
+    await changelogNotes(version);
+    return emitState("repair", { version, commit: tag.commit, piVersion: tag.piVersion });
+  }
+
+  const latestPiPins = await registryPiLatest();
+  validateFreshCandidate({
+    version,
+    registryHighest: registry.highest,
+    registryLatest: registry.latest,
+    published: false,
+    piPins: tag.piPins,
+    latestPiPins,
+  });
+  await changelogNotes(version);
+  return emitState("fresh", { version, commit: tag.commit, piVersion: tag.piVersion });
+}
+
+async function classifyDryRun() {
   const manifest = await readJson(PACKAGE_PATH);
-  const localVersion = requireStableVersion(manifest.version, `${PACKAGE_PATH} version`);
-  const currentPins = readPiPins(manifest, PACKAGE_PATH);
-  const currentPi = onePiVersion(currentPins, PACKAGE_PATH);
-  const rejudge = await registryDocument(manifest.name);
-  const registryVersion = highestStableVersion(rejudge);
-  const registryLatest = requireStableVersion(rejudge["dist-tags"]?.latest, `${manifest.name} latest tag`);
+  const version = requireStableVersion(manifest.version, `${PACKAGE_PATH} version`);
+  const piPins = readPiPins(manifest, PACKAGE_PATH);
+  const registry = await registryState(version);
+  const latestPiPins = await registryPiLatest();
+  const { piVersion } = validateDryRunCandidate({
+    version,
+    registryHighest: registry.highest,
+    registryLatest: registry.latest,
+    published: registry.published,
+    piPins,
+    latestPiPins,
+  });
+  await changelogNotes(version);
+  return emitState("dry-run", { version, commit: git(["rev-parse", "HEAD"]), piVersion });
+}
 
-  if (registryVersion !== registryLatest) {
-    throw new Error(`${manifest.name} registry disagrees: highest stable ${registryVersion}, latest ${registryLatest}`);
+function releaseTag(version) {
+  const ref = `refs/tags/v${version}`;
+  const tagCommit = git(["rev-parse", `${ref}^{commit}`]);
+  const checkoutCommit = git(["rev-parse", "HEAD"]);
+  const tagType = git(["cat-file", "-t", ref]);
+  const manifestText = git(["show", `${tagCommit}:package.json`]);
+  let manifest;
+  try {
+    manifest = JSON.parse(manifestText);
+  } catch (error) {
+    throw new Error(`Could not parse package.json at tag v${version} commit ${tagCommit}: ${errorMessage(error)}`);
   }
+  const ancestor = spawnSync("git", ["merge-base", "--is-ancestor", tagCommit, "origin/main"], { cwd: ROOT });
+  const validated = validateReleaseTag({
+    version,
+    refName: `v${version}`,
+    tagType,
+    tagCommit,
+    checkoutCommit,
+    packageVersion: manifest.version,
+    onMain: ancestor.status === 0,
+  });
+  const piPins = readPiPins(manifest, `${tagCommit}:package.json`);
+  return { ...validated, piPins, piVersion: onePiVersion(piPins, `${tagCommit}:package.json`), manifest };
+}
 
-  const versionOrder = compareVersions(localVersion, registryVersion);
-  if (versionOrder < 0) {
-    return emitState("blocked", {
-      localVersion,
-      registryVersion,
-      currentPi,
-      reason: `${PACKAGE_PATH} version ${localVersion} is behind npm ${registryVersion}`,
-    });
+export function validateReleaseTag(input) {
+  const version = requireStableVersion(input.version, "release version");
+  if (input.refName !== `v${version}`) {
+    throw new Error(`Release ref ${input.refName} must equal v${version}`);
   }
+  if (input.tagType !== "tag") {
+    throw new Error(`Release v${version} must be an annotated tag, got ${input.tagType}`);
+  }
+  if (!/^[a-f0-9]{40}$/.test(input.tagCommit ?? "")) {
+    throw new Error(`Release v${version} target commit is invalid: ${JSON.stringify(input.tagCommit)}`);
+  }
+  if (input.checkoutCommit !== input.tagCommit) {
+    throw new Error(`Checked-out commit ${input.checkoutCommit} differs from v${version} target ${input.tagCommit}`);
+  }
+  if (input.packageVersion !== version) {
+    throw new Error(`Release v${version} commit ${input.tagCommit} has package version ${input.packageVersion}`);
+  }
+  if (!input.onMain) {
+    throw new Error(`Release v${version} target ${input.tagCommit} is not on origin/main`);
+  }
+  return { version, commit: input.tagCommit };
+}
 
-  const tag = validateVersionTag(localVersion);
-  const published = rejudge.versions?.[localVersion];
-  if (versionOrder > 0) {
-    if (published) {
-      throw new Error(`${manifest.name}@${localVersion} is above registry ${registryVersion} but already exists`);
-    }
-    const metadata = validateAutomatedTag(localVersion, tag);
-    return emitState("recovery", { localVersion, registryVersion, currentPi, ...tagOutputs(metadata) });
+export function validateFreshCandidate(input) {
+  const version = requireStableVersion(input.version, "release version");
+  const registryHighest = requireStableVersion(input.registryHighest, "rejudge highest version");
+  const registryLatest = requireStableVersion(input.registryLatest, "rejudge latest version");
+  validateRegistryHead(registryHighest, registryLatest);
+  if (input.published) {
+    throw new Error(`npm registry already contains rejudge@${version}`);
   }
+  validateUnpublishedOrder(version, registryHighest, registryLatest);
+  return validateCurrentPi(input.piPins, input.latestPiPins);
+}
 
-  if (!published) {
-    throw new Error(`${manifest.name}@${localVersion} is the registry head but its manifest is missing`);
+export function validateDryRunCandidate(input) {
+  const version = requireStableVersion(input.version, "dry-run version");
+  const registryHighest = requireStableVersion(input.registryHighest, "rejudge highest version");
+  const registryLatest = requireStableVersion(input.registryLatest, "rejudge latest version");
+  validateRegistryHead(registryHighest, registryLatest);
+  if (compareVersions(version, registryLatest) < 0) {
+    throw new Error(`Dry-run version ${version} is behind npm ${registryLatest}`);
   }
-  const automated = validatePublishedRelease(localVersion, tag, published, registryLatest);
-  if (automated) {
-    const release = await findRelease(`v${localVersion}`);
-    if (!release || release.draft) {
-      return emitState("finalize", { localVersion, registryVersion, currentPi, ...tagOutputs(automated) });
-    }
-    assertReleaseAssetNames(release, localVersion);
+  if (input.published && version !== registryLatest) {
+    throw new Error(`Published dry-run version ${version} differs from npm latest ${registryLatest}`);
   }
+  return validateCurrentPi(input.piPins, input.latestPiPins);
+}
 
-  const latestPins = {};
+function validateRegistryHead(highest, latest) {
+  if (highest !== latest) {
+    throw new Error(`rejudge registry disagrees: highest stable ${highest}, latest ${latest}`);
+  }
+}
+
+function validateUnpublishedOrder(version, highest, latest) {
+  if (compareVersions(version, highest) <= 0 || compareVersions(version, latest) <= 0) {
+    throw new Error(`Unpublished release ${version} must be newer than npm highest=${highest}, latest=${latest}`);
+  }
+}
+
+function validateCurrentPi(piPins, latestPiPins) {
+  const piVersion = onePiVersion(piPins, "release candidate Pi pins");
+  const latestPi = onePiVersion(latestPiPins, "Pi registry latest tags");
+  if (parseStableVersion(latestPi).major !== 1) {
+    throw new Error(`Pi registry latest tags resolve to ${latestPi}, outside major 1`);
+  }
+  if (piVersion !== latestPi) {
+    throw new Error(`Release candidate must pin latest Pi ${latestPi}, got ${piVersion}`);
+  }
+  return { piVersion };
+}
+
+async function registryState(version) {
+  const document = await registryDocument("rejudge", true);
+  const highest = highestStableVersion(document);
+  const latest = requireStableVersion(document["dist-tags"]?.latest, "rejudge latest tag");
+  if (highest !== latest) {
+    throw new Error(`rejudge registry disagrees: highest stable ${highest}, latest ${latest}`);
+  }
+  return { document, highest, latest, published: Boolean(document.versions?.[version]) };
+}
+
+async function registryPiLatest() {
+  const pins = {};
   for (const packageName of PI_PACKAGES) {
     const document = await registryDocument(packageName);
-    latestPins[packageName] = requireStableVersion(
-      document["dist-tags"]?.latest,
-      `${packageName} latest tag`,
-    );
+    pins[packageName] = requireStableVersion(document["dist-tags"]?.latest, `${packageName} latest tag`);
   }
-  const latestVersions = [...new Set(Object.values(latestPins))];
-  if (latestVersions.length !== 1) {
-    return emitState("diverged", {
-      localVersion,
-      registryVersion,
-      currentPi,
-      piVersions: JSON.stringify(latestPins),
-    });
-  }
-
-  const latestPi = latestVersions[0];
-  const latestParts = parseStableVersion(latestPi);
-  if (latestParts.major !== 1) {
-    return emitState("blocked", {
-      localVersion,
-      registryVersion,
-      currentPi,
-      piVersion: latestPi,
-      reason: `Pi latest ${latestPi} is outside the automatic major-1 policy`,
-    });
-  }
-
-  const piOrder = compareVersions(latestPi, currentPi);
-  if (piOrder < 0) {
-    throw new Error(`Pi registry latest ${latestPi} is behind the pinned version ${currentPi}`);
-  }
-  if (piOrder === 0) {
-    return emitState("noop", { localVersion, registryVersion, currentPi });
-  }
-
-  const registryParts = parseStableVersion(registryVersion);
-  const releaseVersion = `${registryParts.major}.${registryParts.minor}.${registryParts.patch + 1}`;
-  return emitState("fresh", {
-    localVersion,
-    registryVersion,
-    releaseVersion,
-    currentPi,
-    piVersion: latestPi,
-    baseCommit: git(["rev-parse", "origin/main"]),
-  });
+  return pins;
 }
 
 async function verifyInstalled() {
@@ -195,96 +289,23 @@ async function printPeerFloor() {
   console.log(readPeerFloor(manifest, PACKAGE_PATH));
 }
 
-async function prependChangelog([version, oldPi, newPi]) {
-  requireStableVersion(version, "release version");
-  requireStableVersion(oldPi, "old Pi version");
-  requireStableVersion(newPi, "new Pi version");
-  const changelog = await readFile(CHANGELOG_PATH, "utf8");
-  const heading = `## ${version} —`;
-  if (changelog.includes(heading)) {
-    throw new Error(`${CHANGELOG_PATH} already contains release ${version}`);
-  }
-
-  const date = new Date().toISOString().slice(0, 10);
-  const entry = `## ${version} — ${date}\n\n### Changed\n\n- The standalone CLI now bundles Pi SDK ${newPi} instead of ${oldPi}.\n\n`;
-  const prefix = "# Changelog\n\n";
-  if (!changelog.startsWith(prefix)) {
-    throw new Error(`${CHANGELOG_PATH} must start with ${JSON.stringify(prefix)}`);
-  }
-  await writeFile(CHANGELOG_PATH, `${prefix}${entry}${changelog.slice(prefix.length)}`);
-}
-
-function verifyReleaseDiff() {
-  const expected = ["CHANGELOG.md", "bun.lock", "package.json"];
-  const changed = git(["diff", "--name-only"]).split("\n").filter(Boolean).sort();
-  if (JSON.stringify(changed) !== JSON.stringify(expected)) {
-    throw new Error(`Release update changed ${JSON.stringify(changed)}; expected ${JSON.stringify(expected)}`);
-  }
-
-  const untracked = git(["ls-files", "--others", "--exclude-standard"]).split("\n").filter(Boolean);
-  if (untracked.length > 0) {
-    throw new Error(`Release update created untracked files: ${untracked.join(", ")}`);
-  }
-}
-
 async function inspectTarballCommand([tarball]) {
   const details = await inspectTarball(requiredArgument(tarball, "tarball path"));
-  emitOutputs(details);
   console.log(JSON.stringify(details));
 }
 
 async function writeManifestCommand([tarball, outputPath]) {
   tarball = requiredArgument(tarball, "tarball path");
-  outputPath = requiredArgument(outputPath, "manifest output path");
+  outputPath = requiredArgument(outputPath, "release manifest path");
   const details = await inspectTarball(tarball);
-  const commit = git(["rev-parse", "HEAD"]);
-  const releaseManifest = releaseManifestData(details.version, details.piVersion, commit, details.filename, details.integrity);
+  const releaseManifest = releaseManifestData(
+    details.version,
+    details.piVersion,
+    git(["rev-parse", "HEAD"]),
+    details.filename,
+    details.integrity,
+  );
   await writeFile(outputPath, `${JSON.stringify(releaseManifest, null, 2)}\n`);
-  const manifestIntegrity = await sriFile(outputPath);
-  emitOutputs({ ...details, commit, manifestIntegrity, manifest: outputPath });
-}
-
-async function createTag([version, manifestPath, artifactId]) {
-  version = requireStableVersion(version, "release version");
-  manifestPath = requiredArgument(manifestPath, "manifest path");
-  artifactId = requiredDigits(artifactId, "artifact ID");
-  const releaseManifest = await readJson(manifestPath);
-  validateReleaseManifest(releaseManifest, version);
-  const manifestIntegrity = await sriFile(manifestPath);
-  const runId = requiredDigits(process.env.GITHUB_RUN_ID, "GITHUB_RUN_ID");
-  const tag = `v${version}`;
-  const message = [
-    `Rejudge ${tag}`,
-    "",
-    `rejudge-release-schema=${RELEASE_SCHEMA}`,
-    `version=${version}`,
-    `pi-version=${releaseManifest.piVersion}`,
-    `commit=${releaseManifest.commit}`,
-    `tarball=${releaseManifest.tarball}`,
-    `tarball-integrity=${releaseManifest.tarballIntegrity}`,
-    `manifest-integrity=${manifestIntegrity}`,
-    `run-id=${runId}`,
-    `artifact-id=${artifactId}`,
-    `smokes=${SMOKES.join(",")}`,
-    "",
-  ].join("\n");
-  const messagePath = join(tmpdir(), `rejudge-${version}-tag-${process.pid}.txt`);
-  await writeFile(messagePath, message);
-  try {
-    git(["tag", "--annotate", tag, "--file", messagePath]);
-  } finally {
-    await rm(messagePath, { force: true });
-  }
-  console.log(`Created annotated ${tag}`);
-}
-
-function readTagCommand([version]) {
-  version = requireStableVersion(version, "release version");
-  const tag = validateVersionTag(version);
-  const metadata = validateAutomatedTag(version, tag);
-  const outputs = { ...tag, ...tagOutputs(metadata) };
-  emitOutputs(outputs);
-  console.log(JSON.stringify(outputs));
 }
 
 async function verifyFilesCommand([directory, version]) {
@@ -292,7 +313,6 @@ async function verifyFilesCommand([directory, version]) {
     requiredArgument(directory, "release files directory"),
     requireStableVersion(version, "release version"),
   );
-  emitOutputs(result);
   console.log(JSON.stringify(result));
 }
 
@@ -301,76 +321,67 @@ async function releaseDownload([version, directory]) {
   directory = requiredArgument(directory, "release files directory");
   const release = await findRelease(`v${version}`);
   if (!release) {
-    return emitOutputs({ complete: "false", releaseId: "", releaseDraft: "" });
+    throw new Error(`GitHub Release v${version} does not exist`);
   }
-
   validateReleaseIdentity(release, version);
-  const metadata = validateAutomatedTag(version, validateVersionTag(version));
-  assertReleaseAssetSubset(release, version);
+  assertReleaseAssetNames(release, version);
+  await rm(directory, { recursive: true, force: true });
+  await mkdir(directory, { recursive: true });
   for (const asset of release.assets) {
     await downloadReleaseAsset(asset, join(directory, asset.name));
-    await verifyAssetIntegrity(asset.name, join(directory, asset.name), metadata, version);
   }
-
-  const names = new Set(release.assets.map((asset) => asset.name));
-  const complete = expectedReleaseFiles(version).every((name) => names.has(name));
-  if (complete) {
-    await verifyReleaseFiles(directory, version);
-  }
-  emitOutputs({ complete: String(complete), releaseId: String(release.id), releaseDraft: String(release.draft) });
+  await verifyReleaseFiles(directory, version);
 }
 
-async function artifactDownload([version, directory]) {
-  version = requireStableVersion(version, "release version");
-  directory = requiredArgument(directory, "release files directory");
-  const metadata = validateAutomatedTag(version, validateVersionTag(version));
-  const apiPath = `/repos/${githubRepository()}/actions/artifacts/${metadata.artifactId}`;
-  const response = await fetch(`https://api.github.com${apiPath}`, { headers: githubHeaders() });
-  if (response.status === 404 || response.status === 410) {
-    return emitOutputs({ complete: "false" });
-  }
-  if (!response.ok) {
-    throw new Error(`GitHub artifact ${metadata.artifactId} returned HTTP ${response.status}`);
-  }
-
-  const artifact = await response.json();
-  if (artifact.expired) {
-    return emitOutputs({ complete: "false" });
-  }
-  if (String(artifact.workflow_run?.id ?? "") !== metadata.runId) {
-    throw new Error(`GitHub artifact ${metadata.artifactId} belongs to run ${artifact.workflow_run?.id}, expected ${metadata.runId}`);
-  }
-
-  const archive = await githubRequest(artifact.archive_download_url, {
-    accept: "application/vnd.github+json",
-    raw: true,
-  });
-  const zipPath = join(tmpdir(), `rejudge-artifact-${metadata.artifactId}-${process.pid}.zip`);
-  await writeFile(zipPath, Buffer.from(await archive.arrayBuffer()));
+async function verifyPublishedRelease(release, version) {
+  const directory = await mkdtemp(join(tmpdir(), `rejudge-published-${version}-`));
   try {
-    const unpack = spawnSync("unzip", ["-o", "-q", zipPath, "-d", directory], { encoding: "utf8" });
-    if (unpack.status !== 0) {
-      throw new Error(`Could not unpack GitHub artifact ${metadata.artifactId}: ${(unpack.stderr || unpack.stdout).trim()}`);
+    for (const asset of release.assets) {
+      await downloadReleaseAsset(asset, join(directory, asset.name));
     }
+    await verifyRegistryVersion(version, directory);
   } finally {
-    await rm(zipPath, { force: true });
+    await rm(directory, { recursive: true, force: true });
   }
+}
 
-  await verifyReleaseFiles(directory, version);
-  emitOutputs({ complete: "true" });
+export function releaseAssetAction(remoteIntegrity, localIntegrity) {
+  requireIntegrity(localIntegrity, "local release asset integrity");
+  if (!remoteIntegrity) return "upload";
+  requireIntegrity(remoteIntegrity, "remote release asset integrity");
+  return remoteIntegrity === localIntegrity ? "skip" : "replace";
+}
+
+async function verifyReleaseAssets(release, directory, version) {
+  assertReleaseAssetNames(release, version);
+  for (const asset of release.assets) {
+    const tempPath = join(tmpdir(), `rejudge-release-verify-${asset.id}-${process.pid}`);
+    await downloadReleaseAsset(asset, tempPath);
+    try {
+      const [remoteIntegrity, localIntegrity] = await Promise.all([
+        sriFile(tempPath),
+        sriFile(join(directory, asset.name)),
+      ]);
+      if (releaseAssetAction(remoteIntegrity, localIntegrity) !== "skip") {
+        throw new Error(`GitHub asset ${asset.name} in release v${version} does not match the local candidate`);
+      }
+    } finally {
+      await rm(tempPath, { force: true });
+    }
+  }
 }
 
 async function releaseReconcile([version, directory]) {
   version = requireStableVersion(version, "release version");
   directory = requiredArgument(directory, "release files directory");
+  await registryPrepublish([version]);
   await verifyReleaseFiles(directory, version);
-  const tag = `v${version}`;
-  let release = await findRelease(tag);
+  let release = await findRelease(`v${version}`);
   if (!release) {
     release = await githubRequest(`/repos/${githubRepository()}/releases`, {
       method: "POST",
       body: {
-        tag_name: tag,
+        tag_name: `v${version}`,
         name: releaseTitle(version),
         body: await changelogNotes(version),
         draft: true,
@@ -381,31 +392,37 @@ async function releaseReconcile([version, directory]) {
 
   validateReleaseIdentity(release, version);
   if (!release.draft) {
-    throw new Error(`GitHub Release ${tag} is public before npm publication`);
+    throw new Error(`GitHub Release v${version} is public before npm publication`);
   }
   assertReleaseAssetSubset(release, version);
 
-  const metadata = validateAutomatedTag(version, validateVersionTag(version));
   const existing = new Map(release.assets.map((asset) => [asset.name, asset]));
   for (const name of expectedReleaseFiles(version)) {
     const localPath = join(directory, name);
+    const localIntegrity = await sriFile(localPath);
     const asset = existing.get(name);
-    if (asset) {
-      const tempPath = join(tmpdir(), `rejudge-asset-${asset.id}-${name}`);
-      await downloadReleaseAsset(asset, tempPath);
-      try {
-        await verifyAssetIntegrity(name, tempPath, metadata, version);
-      } finally {
-        await rm(tempPath, { force: true });
-      }
+    if (!asset) {
+      await uploadReleaseAsset(release, name, localPath);
       continue;
     }
-    await uploadReleaseAsset(release, name, localPath);
+
+    const tempPath = join(tmpdir(), `rejudge-release-asset-${asset.id}-${process.pid}`);
+    await downloadReleaseAsset(asset, tempPath);
+    try {
+      const action = releaseAssetAction(await sriFile(tempPath), localIntegrity);
+      if (action === "skip") continue;
+
+      // npm version immutability is the final guard against the unavoidable check-then-delete race.
+      await registryPrepublish([version]);
+      await githubRequest(`/repos/${githubRepository()}/releases/assets/${asset.id}`, { method: "DELETE" });
+      await uploadReleaseAsset(release, name, localPath);
+    } finally {
+      await rm(tempPath, { force: true });
+    }
   }
 
   release = await githubRequest(`/repos/${githubRepository()}/releases/${release.id}`);
-  assertReleaseAssetNames(release, version);
-  emitOutputs({ releaseId: String(release.id) });
+  await verifyReleaseAssets(release, directory, version);
 }
 
 async function releaseFinalize([version]) {
@@ -417,15 +434,15 @@ async function releaseFinalize([version]) {
   validateReleaseIdentity(release, version);
   assertReleaseAssetNames(release, version);
 
-  const temp = await mkdtemp(join(tmpdir(), `rejudge-finalize-${version}-`));
+  const directory = await mkdtemp(join(tmpdir(), `rejudge-finalize-${version}-`));
   try {
     for (const asset of release.assets) {
-      await downloadReleaseAsset(asset, join(temp, asset.name));
+      await downloadReleaseAsset(asset, join(directory, asset.name));
     }
-    await verifyReleaseFiles(temp, version);
-    await waitForRegistryVersion(version);
+    await verifyReleaseFiles(directory, version);
+    await waitForRegistryVersion(version, directory);
   } finally {
-    await rm(temp, { recursive: true, force: true });
+    await rm(directory, { recursive: true, force: true });
   }
 
   if (!release.draft) {
@@ -442,57 +459,46 @@ async function releaseFinalize([version]) {
   console.log(`Published GitHub Release v${version}`);
 }
 
-async function restoreFromNpm([version, directory]) {
-  version = requireStableVersion(version, "release version");
-  directory = requiredArgument(directory, "release files directory");
-  const metadata = validateAutomatedTag(version, validateVersionTag(version));
-  const document = await registryDocument("rejudge");
-  const published = document.versions?.[version];
-  if (!published) {
-    throw new Error(`Cannot restore rejudge@${version}: npm version is absent`);
-  }
-  if (published.dist?.integrity !== metadata.tarballIntegrity) {
-    throw new Error(`Cannot restore rejudge@${version}: npm integrity ${published.dist?.integrity} differs from tag ${metadata.tarballIntegrity}`);
-  }
-
-  const tarballPath = join(directory, metadata.tarball);
-  const response = await fetchChecked(published.dist.tarball, {}, `npm tarball rejudge@${version}`);
-  await writeFile(tarballPath, Buffer.from(await response.arrayBuffer()));
-  if (await sriFile(tarballPath) !== metadata.tarballIntegrity) {
-    throw new Error(`Downloaded npm tarball ${tarballPath} does not match ${metadata.tarballIntegrity}`);
-  }
-
-  const manifest = releaseManifestData(version, metadata.piVersion, metadata.commit, metadata.tarball, metadata.tarballIntegrity);
-  const manifestPath = join(directory, manifestFilename(version));
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
-  if (await sriFile(manifestPath) !== metadata.manifestIntegrity) {
-    throw new Error(`Reconstructed manifest ${manifestPath} does not match ${metadata.manifestIntegrity}`);
-  }
-  await verifyReleaseFiles(directory, version);
-}
-
 async function registryPrepublish([version]) {
   version = requireStableVersion(version, "release version");
-  const document = await registryDocument("rejudge");
-  if (document.versions?.[version]) {
+  const { highest, latest, published } = await registryState(version);
+  if (published) {
     throw new Error(`rejudge@${version} already exists immediately before publish`);
   }
-  const highest = highestStableVersion(document);
-  const latest = requireStableVersion(document["dist-tags"]?.latest, "rejudge latest tag");
-  if (compareVersions(highest, version) > 0 || compareVersions(latest, version) > 0) {
+  if (compareVersions(highest, version) >= 0 || compareVersions(latest, version) >= 0) {
     throw new Error(`Refusing to publish ${version}: npm highest=${highest}, latest=${latest}`);
   }
 }
 
-async function registryVerifyCommand([version]) {
-  await waitForRegistryVersion(requireStableVersion(version, "release version"));
+async function registryVerifyCommand([version, directory]) {
+  version = requireStableVersion(version, "release version");
+  await waitForRegistryVersion(version, requiredArgument(directory, "release files directory"));
+  await requireRegistryHead(version);
 }
 
-async function waitForRegistryVersion(version) {
+async function requireRegistryHead(version) {
+  const document = await registryDocument("rejudge", true);
+  if (document["dist-tags"]?.latest !== version) {
+    throw new Error(`npm latest is ${document["dist-tags"]?.latest}, expected newly published ${version}`);
+  }
+}
+
+async function registryProvenance([version]) {
+  version = requireStableVersion(version, "release version");
+  const document = await registryDocument("rejudge", true);
+  const predicate = document.versions?.[version]?.dist?.attestations?.provenance?.predicateType;
+  if (predicate !== "https://slsa.dev/provenance/v1") {
+    throw new Error(`npm rejudge@${version} has no SLSA provenance attestation`);
+  }
+  console.log(`Verified npm provenance for rejudge@${version}`);
+}
+
+async function waitForRegistryVersion(version, directory) {
+  const releaseFiles = await verifyReleaseFiles(directory, version);
   let lastError;
   for (let attempt = 1; attempt <= 12; attempt++) {
     try {
-      await verifyRegistryVersion(version);
+      await verifyRegistryVersion(version, directory, releaseFiles);
       return;
     } catch (error) {
       lastError = error;
@@ -501,36 +507,63 @@ async function waitForRegistryVersion(version) {
       }
     }
   }
-  throw new Error(`npm did not expose verified rejudge@${version} within 60 seconds: ${errorMessage(lastError)}`);
+  throw new Error(`npm did not expose verified rejudge@${version} after 12 checks: ${errorMessage(lastError)}`);
+}
+
+async function verifyRegistryVersion(version, directory, verifiedFiles) {
+  const releaseFiles = verifiedFiles ?? await verifyReleaseFiles(directory, version);
+  const document = await registryDocument("rejudge", true);
+  const published = document.versions?.[version];
+  if (!published) {
+    throw new Error(`rejudge@${version} is not visible in npm`);
+  }
+  if (published.dist?.integrity !== releaseFiles.integrity) {
+    throw new Error(`npm integrity ${published.dist?.integrity} differs from ${releaseFiles.integrity}`);
+  }
+  const tag = releaseTag(version);
+  if (published.gitHead && published.gitHead !== tag.commit) {
+    throw new Error(`npm gitHead ${published.gitHead} differs from tag commit ${tag.commit}`);
+  }
+  const response = await fetchChecked(published.dist.tarball, {}, `npm tarball rejudge@${version}`);
+  const downloadedIntegrity = sri(Buffer.from(await response.arrayBuffer()));
+  if (downloadedIntegrity !== releaseFiles.integrity) {
+    throw new Error(`npm tarball rejudge@${version} has ${downloadedIntegrity}, expected ${releaseFiles.integrity}`);
+  }
+  console.log(`Verified npm rejudge@${version} at ${releaseFiles.integrity}`);
 }
 
 async function verifyRecoveryDependencies([version]) {
   version = requireStableVersion(version, "release version");
-  const metadata = validateAutomatedTag(version, validateVersionTag(version));
-  const document = await registryDocument(PI_HOST_PACKAGE);
-  const manifestPath = `${metadata.commit}:package.json`;
-  const manifest = JSON.parse(git(["show", manifestPath]));
-  for (const piVersion of [metadata.piVersion, readPeerFloor(manifest, manifestPath)]) {
+  const tag = releaseTag(version);
+  for (const [packageName, piVersion] of Object.entries(tag.piPins)) {
+    const document = await registryDocument(packageName);
     if (!document.versions?.[piVersion]) {
-      throw new Error(`${PI_HOST_PACKAGE}@${piVersion} required by recovery ${version} is absent from npm`);
+      throw new Error(`${packageName}@${piVersion} required by release recovery or repair ${version} is absent from npm`);
     }
+  }
+  const floor = readPeerFloor(tag.manifest, `${tag.commit}:package.json`);
+  const host = await registryDocument(PI_HOST_PACKAGE);
+  if (!host.versions?.[floor]) {
+    throw new Error(`${PI_HOST_PACKAGE}@${floor} required by release recovery or repair ${version} is absent from npm`);
   }
 }
 
 async function inspectTarball(tarball, expectedRelease) {
   const manifestText = tarRead(tarball, "package/package.json");
-  const manifest = JSON.parse(manifestText);
+  let manifest;
+  try {
+    manifest = JSON.parse(manifestText);
+  } catch (error) {
+    throw new Error(`Could not parse package/package.json from ${tarball}: ${errorMessage(error)}`);
+  }
   const rootManifest = expectedRelease ? undefined : await readJson(PACKAGE_PATH);
-  const expectedName = rootManifest?.name ?? "rejudge";
-  const expectedVersion = expectedRelease?.version ?? rootManifest?.version;
-  if (manifest.name !== expectedName || manifest.version !== expectedVersion) {
-    throw new Error(`${tarball} contains ${manifest.name}@${manifest.version}, expected ${expectedName}@${expectedVersion}`);
+  const expectedVersion = expectedRelease?.version ?? rootManifest.version;
+  if (manifest.name !== "rejudge" || manifest.version !== expectedVersion) {
+    throw new Error(`${tarball} contains ${manifest.name}@${manifest.version}, expected rejudge@${expectedVersion}`);
   }
 
   const foundPins = readPiPins(manifest, `${tarball}:package/package.json`);
-  const expectedPins = expectedRelease
-    ? Object.fromEntries(PI_PACKAGES.map((packageName) => [packageName, expectedRelease.piVersion]))
-    : readPiPins(rootManifest, PACKAGE_PATH);
+  const expectedPins = expectedRelease?.piPins ?? readPiPins(rootManifest, PACKAGE_PATH);
   if (JSON.stringify(foundPins) !== JSON.stringify(expectedPins)) {
     throw new Error(`${tarball} Pi pins ${JSON.stringify(foundPins)} differ from ${JSON.stringify(expectedPins)}`);
   }
@@ -547,6 +580,9 @@ async function inspectTarball(tarball, expectedRelease) {
   if (!cli.startsWith("#!/usr/bin/env node\n") || !cli.includes(marker)) {
     throw new Error(`${tarball} CLI must keep its shebang and marker ${JSON.stringify(marker)}`);
   }
+  if (tarRead(tarball, "package/dist/extension.js").trim().length === 0) {
+    throw new Error(`${tarball} contains an empty Pi extension bundle`);
+  }
 
   return {
     filename: basename(tarball),
@@ -557,154 +593,37 @@ async function inspectTarball(tarball, expectedRelease) {
 }
 
 async function verifyReleaseFiles(directory, version) {
-  const metadata = validateAutomatedTag(version, validateVersionTag(version));
+  const tag = releaseTag(version);
   const expectedFiles = expectedReleaseFiles(version).sort();
   const files = (await readdir(directory)).filter((name) => !name.startsWith(".")).sort();
   if (JSON.stringify(files) !== JSON.stringify(expectedFiles)) {
     throw new Error(`${directory} contains ${JSON.stringify(files)}, expected ${JSON.stringify(expectedFiles)}`);
   }
 
-  const tarballPath = join(directory, metadata.tarball);
-  const details = await inspectTarball(tarballPath, { version, piVersion: metadata.piVersion });
-  if (details.integrity !== metadata.tarballIntegrity) {
-    throw new Error(`${tarballPath} integrity ${details.integrity} differs from tag ${metadata.tarballIntegrity}`);
-  }
-
   const manifestPath = join(directory, manifestFilename(version));
-  const manifestIntegrity = await sriFile(manifestPath);
-  if (manifestIntegrity !== metadata.manifestIntegrity) {
-    throw new Error(`${manifestPath} integrity ${manifestIntegrity} differs from tag ${metadata.manifestIntegrity}`);
-  }
   const releaseManifest = await readJson(manifestPath);
-  validateReleaseManifest(releaseManifest, version, metadata);
-  return { ...details, manifestIntegrity, tarball: tarballPath, manifest: manifestPath };
-}
+  validateReleaseManifest(releaseManifest, version, { commit: tag.commit, piVersion: tag.piVersion });
 
-async function verifyRegistryVersion(version) {
-  const metadata = validateAutomatedTag(version, validateVersionTag(version));
-  const document = await registryDocument("rejudge");
-  const published = document.versions?.[version];
-  if (!published) {
-    throw new Error(`rejudge@${version} is not visible in npm`);
-  }
-  if (document["dist-tags"]?.latest !== version) {
-    throw new Error(`npm latest is ${document["dist-tags"]?.latest}, expected ${version}`);
-  }
-  if (published.dist?.integrity !== metadata.tarballIntegrity) {
-    throw new Error(`npm integrity ${published.dist?.integrity} differs from tag ${metadata.tarballIntegrity}`);
-  }
-
-  const response = await fetchChecked(published.dist.tarball, {}, `npm tarball rejudge@${version}`);
-  const downloaded = Buffer.from(await response.arrayBuffer());
-  const downloadedIntegrity = sri(downloaded);
-  if (downloadedIntegrity !== metadata.tarballIntegrity) {
-    throw new Error(`npm tarball rejudge@${version} has ${downloadedIntegrity}, expected ${metadata.tarballIntegrity}`);
-  }
-  console.log(`Verified npm rejudge@${version} at ${metadata.tarballIntegrity}`);
-}
-
-function validatePublishedRelease(version, tag, published, latest) {
-  if (version === BASELINE.version) {
-    if (tag.type !== "commit") {
-      throw new Error(`Baseline ${version} must remain a lightweight tag, got ${tag.type}`);
-    }
-    if (tag.commit !== BASELINE.commit || published.gitHead !== BASELINE.commit) {
-      throw new Error(`Baseline ${version} commit mismatch: tag=${tag.commit}, npm=${published.gitHead}`);
-    }
-    if (published.dist?.integrity !== BASELINE.integrity || latest !== BASELINE.version) {
-      throw new Error(`Baseline ${version} registry metadata differs from the recorded release`);
-    }
-    return undefined;
-  }
-
-  const metadata = validateAutomatedTag(version, tag);
-  if (published.dist?.integrity !== metadata.tarballIntegrity) {
-    throw new Error(`rejudge@${version} integrity ${published.dist?.integrity} differs from tag ${metadata.tarballIntegrity}`);
-  }
-  if (published.gitHead && published.gitHead !== tag.commit) {
-    throw new Error(`rejudge@${version} gitHead ${published.gitHead} differs from tag commit ${tag.commit}`);
-  }
-  return metadata;
-}
-
-function validateVersionTag(version) {
-  const ref = `refs/tags/v${version}`;
-  const commit = git(["rev-parse", `${ref}^{commit}`]);
-  const ancestor = spawnSync("git", ["merge-base", "--is-ancestor", commit, "origin/main"], { cwd: ROOT });
-  if (ancestor.status !== 0) {
-    throw new Error(`${ref} commit ${commit} is not an ancestor of origin/main`);
-  }
-
-  const manifest = JSON.parse(git(["show", `${commit}:package.json`]));
-  if (manifest.version !== version) {
-    throw new Error(`${ref} commit ${commit} contains package version ${manifest.version}, expected ${version}`);
-  }
-  const type = git(["cat-file", "-t", ref]);
-  return { ref, commit, type };
-}
-
-function validateAutomatedTag(version, tag) {
-  if (tag.type !== "tag") {
-    throw new Error(`Automated release v${version} must be an annotated tag, got ${tag.type}`);
-  }
-  const message = git(["for-each-ref", "--format=%(contents)", tag.ref]);
-  const metadata = parseTagMessage(message);
-  const expected = {
-    schema: RELEASE_SCHEMA,
-    version,
-    commit: tag.commit,
-    smokes: SMOKES.join(","),
-  };
-  for (const [key, value] of Object.entries(expected)) {
-    if (metadata[key] !== value) {
-      throw new Error(`${tag.ref} metadata ${key}=${metadata[key]} differs from ${value}`);
+  const legacy = LEGACY_RELEASES[version];
+  if (legacy) {
+    const manifestIntegrity = await sriFile(manifestPath);
+    if (tag.commit !== legacy.commit || manifestIntegrity !== legacy.manifestIntegrity) {
+      throw new Error(`Legacy release v${version} tag or manifest differs from its recorded tested candidate`);
     }
   }
-  requireStableVersion(metadata.piVersion, `${tag.ref} Pi version`);
-  requireIntegrity(metadata.tarballIntegrity, `${tag.ref} tarball integrity`);
-  requireIntegrity(metadata.manifestIntegrity, `${tag.ref} manifest integrity`);
-  requiredDigits(metadata.runId, `${tag.ref} run ID`);
-  requiredDigits(metadata.artifactId, `${tag.ref} artifact ID`);
-  if (metadata.tarball !== tarballFilename(version)) {
-    throw new Error(`${tag.ref} tarball ${metadata.tarball} differs from ${tarballFilename(version)}`);
+
+  const tarballPath = join(directory, tarballFilename(version));
+  const details = await inspectTarball(tarballPath, { version, piPins: tag.piPins });
+  if (details.integrity !== releaseManifest.tarballIntegrity) {
+    throw new Error(`${tarballPath} integrity ${details.integrity} differs from manifest ${releaseManifest.tarballIntegrity}`);
   }
-  return metadata;
+  if (legacy && details.integrity !== legacy.tarballIntegrity) {
+    throw new Error(`Legacy release v${version} tarball integrity ${details.integrity} differs from its recorded tested candidate`);
+  }
+  return { ...details, tarball: tarballPath, manifest: manifestPath };
 }
 
-export function parseTagMessage(message) {
-  const mapping = {
-    "rejudge-release-schema": "schema",
-    version: "version",
-    "pi-version": "piVersion",
-    commit: "commit",
-    tarball: "tarball",
-    "tarball-integrity": "tarballIntegrity",
-    "manifest-integrity": "manifestIntegrity",
-    "run-id": "runId",
-    "artifact-id": "artifactId",
-    smokes: "smokes",
-  };
-  const result = {};
-  for (const line of message.split(/\r?\n/)) {
-    const separator = line.indexOf("=");
-    if (separator < 1) continue;
-    const rawKey = line.slice(0, separator);
-    const key = mapping[rawKey];
-    if (!key) continue;
-    if (result[key] !== undefined) {
-      throw new Error(`Release tag metadata repeats ${rawKey}`);
-    }
-    result[key] = line.slice(separator + 1);
-  }
-  for (const key of Object.values(mapping)) {
-    if (!result[key]) {
-      throw new Error(`Release tag metadata is missing ${key}`);
-    }
-  }
-  return result;
-}
-
-function releaseManifestData(version, piVersion, commit, tarball, tarballIntegrity) {
+export function releaseManifestData(version, piVersion, commit, tarball, tarballIntegrity) {
   return {
     schemaVersion: 1,
     package: "rejudge",
@@ -717,23 +636,32 @@ function releaseManifestData(version, piVersion, commit, tarball, tarballIntegri
   };
 }
 
-function validateReleaseManifest(manifest, version, metadata) {
-  const expected = {
+export function validateReleaseManifest(manifest, version, expected = {}) {
+  version = requireStableVersion(version, "release version");
+  requireStableVersion(manifest.piVersion, `release manifest ${version} Pi version`);
+  requireIntegrity(manifest.tarballIntegrity, `release manifest ${version} tarball integrity`);
+  if (!Array.isArray(manifest.smokes) || manifest.smokes.length === 0 || manifest.smokes.some((smoke) => typeof smoke !== "string" || !smoke)) {
+    throw new Error(`Release manifest ${version} smokes must be a non-empty string array, got ${JSON.stringify(manifest.smokes)}`);
+  }
+  if (!/^[a-f0-9]{40}$/.test(manifest.commit ?? "")) {
+    throw new Error(`Release manifest ${version} commit is invalid: ${JSON.stringify(manifest.commit)}`);
+  }
+  const wanted = {
     schemaVersion: 1,
     package: "rejudge",
     version,
-    piVersion: metadata?.piVersion ?? manifest.piVersion,
-    commit: metadata?.commit ?? manifest.commit,
-    tarball: metadata?.tarball ?? tarballFilename(version),
-    tarballIntegrity: metadata?.tarballIntegrity ?? manifest.tarballIntegrity,
-    smokes: SMOKES,
+    piVersion: expected.piVersion ?? manifest.piVersion,
+    commit: expected.commit ?? manifest.commit,
+    tarball: tarballFilename(version),
+    tarballIntegrity: manifest.tarballIntegrity,
+    smokes: manifest.smokes,
   };
   const foundKeys = Object.keys(manifest).sort();
-  const expectedKeys = Object.keys(expected).sort();
+  const expectedKeys = Object.keys(wanted).sort();
   if (JSON.stringify(foundKeys) !== JSON.stringify(expectedKeys)) {
     throw new Error(`Release manifest for ${version} has keys ${JSON.stringify(foundKeys)}, expected ${JSON.stringify(expectedKeys)}`);
   }
-  for (const [key, value] of Object.entries(expected)) {
+  for (const [key, value] of Object.entries(wanted)) {
     if (JSON.stringify(manifest[key]) !== JSON.stringify(value)) {
       throw new Error(`Release manifest for ${version} has ${key}=${JSON.stringify(manifest[key])}, expected ${JSON.stringify(value)}`);
     }
@@ -743,8 +671,7 @@ function validateReleaseManifest(manifest, version, metadata) {
 function readPiPins(manifest, label) {
   const pins = {};
   for (const packageName of PI_PACKAGES) {
-    const version = manifest.devDependencies?.[packageName];
-    pins[packageName] = requireStableVersion(version, `${label} ${packageName}`);
+    pins[packageName] = requireStableVersion(manifest.devDependencies?.[packageName], `${label} ${packageName}`);
   }
   return pins;
 }
@@ -752,18 +679,22 @@ function readPiPins(manifest, label) {
 function onePiVersion(pins, label) {
   const versions = [...new Set(Object.values(pins))];
   if (versions.length !== 1) {
-    throw new Error(`${label} Pi package pins diverge: ${JSON.stringify(pins)}`);
+    throw new Error(`${label} diverge: ${JSON.stringify(pins)}`);
   }
   return versions[0];
 }
 
 function readPeerFloor(manifest, label) {
-  const range = manifest.peerDependencies?.[PI_HOST_PACKAGE];
-  const match = typeof range === "string" ? range.match(/^>=(\d+\.\d+\.\d+) <2$/) : undefined;
-  if (!match) {
-    throw new Error(`${label} ${PI_HOST_PACKAGE} peer range must have the form >=x.y.z <2, got ${JSON.stringify(range)}`);
+  let floor;
+  for (const packageName of [PI_HOST_PACKAGE, "@earendil-works/pi-tui"]) {
+    const range = manifest.peerDependencies?.[packageName];
+    const match = typeof range === "string" ? range.match(/^>=(\d+\.\d+\.\d+) <2$/) : undefined;
+    if (!match || match[1] !== "1.3.0") {
+      throw new Error(`${label} ${packageName} peer range must remain >=1.3.0 <2, got ${JSON.stringify(range)}`);
+    }
+    floor = match[1];
   }
-  return match[1];
+  return floor;
 }
 
 export function parseStableVersion(version) {
@@ -797,8 +728,9 @@ function highestStableVersion(document) {
   return stable.sort(compareVersions).at(-1);
 }
 
-async function registryDocument(packageName) {
-  return fetchJsonWithRetry(`https://registry.npmjs.org/${encodeURIComponent(packageName)}`, `npm package ${packageName}`);
+async function registryDocument(packageName, fresh = false) {
+  const suffix = fresh ? `?rejudge_check=${Date.now()}` : "";
+  return fetchJsonWithRetry(`https://registry.npmjs.org/${encodeURIComponent(packageName)}${suffix}`, `npm package ${packageName}`);
 }
 
 async function fetchJsonWithRetry(url, label) {
@@ -806,9 +738,6 @@ async function fetchJsonWithRetry(url, label) {
   for (let attempt = 1; attempt <= REGISTRY_RETRIES; attempt++) {
     try {
       const response = await fetch(url, { headers: { accept: "application/json" } });
-      if (response.status === 404) {
-        throw new Error(`${label} returned confirmed 404`);
-      }
       if (!response.ok) {
         throw new Error(`${label} returned HTTP ${response.status}`);
       }
@@ -852,14 +781,13 @@ function githubHeaders(accept = "application/vnd.github+json") {
 async function githubRequest(path, options = {}) {
   const url = path.startsWith("https://") ? path : `https://api.github.com${path}`;
   const jsonBody = options.body !== undefined && !(options.body instanceof Buffer);
-  const headers = {
-    ...githubHeaders(options.accept),
-    ...(jsonBody ? { "content-type": "application/json" } : {}),
-    ...options.headers,
-  };
   const response = await fetch(url, {
     method: options.method ?? "GET",
-    headers,
+    headers: {
+      ...githubHeaders(options.accept),
+      ...(jsonBody ? { "content-type": "application/json" } : {}),
+      ...options.headers,
+    },
     body: options.body instanceof Buffer ? options.body : jsonBody ? JSON.stringify(options.body) : undefined,
   });
   if (!response.ok) {
@@ -872,20 +800,15 @@ async function githubRequest(path, options = {}) {
 
 async function uploadReleaseAsset(release, name, path) {
   const uploadUrl = release.upload_url.replace(/\{.*$/, "");
-  const body = await readFile(path);
   await githubRequest(`${uploadUrl}?name=${encodeURIComponent(name)}`, {
     method: "POST",
-    body,
-    raw: false,
+    body: await readFile(path),
     headers: { "content-type": "application/octet-stream" },
   });
 }
 
 async function downloadReleaseAsset(asset, path) {
-  const response = await githubRequest(asset.url, {
-    accept: "application/octet-stream",
-    raw: true,
-  });
+  const response = await githubRequest(asset.url, { accept: "application/octet-stream", raw: true });
   await writeFile(path, Buffer.from(await response.arrayBuffer()));
 }
 
@@ -895,35 +818,32 @@ function validateReleaseIdentity(release, version) {
   }
 }
 
+function hasCompleteReleaseAssets(release, version) {
+  validateReleaseIdentity(release, version);
+  assertReleaseAssetSubset(release, version);
+  const names = release.assets.map((asset) => asset.name).sort();
+  return JSON.stringify(names) === JSON.stringify(expectedReleaseFiles(version).sort());
+}
+
 function assertReleaseAssetSubset(release, version) {
   const expected = new Set(expectedReleaseFiles(version));
   const extra = release.assets.map((asset) => asset.name).filter((name) => !expected.has(name));
   if (extra.length > 0) {
-    throw new Error(`GitHub Release v${version} has unexpected assets: ${extra.join(", ")}`);
+    throw new Error(`GitHub Release v${version} has unexpected assets: ${extra.join(", ")}; delete each with gh release delete-asset v${version} <asset> --yes before recovery`);
   }
 }
 
 function assertReleaseAssetNames(release, version) {
-  assertReleaseAssetSubset(release, version);
-  const names = release.assets.map((asset) => asset.name).sort();
-  const expected = expectedReleaseFiles(version).sort();
-  if (JSON.stringify(names) !== JSON.stringify(expected)) {
-    throw new Error(`GitHub Release v${version} assets ${JSON.stringify(names)} differ from ${JSON.stringify(expected)}`);
-  }
-}
-
-async function verifyAssetIntegrity(name, path, metadata, version) {
-  const expected = name === tarballFilename(version) ? metadata.tarballIntegrity : metadata.manifestIntegrity;
-  const found = await sriFile(path);
-  if (found !== expected) {
-    throw new Error(`GitHub asset ${name} has ${found}, expected ${expected}`);
+  if (!hasCompleteReleaseAssets(release, version)) {
+    const names = release.assets.map((asset) => asset.name).sort();
+    throw new Error(`GitHub Release v${version} assets ${JSON.stringify(names)} differ from ${JSON.stringify(expectedReleaseFiles(version).sort())}`);
   }
 }
 
 async function changelogNotes(version) {
   const changelog = await readFile(CHANGELOG_PATH, "utf8");
-  const startMarker = `## ${version} —`;
-  const start = changelog.indexOf(startMarker);
+  const marker = `## ${version} —`;
+  const start = changelog.indexOf(marker);
   if (start < 0) {
     throw new Error(`${CHANGELOG_PATH} has no release ${version}`);
   }
@@ -948,23 +868,11 @@ function releaseTitle(version) {
   return `Rejudge v${version}`;
 }
 
-function tagOutputs(metadata) {
-  return {
-    version: metadata.version,
-    piVersion: metadata.piVersion,
-    commit: metadata.commit,
-    tarball: metadata.tarball,
-    integrity: metadata.tarballIntegrity,
-    manifestIntegrity: metadata.manifestIntegrity,
-    runId: metadata.runId,
-    artifactId: metadata.artifactId,
-  };
-}
-
 function emitState(mode, values) {
   const state = { mode, ...values };
   emitOutputs(state);
   console.log(JSON.stringify(state));
+  return state;
 }
 
 function emitOutputs(values) {
@@ -979,7 +887,12 @@ function camelToSnake(value) {
 }
 
 async function readJson(path) {
-  return JSON.parse(await readFile(path, "utf8"));
+  const text = await readFile(path, "utf8");
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`Could not parse JSON ${path}: ${errorMessage(error)}`);
+  }
 }
 
 function git(args) {
@@ -1026,13 +939,6 @@ function requiredArgument(value, label) {
   return value;
 }
 
-function requiredDigits(value, label) {
-  if (typeof value !== "string" || !/^\d+$/.test(value)) {
-    throw new Error(`${label} must contain only digits, got ${JSON.stringify(value)}`);
-  }
-  return value;
-}
-
 function githubRepository() {
   const repository = process.env.GITHUB_REPOSITORY;
   if (!repository || !/^[^/]+\/[^/]+$/.test(repository)) {
@@ -1052,5 +958,3 @@ async function fetchChecked(url, options, label) {
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
 }
-
-export { releaseManifestData, validateReleaseManifest };
