@@ -233,3 +233,8 @@ The landing page shows the complete path from the user's question through separa
   **Implemented:**
   - The CLI history test has a 15-second limit while retaining all six subprocess checks.
   - The full local check and GitHub `Prepare fresh release candidate` step pass.
+
+- [ ] REL-091 Keep the Pi live smoke focused on successful execution
+  Pi 1.x release checks accept a completed Rejudge tool run even when model formatting varies.
+
+  DoD: the Pi smoke requires the product-generated Run ID, reports redacted returned text on failure, and a GitHub dry run passes current Pi and the `1.3.0` peer floor.
