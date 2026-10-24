@@ -254,6 +254,16 @@ function assertExactLine(text, expected, label) {
   assert.equal(found, true, `${label} did not return the exact marker line ${JSON.stringify(expected)}`);
 }
 
+function assertCompletedFreshReview(text, label) {
+  const finalLine = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).at(-1);
+  // This standalone smoke cannot import TypeScript; keep the format aligned with src/run-store.ts RUN_ID_RE.
+  const match = finalLine?.match(/^Run ID: (\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z-[a-z0-9]{1,8})\. Follow up with resumeRunId: "([^"]+)"\.$/);
+  assert.ok(
+    match && match[1] === match[2],
+    `${label} did not return a completed fresh review; final line: ${JSON.stringify(finalLine ?? null)}\n${outputTail(text)}`,
+  );
+}
+
 async function writeGlobalSmokeConfig(xdg) {
   const configDir = join(xdg, "rejudge");
   await mkdir(configDir, { recursive: true });
@@ -748,7 +758,7 @@ async function runPiTarget(context, live) {
     "package-smoke",
     {
       question: "Calculate 3 + 4.",
-      outputInstructions: "End with the exact line PI_SMOKE_OK: 7",
+      outputInstructions: "Return a concise answer.",
     },
     AbortSignal.timeout(PROCESS_TIMEOUT_MS),
     undefined,
@@ -758,7 +768,7 @@ async function runPiTarget(context, live) {
     .filter((content) => content.type === "text")
     .map((content) => content.text)
     .join("\n");
-  assertExactLine(text, "PI_SMOKE_OK: 7", "Pi rejudge tool");
+  assertCompletedFreshReview(text, "Pi rejudge tool");
   console.log("[smoke] live Pi tool call passed");
   return resultContext;
 }
