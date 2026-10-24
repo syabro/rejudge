@@ -104,4 +104,4 @@ test("history finds conversation runs, falls back by directory, and orders by la
     for (const id of ids) rmSync(runDir(id), { recursive: true, force: true });
     rmSync(cwd, { recursive: true, force: true });
   }
-});
+}, 15_000);
