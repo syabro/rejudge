@@ -496,18 +496,18 @@ async function registryProvenance([version]) {
 async function waitForRegistryVersion(version, directory) {
   const releaseFiles = await verifyReleaseFiles(directory, version);
   let lastError;
-  for (let attempt = 1; attempt <= 12; attempt++) {
+  for (let attempt = 1; attempt <= 31; attempt++) {
     try {
       await verifyRegistryVersion(version, directory, releaseFiles);
       return;
     } catch (error) {
       lastError = error;
-      if (attempt < 12) {
-        await new Promise((resolvePromise) => setTimeout(resolvePromise, 5000));
+      if (attempt < 31) {
+        await new Promise((resolvePromise) => setTimeout(resolvePromise, 10000));
       }
     }
   }
-  throw new Error(`npm did not expose verified rejudge@${version} after 12 checks: ${errorMessage(lastError)}`);
+  throw new Error(`npm did not expose verified rejudge@${version} after 31 checks over 5 minutes: ${errorMessage(lastError)}`);
 }
 
 async function verifyRegistryVersion(version, directory, verifiedFiles) {
