@@ -6,6 +6,7 @@ import {
   SessionManager,
   SettingsManager,
   type AgentSession,
+  type ExtensionRuntime,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import type { Model, ThinkingLevel } from "@earendil-works/pi-ai";
@@ -52,6 +53,11 @@ export const WEB_SEARCH_TOOL = "web_search";
  * other host extension is filtered out so its lifecycle handlers never fire for a reviewer or
  * judge — which is what made a host like Herdr or a session indicator flash on each inner
  * agent's completion. Today the only opt-in is `web_search`.
+ *
+ * Filtering an extension out of the session does not discard the model providers it registered:
+ * those registrations were queued while it loaded and are still applied to the ModelRuntime (see
+ * {@link flushProviderRegistrations}), so a filtered extension contributes its model catalog
+ * without contributing any event handlers.
  */
 const OPT_IN_HOST_TOOLS = new Set<string>([WEB_SEARCH_TOOL]);
 
@@ -82,6 +88,47 @@ function innerResourceLoader(cwd: string): { resourceLoader: DefaultResourceLoad
     }),
   });
   return { resourceLoader, settingsManager };
+}
+
+/**
+ * Flush the model providers extensions registered with `pi.registerProvider()` during load
+ * (plus the native-provider and virtual-model variants) into the ModelRuntime, mirroring what
+ * the SDK does in `createAgentSessionServices`.
+ *
+ * Those calls are queued on the extension runtime until a runner binds them; the inner session
+ * never reaches that step for a filtered-out extension, so without this flush a model that
+ * `pi --list-models` shows fails to resolve with `Unknown model` (issue #9). The queues are
+ * cleared afterwards so the session's own runner binding cannot apply a registration twice.
+ * One broken registration is skipped rather than killing the whole panel — the model it would
+ * have provided then simply stays unknown.
+ */
+function flushProviderRegistrations(modelRuntime: ModelRuntime, runtime: ExtensionRuntime): void {
+  for (const { name, config } of runtime.pendingProviderRegistrations) {
+    try {
+      modelRuntime.registerProvider(name, config);
+    } catch {
+      // Skip; resolveModel reports its models as unknown.
+    }
+  }
+  runtime.pendingProviderRegistrations = [];
+
+  for (const { provider } of runtime.pendingNativeProviderRegistrations) {
+    try {
+      modelRuntime.registerNativeProvider(provider);
+    } catch {
+      // Same policy as the queued-config path above.
+    }
+  }
+  runtime.pendingNativeProviderRegistrations = [];
+
+  for (const { definition } of runtime.pendingVirtualModelRegistrations) {
+    try {
+      modelRuntime.registerVirtualModel(definition);
+    } catch {
+      // Same policy as the queued-config path above.
+    }
+  }
+  runtime.pendingVirtualModelRegistrations = [];
 }
 
 function availableHostTools(resourceLoader: DefaultResourceLoader): string[] {
@@ -212,11 +259,13 @@ export interface AgentFailure {
 }
 
 /**
- * Build one inner-agent session (no prompt). Resolves the model, loads the host's extensions but
- * keeps only those that provide an opt-in tool ({@link OPT_IN_HOST_TOOLS}, today just
- * `web_search`) — everything else is dropped at load so its lifecycle handlers (a Herdr/terminal
- * notifier, a session indicator, even `rejudge` itself) never fire for a reviewer or judge —
- * then creates the session with the right tool set.
+ * Build one inner-agent session (no prompt). Loads the host's extensions first, keeping only
+ * those that provide an opt-in tool ({@link OPT_IN_HOST_TOOLS}, today just `web_search`) —
+ * everything else is dropped at load so its lifecycle handlers (a Herdr/terminal notifier, a
+ * session indicator, even `rejudge` itself) never fire for a reviewer or judge — then applies
+ * every loaded extension's registered providers to the ModelRuntime, resolves the model against
+ * it (extension-registered providers included, issue #9), and creates the session with the
+ * right tool set.
  *
  * A reviewer gets the local tool set: read/grep/find/ls + `git_diff` (TLS-026), `fullTools` adds
  * edit/write/bash, plus `web_search` when the host has it. The judge gets only `askPanel`.
@@ -227,12 +276,18 @@ export async function createInnerAgentSession(
   modelId: string,
   options: RunAgentOptions = {},
 ): Promise<AgentSession> {
-  const modelRuntime = await ModelRuntime.create();
-  const model = await resolveModel(modelId, modelRuntime);
   const cwd = options.cwd ?? process.cwd();
 
+  // Load the host extensions before resolving the model: an extension's `pi.registerProvider()`
+  // is queued during load and only reaches the ModelRuntime through the flush below. Resolving
+  // against a runtime built before any extension ran is what made extension-provided providers
+  // (e.g. opencode-pi) fail with `Unknown model` (issue #9).
   const { resourceLoader, settingsManager } = innerResourceLoader(cwd);
   await resourceLoader.reload();
+
+  const modelRuntime = await ModelRuntime.create();
+  flushProviderRegistrations(modelRuntime, resourceLoader.getExtensions().runtime);
+  const model = await resolveModel(modelId, modelRuntime);
 
   let customTools: ToolDefinition[];
   let tools: string[];

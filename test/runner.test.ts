@@ -5,7 +5,7 @@ import {
   type AgentSession,
   type AgentSessionEvent,
 } from "@earendil-works/pi-coding-agent";
-import { mkdtempSync } from "node:fs";
+import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
@@ -181,6 +181,53 @@ test("a judge session exposes ask_panel and nothing else", async () => {
     expect(session.getActiveToolNames()).toEqual([ASK_PANEL_TOOL_NAME]);
   } finally {
     session.dispose();
+  }
+}, 30_000);
+
+// Real SDK, no model call: a host extension that only calls pi.registerProvider() (no tools)
+// must still make its models usable as reviewers/judge — the regression from issue #9, where
+// createInnerAgentSession resolved the model against a bare ModelRuntime before extensions ran
+// and failed with "Unknown model" on e.g. opencode-pi's providers. The isolated agent dir keeps
+// the user's real extensions out of the test.
+test("a model from an extension-registered provider resolves in an inner session", async () => {
+  const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
+  const cwd = mkdtempSync(join(tmpdir(), "rejudge-proj-"));
+  mkdirSync(join(agentDir, "extensions"));
+  writeFileSync(
+    join(agentDir, "extensions", "fake-provider.js"),
+    `export default function (pi) {
+  pi.registerProvider("ext-test", {
+    baseUrl: "https://example.invalid",
+    apiKey: "test-key",
+    api: "openai-responses",
+    models: [
+      {
+        id: "fake/model-1",
+        name: "Fake Model",
+        reasoning: false,
+        input: ["text"],
+        cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+        contextWindow: 200000,
+        maxTokens: 8192,
+      },
+    ],
+  });
+}
+`,
+  );
+
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = agentDir;
+  try {
+    const session = await createInnerAgentSession("ext-test/fake/model-1", { cwd });
+    try {
+      expect(session.modelRuntime.getModel("ext-test", "fake/model-1")).toBeDefined();
+    } finally {
+      session.dispose();
+    }
+  } finally {
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
   }
 }, 30_000);
 
