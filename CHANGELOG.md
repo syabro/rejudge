@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.3 — 2026-11-04
+
+### Changed
+
+- The standalone CLI now bundles Pi SDK 1.5.0 instead of 1.4.0.
+
 ## 0.5.2 — 2026-10-24
 
 ### Changed
