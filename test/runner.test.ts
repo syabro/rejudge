@@ -1,4 +1,4 @@
-import { test, expect } from "vitest";
+import { test, expect, vi } from "vitest";
 import {
   createAgentSession,
   ModelRuntime,
@@ -185,9 +185,7 @@ test("a judge session exposes ask_panel and nothing else", async () => {
 }, 30_000);
 
 // Real SDK, no model call: a host extension that only calls pi.registerProvider() (no tools)
-// must still make its models usable as reviewers/judge — the regression from issue #9, where
-// createInnerAgentSession resolved the model against a bare ModelRuntime before extensions ran
-// and failed with "Unknown model" on e.g. opencode-pi's providers. The isolated agent dir keeps
+// must still make its models usable as reviewers/judge (issue #9). The isolated agent dir keeps
 // the user's real extensions out of the test.
 test("a model from an extension-registered provider resolves in an inner session", async () => {
   const agentDir = mkdtempSync(join(tmpdir(), "rejudge-agentdir-"));
@@ -202,6 +200,7 @@ test("a model from an extension-registered provider resolves in an inner session
     api: "openai-responses",
     models: [
       {
+        // A slash inside the model id, as opencode-pi ids have.
         id: "fake/model-1",
         name: "Fake Model",
         reasoning: false,
@@ -216,18 +215,14 @@ test("a model from an extension-registered provider resolves in an inner session
 `,
   );
 
-  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
-  process.env.PI_CODING_AGENT_DIR = agentDir;
+  vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
+
   try {
     const session = await createInnerAgentSession("ext-test/fake/model-1", { cwd });
-    try {
-      expect(session.modelRuntime.getModel("ext-test", "fake/model-1")).toBeDefined();
-    } finally {
-      session.dispose();
-    }
+    expect(session.modelRuntime.getModel("ext-test", "fake/model-1")).toBeDefined();
+    session.dispose();
   } finally {
-    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
-    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    vi.unstubAllEnvs();
   }
 }, 30_000);
 
