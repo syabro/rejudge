@@ -70,24 +70,18 @@ export function reviewerToolNames(fullTools: boolean, hostTools: readonly string
   return tools;
 }
 
-/**
- * Create a loader with only opt-in host extensions for reviewer tool discovery.
- * Skips createAgentSessionServices: tool discovery needs no model runtime.
- */
-function createToolDiscoveryLoader(cwd: string): DefaultResourceLoader {
+function innerResourceLoader(cwd: string): { resourceLoader: DefaultResourceLoader; settingsManager: SettingsManager } {
   const agentDir = getAgentDir();
   const settingsManager = SettingsManager.create(cwd, agentDir);
-  return new DefaultResourceLoader({
+  const resourceLoader = new DefaultResourceLoader({
     cwd,
     agentDir,
     settingsManager,
     extensionsOverride: keepOptInExtensions,
   });
+  return { resourceLoader, settingsManager };
 }
 
-/**
- * Keep only the host extensions that provide an opt-in tool ({@link OPT_IN_HOST_TOOLS}).
- */
 function keepOptInExtensions(base: LoadExtensionsResult): LoadExtensionsResult {
   return {
     ...base,
@@ -105,7 +99,7 @@ function availableHostTools(resourceLoader: ResourceLoader): string[] {
 
 /** Resolve the exact reviewer tools before a live block is first painted. */
 export async function resolveReviewerToolNames(cwd: string, fullTools: boolean): Promise<string[]> {
-  const resourceLoader = createToolDiscoveryLoader(cwd);
+  const { resourceLoader } = innerResourceLoader(cwd);
   await resourceLoader.reload();
   return reviewerToolNames(fullTools, availableHostTools(resourceLoader));
 }
@@ -226,8 +220,10 @@ export interface AgentFailure {
 
 /**
  * Build one inner-agent session (no prompt). Loads the host's extensions but keeps only those
- * that provide an opt-in tool ({@link OPT_IN_HOST_TOOLS}). Resolves the model, including
- * models from extension-registered providers, then creates the session with the right tool set.
+ * that provide an opt-in tool ({@link OPT_IN_HOST_TOOLS}, today just `web_search`) — everything
+ * else is dropped at load so its lifecycle handlers (a Herdr/terminal notifier, a session
+ * indicator, even `rejudge` itself) never fire for a reviewer or judge — then resolves the
+ * model and creates the session with the right tool set.
  *
  * A reviewer gets the local tool set: read/grep/find/ls + `git_diff` (TLS-026), `fullTools` adds
  * edit/write/bash, plus `web_search` when the host has it. The judge gets only `askPanel`.

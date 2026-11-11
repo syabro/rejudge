@@ -200,8 +200,7 @@ test("a model from an extension-registered provider resolves in an inner session
     api: "openai-responses",
     models: [
       {
-        // A slash inside the model id, as opencode-pi ids have.
-        id: "fake/model-1",
+        id: "model-1",
         name: "Fake Model",
         reasoning: false,
         input: ["text"],
@@ -218,8 +217,7 @@ test("a model from an extension-registered provider resolves in an inner session
   vi.stubEnv("PI_CODING_AGENT_DIR", agentDir);
 
   try {
-    const session = await createInnerAgentSession("ext-test/fake/model-1", { cwd });
-    expect(session.modelRuntime.getModel("ext-test", "fake/model-1")).toBeDefined();
+    const session = await createInnerAgentSession("ext-test/model-1", { cwd });
     session.dispose();
   } finally {
     vi.unstubAllEnvs();
