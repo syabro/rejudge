@@ -1,11 +1,14 @@
 import {
   createAgentSession,
+  createAgentSessionServices,
   DefaultResourceLoader,
   getAgentDir,
   ModelRuntime,
   SessionManager,
   SettingsManager,
   type AgentSession,
+  type LoadExtensionsResult,
+  type ResourceLoader,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
 import type { Model, ThinkingLevel } from "@earendil-works/pi-ai";
@@ -74,17 +77,21 @@ function innerResourceLoader(cwd: string): { resourceLoader: DefaultResourceLoad
     cwd,
     agentDir,
     settingsManager,
-    extensionsOverride: (base) => ({
-      ...base,
-      extensions: base.extensions.filter((e) =>
-        [...e.tools.keys()].some((name) => OPT_IN_HOST_TOOLS.has(name)),
-      ),
-    }),
+    extensionsOverride: keepOptInExtensions,
   });
   return { resourceLoader, settingsManager };
 }
 
-function availableHostTools(resourceLoader: DefaultResourceLoader): string[] {
+function keepOptInExtensions(base: LoadExtensionsResult): LoadExtensionsResult {
+  return {
+    ...base,
+    extensions: base.extensions.filter((extension) =>
+      [...extension.tools.keys()].some((name) => OPT_IN_HOST_TOOLS.has(name)),
+    ),
+  };
+}
+
+function availableHostTools(resourceLoader: ResourceLoader): string[] {
   return resourceLoader.getExtensions().extensions
     .flatMap((extension) => [...extension.tools.keys()])
     .filter((name) => OPT_IN_HOST_TOOLS.has(name));
@@ -212,11 +219,11 @@ export interface AgentFailure {
 }
 
 /**
- * Build one inner-agent session (no prompt). Resolves the model, loads the host's extensions but
- * keeps only those that provide an opt-in tool ({@link OPT_IN_HOST_TOOLS}, today just
- * `web_search`) — everything else is dropped at load so its lifecycle handlers (a Herdr/terminal
- * notifier, a session indicator, even `rejudge` itself) never fire for a reviewer or judge —
- * then creates the session with the right tool set.
+ * Build one inner-agent session (no prompt). Loads the host's extensions but keeps only those
+ * that provide an opt-in tool ({@link OPT_IN_HOST_TOOLS}, today just `web_search`) — everything
+ * else is dropped at load so its lifecycle handlers (a Herdr/terminal notifier, a session
+ * indicator, even `rejudge` itself) never fire for a reviewer or judge — then resolves the
+ * model and creates the session with the right tool set.
  *
  * A reviewer gets the local tool set: read/grep/find/ls + `git_diff` (TLS-026), `fullTools` adds
  * edit/write/bash, plus `web_search` when the host has it. The judge gets only `askPanel`.
@@ -227,12 +234,15 @@ export async function createInnerAgentSession(
   modelId: string,
   options: RunAgentOptions = {},
 ): Promise<AgentSession> {
-  const modelRuntime = await ModelRuntime.create();
-  const model = await resolveModel(modelId, modelRuntime);
   const cwd = options.cwd ?? process.cwd();
 
-  const { resourceLoader, settingsManager } = innerResourceLoader(cwd);
-  await resourceLoader.reload();
+  // Resolve the model after this: the SDK applies `pi.registerProvider()` from every loaded
+  // extension (including filtered-out ones) to the model runtime (issue #9).
+  const { resourceLoader, settingsManager, modelRuntime } = await createAgentSessionServices({
+    cwd,
+    resourceLoaderOptions: { extensionsOverride: keepOptInExtensions },
+  });
+  const model = await resolveModel(modelId, modelRuntime);
 
   let customTools: ToolDefinition[];
   let tools: string[];
